@@ -1,0 +1,19 @@
+# Gradle / Android
+.gradle/
+build/
+/local.properties
+captures/
+.externalNativeBuild/
+.cxx/
+*.apk
+*.aab
+*.hprof
+
+# IDE
+.idea/
+*.iml
+.DS_Store
+
+# Логи и мусор
+*.log
+*.tmp

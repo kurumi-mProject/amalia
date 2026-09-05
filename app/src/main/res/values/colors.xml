@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Тёмная тема для окна до старта Compose: без белой вспышки. -->
+    <color name="amalia_deep_navy">#0B1020</color>
+    <color name="amalia_surface">#12182B</color>
+</resources>
