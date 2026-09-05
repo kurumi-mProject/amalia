@@ -10,7 +10,7 @@ plugins {
 
 android {
     namespace = "com.my.amali"
-    compileSdk = 36
+    compileSdk = 37
 
     defaultConfig {
         applicationId = "com.my.amali"

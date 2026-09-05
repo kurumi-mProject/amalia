@@ -12,7 +12,7 @@
 | Gradle | 9.7.1 |
 | Android Gradle Plugin | 9.4.0 (built-in Kotlin 2.2.10) |
 | Compose BOM | 2026.08.00 |
-| compileSdk / targetSdk | 36 |
+| compileSdk / targetSdk | 37 / 36 |
 | minSdk | 24 |
 | JDK | 17 |
 
