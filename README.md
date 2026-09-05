@@ -13,7 +13,7 @@
 | Android Gradle Plugin | 9.4.0 (built-in Kotlin 2.2.10) |
 | Compose BOM | 2026.08.00 |
 | compileSdk / targetSdk | 37 / 36 |
-| minSdk | 24 |
+| minSdk | 26 |
 | JDK | 17 |
 
 Важно: AGP 9 использует **built-in Kotlin** — плагин `org.jetbrains.kotlin.android`
