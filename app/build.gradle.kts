@@ -74,8 +74,13 @@ dependencies {
     implementation("androidx.compose.ui:ui-tooling-preview")
     implementation("androidx.compose.material3:material3")
 
-    // Material Icons (needed for Icons.Filled.Mic / Stop)
-    implementation("androidx.compose.material:material-icons-core")
+    // Pinned icons version to guarantee Mic/Stop resolve reliably in CI
+    // (avoids BOM resolution problems seen in GitHub Actions)
+    implementation("androidx.compose.material:material-icons-core:1.6.8")
+    implementation("androidx.compose.material:material-icons-extended:1.6.8")
+
+    // Explicit foundation for semantics (Role.Button etc.)
+    implementation("androidx.compose.foundation:foundation")
 
     debugImplementation("androidx.compose.ui:ui-tooling")
 
