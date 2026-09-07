@@ -18,6 +18,7 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.blur
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.scale
 import androidx.compose.ui.graphics.Brush
@@ -31,371 +32,322 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
-import androidx.lifecycle.viewmodel.compose.viewModel
 import com.my.amali.ui.theme.*
 
-/**
- * Главный экран Амалии — премиальный голосовой ассистент.
- *
- * Полностью переработанный, современный, эмоционально живой интерфейс.
- * Соответствует всем критериям топового продукта:
- * - Ясная иерархия
- * - Красивые состояния
- * - Микровзаимодействия
- * - Доступность
- * - Адаптивность
- * - Реалистичные данные
- */
 @Composable
 fun AssistantScreen(
-    viewModel: AssistantViewModel = viewModel(),
+    modifier: Modifier = Modifier,
 ) {
-    val state by viewModel.uiState.collectAsStateWithLifecycle()
+    val vm: AssistantViewModel = androidx.lifecycle.viewmodel.compose.viewModel()
+    val state by vm.uiState.collectAsStateWithLifecycle()
+
+    LaunchedEffect(Unit) {
+        delay(800)
+        vm.onFirstLaunchHandled()
+    }
 
     Box(
-        modifier = Modifier
+        modifier = modifier
             .fillMaxSize()
-            .background(DeepNavy)
+            .background(MaterialTheme.colorScheme.background)
     ) {
         Column(
             modifier = Modifier
                 .fillMaxSize()
                 .statusBarsPadding()
-                .navigationBarsPadding(),
+                .navigationBarsPadding()
+                .imePadding(),
             horizontalAlignment = Alignment.CenterHorizontally,
         ) {
-            // === Топбар ===
-            AmaliaTopBar(
-                status = state.orbState.label,
-                isActive = state.isActive,
-                conversationCount = state.conversationCount
+            // === ТОПБАР ===
+            AssistantTopBar(
+                conversationCount = state.conversationCount,
+                modifier = Modifier.fillMaxWidth(),
             )
 
-            Spacer(Modifier.height(12.dp))
+            Spacer(Modifier.weight(1f))
 
-            // === Центральная живая зона ===
-            Box(
+            // === ЦЕНТР: визуализатор + статус ===
+            VoiceVisualizer(
+                state = state.voiceState,
+                audioLevel = state.audioLevel,
                 modifier = Modifier
-                    .weight(1f)
-                    .fillMaxWidth(),
-                contentAlignment = Alignment.Center
-            ) {
-                Column(
-                    horizontalAlignment = Alignment.CenterHorizontally,
-                    modifier = Modifier.padding(horizontal = 24.dp)
-                ) {
-                    // Большой живой орб
-                    OrbIndicator(
-                        state = state.orbState,
-                        audioLevel = state.audioLevel,
-                        orbSize = 260.dp
-                    )
+                    .fillMaxWidth()
+                    .padding(horizontal = 48.dp),
+            )
 
-                    Spacer(Modifier.height(32.dp))
+            Spacer(Modifier.height(8.dp))
 
-                    // Живой транскрипт пользователя
-                    AnimatedVisibility(
-                        visible = state.userTranscript.isNotBlank(),
-                        enter = fadeIn() + slideInVertically { 20 },
-                        exit = fadeOut()
-                    ) {
-                        TranscriptBubble(
-                            text = state.userTranscript,
+            // Статус-текст
+            StatusText(
+                state = state.voiceState,
+                modifier = Modifier.padding(horizontal = 32.dp),
+            )
+
+            Spacer(Modifier.height(24.dp))
+
+            // === Транскрипт / Ответ (glass-карточка) ===
+            AnimatedContent(
+                targetState = state.voiceState,
+                transitionSpec = {
+                    fadeIn(tween(280)) + scaleIn(initialScale = 0.96f) togetherWith
+                            fadeOut(tween(200)) + scaleOut(targetScale = 0.96f)
+                },
+                label = "content"
+            ) { vs ->
+                when {
+                    vs == VoiceState.Listening && state.userTranscript.isEmpty() -> {
+                        // Пусто — показываем тонкий hint
+                        Spacer(Modifier.height(0.dp))
+                    }
+                    state.userTranscript.isNotEmpty() && vs == VoiceState.Listening -> {
+                        TranscriptCard(
+                            text = state.userTranscript.ifEmpty { "Слушаю…" },
                             isUser = true,
-                            modifier = Modifier.fillMaxWidth(0.88f)
                         )
                     }
-
-                    Spacer(Modifier.height(20.dp))
-
-                    // Ответ Амалии — премиальная карточка
-                    AnimatedVisibility(
-                        visible = state.amaliaReply.isNotBlank(),
-                        enter = fadeIn(tween(280)) + expandVertically(),
-                        exit = fadeOut()
-                    ) {
-                        AmaliaReplyCard(
-                            text = state.amaliaReply,
-                            onReplay = viewModel::onReplayLastReply,
-                            modifier = Modifier.fillMaxWidth(0.92f)
+                    vs == VoiceState.Thinking -> {
+                        ThinkingCard()
+                    }
+                    state.amaliaReply.isNotEmpty() && (vs == VoiceState.Speaking || vs == VoiceState.Idle) -> {
+                        ReplyCard(
+                            reply = state.amaliaReply,
+                            progress = state.replyProgress,
+                            onRepeat = { vm.startConversation(state.userTranscript) },
                         )
                     }
-
-                    // Первое приветствие / состояние пустоты
-                    AnimatedVisibility(
-                        visible = state.isFirstLaunch && state.amaliaReply.isBlank() && state.userTranscript.isBlank(),
-                        enter = fadeIn(),
-                        exit = fadeOut()
-                    ) {
-                        FirstLaunchHint()
+                    state.isFirstLaunch -> {
+                        WelcomeCard()
                     }
-
-                    // Ошибка
-                    AnimatedVisibility(visible = state.errorMessage != null) {
-                        state.errorMessage?.let { msg ->
-                            ErrorCard(
-                                message = msg,
-                                onDismiss = viewModel::dismissError,
-                                modifier = Modifier
-                                    .fillMaxWidth(0.9f)
-                                    .padding(top = 16.dp)
-                            )
-                        }
+                    else -> {
+                        Spacer(Modifier.height(0.dp))
                     }
                 }
             }
 
-            // === Предложения (чипсы) ===
-            if (state.suggestions.isNotEmpty()) {
+            Spacer(Modifier.height(20.dp))
+
+            // === Подсказки ===
+            if (state.suggestions.isNotEmpty() && state.voiceState == VoiceState.Idle) {
                 SuggestionChips(
                     suggestions = state.suggestions,
-                    onClick = viewModel::onSuggestionClicked,
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(horizontal = 16.dp, vertical = 8.dp)
+                    onClick = { vm.startConversation(it) },
+                    modifier = Modifier.padding(horizontal = 20.dp),
                 )
+                Spacer(Modifier.height(12.dp))
             }
 
-            Spacer(Modifier.height(16.dp))
-
-            // === Главная кнопка голоса ===
-            VoicePrimaryButton(
-                isActive = state.isActive,
-                orbState = state.orbState,
-                onClick = viewModel::onMicPressed,
-                modifier = Modifier.padding(bottom = 28.dp)
+            // === Кнопка микрофона ===
+            MicButton(
+                isActive = state.voiceState != VoiceState.Idle,
+                state = state.voiceState,
+                onClick = { vm.toggleConversation() },
             )
+
+            Spacer(Modifier.height(24.dp))
         }
     }
 }
 
-/* ====================== TOP BAR ====================== */
+// ============================================================
+// КОМПОНЕНТЫ
+// ============================================================
 
 @Composable
-private fun AmaliaTopBar(
-    status: String,
-    isActive: Boolean,
+private fun AssistantTopBar(
     conversationCount: Int,
+    modifier: Modifier = Modifier,
 ) {
     Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(horizontal = 20.dp, vertical = 14.dp),
-        verticalAlignment = Alignment.CenterVertically
+        modifier = modifier
+            .padding(horizontal = 24.dp, vertical = 16.dp),
+        verticalAlignment = Alignment.CenterVertically,
     ) {
-        // Аватар
+        // Аватар — простая точка-индикатор
         Box(
             modifier = Modifier
-                .size(38.dp)
+                .size(10.dp)
                 .clip(CircleShape)
-                .background(
-                    brush = Brush.linearGradient(
-                        listOf(AuroraViolet, AuroraCyan)
-                    )
-                ),
-            contentAlignment = Alignment.Center
-        ) {
-            Text(
-                text = "A",
-                style = MaterialTheme.typography.titleMedium,
-                color = Color.White
-            )
-        }
-
-        Spacer(Modifier.width(12.dp))
-
+                .background(AccentDim)
+        )
+        Spacer(Modifier.width(10.dp))
         Column {
             Text(
                 text = "Амалия",
-                style = MaterialTheme.typography.titleLarge,
-                color = TextPrimaryDark
+                style = MaterialTheme.typography.titleMedium,
+                color = TextPrimary,
             )
             Text(
-                text = if (isActive) status.uppercase() else status,
-                style = MaterialTheme.typography.labelMedium,
-                color = if (isActive) AuroraCyan else TextSecondaryDark
+                text = if (conversationCount > 0)
+                    "$conversationCount ${pluralize(conversationCount)}"
+                else "на связи",
+                style = MaterialTheme.typography.labelSmall,
+                color = TextFaint,
             )
-        }
-
-        Spacer(Modifier.weight(1f))
-
-        // Счётчик взаимодействий — красивый маленький индикатор
-        if (conversationCount > 0) {
-            Surface(
-                shape = RoundedCornerShape(50),
-                color = SurfaceHigh,
-            ) {
-                Text(
-                    text = "$conversationCount",
-                    style = MaterialTheme.typography.labelSmall,
-                    color = TextSecondaryDark,
-                    modifier = Modifier.padding(horizontal = 10.dp, vertical = 4.dp)
-                )
-            }
         }
     }
 }
 
-/* ====================== TRANSCRIPT ====================== */
+@Composable
+private fun StatusText(
+    state: VoiceState,
+    modifier: Modifier = Modifier,
+) {
+    val text = state.label
+    val color = when (state) {
+        VoiceState.Idle -> TextSecondary
+        VoiceState.Listening -> AccentSoft
+        VoiceState.Thinking -> TextSecondary
+        VoiceState.Speaking -> AccentSoft
+        VoiceState.Error -> StateError
+    }
+    Text(
+        text = text,
+        style = MaterialTheme.typography.labelLarge,
+        color = color,
+        textAlign = TextAlign.Center,
+        modifier = modifier,
+    )
+}
 
 @Composable
-private fun TranscriptBubble(
+private fun TranscriptCard(
     text: String,
     isUser: Boolean,
-    modifier: Modifier = Modifier,
 ) {
-    Surface(
-        modifier = modifier,
-        shape = RoundedCornerShape(
-            topStart = 22.dp,
-            topEnd = 22.dp,
-            bottomStart = if (isUser) 22.dp else 6.dp,
-            bottomEnd = if (isUser) 6.dp else 22.dp
-        ),
-        color = if (isUser) AuroraViolet.copy(alpha = 0.18f) else SurfaceHigh,
+    GlassCard(
+        modifier = Modifier
+            .padding(horizontal = 24.dp)
+            .fillMaxWidth(),
     ) {
         Text(
             text = text,
-            style = MaterialTheme.typography.bodyLarge,
-            color = if (isUser) AuroraCyan else TextPrimaryDark,
-            textAlign = TextAlign.Center,
-            modifier = Modifier.padding(horizontal = 22.dp, vertical = 14.dp)
-        )
-    }
-}
-
-/* ====================== AMALIA REPLY ====================== */
-
-@Composable
-private fun AmaliaReplyCard(
-    text: String,
-    onReplay: () -> Unit,
-    modifier: Modifier = Modifier,
-) {
-    Surface(
-        modifier = modifier.animateContentSize(),
-        shape = RoundedCornerShape(24.dp),
-        color = SurfaceDark,
-        tonalElevation = 2.dp
-    ) {
-        Column(
-            modifier = Modifier.padding(20.dp)
-        ) {
-            Row(
-                verticalAlignment = Alignment.CenterVertically,
-                modifier = Modifier.padding(bottom = 8.dp)
-            ) {
-                Surface(
-                    shape = CircleShape,
-                    color = AuroraCyan.copy(alpha = 0.2f),
-                    modifier = Modifier.size(22.dp)
-                ) {}
-                Spacer(Modifier.width(8.dp))
-                Text(
-                    text = "Амалия",
-                    style = MaterialTheme.typography.labelLarge,
-                    color = AuroraCyan
-                )
-            }
-
-            Text(
-                text = text,
-                style = MaterialTheme.typography.bodyLarge,
-                color = TextPrimaryDark,
-                lineHeight = MaterialTheme.typography.bodyLarge.lineHeight * 1.15
-            )
-
-            Spacer(Modifier.height(14.dp))
-
-            Row(
-                horizontalArrangement = Arrangement.spacedBy(8.dp)
-            ) {
-                ActionChip(text = "Повторить", onClick = onReplay)
-                ActionChip(text = "Копировать", onClick = { /* demo */ })
-            }
-        }
-    }
-}
-
-@Composable
-private fun ActionChip(text: String, onClick: () -> Unit) {
-    Surface(
-        onClick = onClick,
-        shape = RoundedCornerShape(50),
-        color = SurfaceHigh,
-        modifier = Modifier.height(32.dp)
-    ) {
-        Text(
-            text = text,
-            style = MaterialTheme.typography.labelMedium,
-            color = TextSecondaryDark,
-            modifier = Modifier
-                .padding(horizontal = 14.dp)
-                .wrapContentHeight(Alignment.CenterVertically)
-        )
-    }
-}
-
-/* ====================== FIRST LAUNCH ====================== */
-
-@Composable
-private fun FirstLaunchHint() {
-    Column(
-        horizontalAlignment = Alignment.CenterHorizontally,
-        modifier = Modifier.padding(horizontal = 12.dp)
-    ) {
-        Text(
-            text = "Привет. Я Амалия.",
-            style = MaterialTheme.typography.headlineSmall,
-            color = TextPrimaryDark,
-            textAlign = TextAlign.Center
-        )
-        Spacer(Modifier.height(6.dp))
-        Text(
-            text = "Нажми на кнопку и говори. Я слушаю, думаю и отвечаю.",
             style = MaterialTheme.typography.bodyMedium,
-            color = TextSecondaryDark,
-            textAlign = TextAlign.Center
+            color = TextSecondary,
+            modifier = Modifier.padding(horizontal = 20.dp, vertical = 14.dp),
         )
     }
 }
 
-/* ====================== ERROR ====================== */
-
 @Composable
-private fun ErrorCard(
-    message: String,
-    onDismiss: () -> Unit,
-    modifier: Modifier = Modifier,
-) {
-    Surface(
-        modifier = modifier,
-        shape = RoundedCornerShape(18.dp),
-        color = MaterialTheme.colorScheme.errorContainer.copy(alpha = 0.9f)
+private fun ThinkingCard() {
+    GlassCard(
+        modifier = Modifier
+            .padding(horizontal = 24.dp)
+            .fillMaxWidth(),
     ) {
         Row(
-            modifier = Modifier.padding(horizontal = 16.dp, vertical = 14.dp),
-            verticalAlignment = Alignment.CenterVertically
+            modifier = Modifier
+                .padding(horizontal = 20.dp, vertical = 16.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.Center,
         ) {
-            Text(
-                text = message,
-                style = MaterialTheme.typography.bodyMedium,
-                color = MaterialTheme.colorScheme.onErrorContainer,
-                modifier = Modifier.weight(1f)
-            )
-            Text(
-                text = "✕",
-                style = MaterialTheme.typography.titleMedium,
-                color = MaterialTheme.colorScheme.onErrorContainer,
-                modifier = Modifier
-                    .clickable { onDismiss() }
-                    .padding(start = 12.dp)
-            )
+            val transition = rememberInfiniteTransition(label = "dots")
+            repeat(3) { i ->
+                val alpha by transition.animateFloat(
+                    initialValue = 0.2f,
+                    targetValue = 1f,
+                    animationSpec = infiniteRepeatable(
+                        animation = tween(500, delayMillis = i * 200),
+                        repeatMode = RepeatMode.Reverse,
+                    ),
+                    label = "dot_$i"
+                )
+                Box(
+                    modifier = Modifier
+                        .size(6.dp)
+                        .clip(CircleShape)
+                        .background(AccentSoft.copy(alpha = alpha))
+                        .padding(start = if (i > 0) 4.dp else 0.dp)
+                )
+                if (i < 2) Spacer(Modifier.width(4.dp))
+            }
         }
     }
 }
 
-/* ====================== SUGGESTION CHIPS ====================== */
+@Composable
+private fun ReplyCard(
+    reply: String,
+    progress: Float,
+    onRepeat: () -> Unit,
+) {
+    GlassCard(
+        modifier = Modifier
+            .padding(horizontal = 24.dp)
+            .fillMaxWidth(),
+    ) {
+        Column(
+            modifier = Modifier
+                .padding(horizontal = 20.dp, vertical = 16.dp)
+        ) {
+            // Лейбл
+            Text(
+                text = "Амалия",
+                style = MaterialTheme.typography.labelSmall,
+                color = AccentSoft,
+            )
+            Spacer(Modifier.height(6.dp))
+            // Текст ответа
+            val visibleText = if (progress >= 1f) reply else {
+                val wordCount = (reply.split(" ").size * progress).toInt()
+                reply.split(" ").take(wordCount.coerceAtLeast(1)).joinToString(" ")
+            }
+            Text(
+                text = visibleText,
+                style = MaterialTheme.typography.bodyMedium,
+                color = TextPrimary,
+                maxLines = 6,
+                overflow = TextOverflow.Ellipsis,
+            )
+            // Действия
+            if (progress >= 1f) {
+                Spacer(Modifier.height(14.dp))
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Text(
+                        text = "повторить",
+                        style = MaterialTheme.typography.labelMedium,
+                        color = AccentSoft,
+                        modifier = Modifier
+                            .clip(RoundedCornerShape(50))
+                            .clickable(onClick = onRepeat)
+                            .padding(horizontal = 12.dp, vertical = 6.dp)
+                            .semantics { role = Role.Button }
+                    )
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun WelcomeCard() {
+    GlassCard(
+        modifier = Modifier
+            .padding(horizontal = 24.dp)
+            .fillMaxWidth(),
+    ) {
+        Column(
+            modifier = Modifier
+                .padding(horizontal = 20.dp, vertical = 20.dp),
+            horizontalAlignment = Alignment.CenterHorizontally,
+        ) {
+            Text(
+                text = "Нажми и говори",
+                style = MaterialTheme.typography.titleMedium,
+                color = TextPrimary,
+                textAlign = TextAlign.Center,
+            )
+            Spacer(Modifier.height(6.dp))
+            Text(
+                text = "Я Амалия — голосовой ассистент.\nДержи кнопку, чтобы начать разговор.",
+                style = MaterialTheme.typography.bodySmall,
+                color = TextSecondary,
+                textAlign = TextAlign.Center,
+            )
+        }
+    }
+}
 
 @Composable
 private fun SuggestionChips(
@@ -406,10 +358,10 @@ private fun SuggestionChips(
     LazyRow(
         modifier = modifier,
         horizontalArrangement = Arrangement.spacedBy(8.dp),
-        contentPadding = PaddingValues(horizontal = 4.dp)
+        contentPadding = PaddingValues(horizontal = 4.dp),
     ) {
-        items(suggestions) { suggestion ->
-            SuggestionChip(text = suggestion, onClick = { onClick(suggestion) })
+        items(suggestions) { text ->
+            SuggestionChip(text = text, onClick = { onClick(text) })
         }
     }
 }
@@ -419,60 +371,61 @@ private fun SuggestionChip(text: String, onClick: () -> Unit) {
     Surface(
         onClick = onClick,
         shape = RoundedCornerShape(50),
-        color = SurfaceHigh,
+        color = BgSurfaceHigh,
+        contentColor = TextSecondary,
         modifier = Modifier
-            .height(40.dp)
+            .height(36.dp)
             .semantics { role = Role.Button }
     ) {
         Text(
             text = text,
-            style = MaterialTheme.typography.labelLarge,
-            color = TextPrimaryDark,
+            style = MaterialTheme.typography.labelMedium,
+            color = TextSecondary,
             modifier = Modifier
-                .padding(horizontal = 18.dp)
+                .padding(horizontal = 16.dp)
                 .wrapContentHeight(Alignment.CenterVertically)
         )
     }
 }
 
-/* ====================== VOICE BUTTON ====================== */
-
 @Composable
-private fun VoicePrimaryButton(
+private fun MicButton(
     isActive: Boolean,
-    orbState: OrbState,
+    state: VoiceState,
     onClick: () -> Unit,
-    modifier: Modifier = Modifier,
 ) {
     val interactionSource = remember { MutableInteractionSource() }
     val pressed by interactionSource.collectIsPressedAsState()
-
     val scale by animateFloatAsState(
         targetValue = when {
-            isActive -> 0.88f
-            pressed -> 0.92f
+            isActive -> 0.90f
+            pressed -> 0.93f
             else -> 1f
         },
         animationSpec = spring(
             dampingRatio = Spring.DampingRatioMediumBouncy,
             stiffness = Spring.StiffnessLow
         ),
-        label = "voiceButtonScale"
+        label = "micScale"
     )
 
-    val buttonColor = when {
-        isActive -> Color(0xFFFF6B6B)
-        else -> AuroraViolet
+    val bgColor = when (state) {
+        VoiceState.Listening -> AccentDim
+        VoiceState.Speaking -> AccentSoft
+        VoiceState.Thinking -> BgSurfaceHigh
+        VoiceState.Error -> StateError
+        VoiceState.Idle -> AccentDim
     }
 
     Box(
-        modifier = modifier
-            .size(84.dp)
+        modifier = Modifier
+            .size(72.dp)
             .scale(scale)
             .clip(CircleShape)
             .background(
-                brush = Brush.linearGradient(
-                    colors = listOf(buttonColor, buttonColor.copy(alpha = 0.85f))
+                brush = Brush.radialGradient(
+                    colors = listOf(bgColor, bgColor.copy(alpha = 0.85f)),
+                    radius = 120f,
                 )
             )
             .clickable(
@@ -481,7 +434,7 @@ private fun VoicePrimaryButton(
                 onClick = onClick
             )
             .semantics {
-                contentDescription = if (isActive) "Остановить" else "Начать разговор с Амалией"
+                contentDescription = if (isActive) "Остановить" else "Начать разговор"
                 role = Role.Button
             },
         contentAlignment = Alignment.Center
@@ -490,14 +443,63 @@ private fun VoicePrimaryButton(
             imageVector = if (isActive) Icons.Filled.Stop else Icons.Filled.Mic,
             contentDescription = null,
             tint = Color.White,
-            modifier = Modifier.size(38.dp)
+            modifier = Modifier.size(32.dp)
         )
     }
 }
 
-/* ====================== PREVIEW ====================== */
+// ============================================================
+// GLASS CARD — полупрозрачная карточка с blur-эффектом
+// ============================================================
 
-@Preview(showBackground = true, backgroundColor = 0xFF0B1020)
+@Composable
+private fun GlassCard(
+    modifier: Modifier = Modifier,
+    content: @Composable () -> Unit,
+) {
+    // Glass-эффект: полупрозрачный фон + лёгкий blur
+    Box(
+        modifier = modifier
+            .clip(RoundedCornerShape(20.dp))
+            .background(
+                color = BgGlass.copy(alpha = 0.6f)
+            )
+            .blur(0.dp) // нативный blur пока недоступен без graphicsLayer
+    ) {
+        // Тонкая граница через overlay
+        Box(
+            modifier = Modifier
+                .fillMaxSize()
+                .background(
+                    brush = Brush.linearGradient(
+                        colors = listOf(
+                            Color.White.copy(alpha = 0.04f),
+                            Color.Transparent,
+                        )
+                    )
+                )
+        ) {
+            content()
+        }
+    }
+}
+
+// ============================================================
+// УТИЛИТЫ
+// ============================================================
+
+private fun pluralize(n: Int): String = when {
+    n % 100 in 11..14 -> "разговоров"
+    n % 10 == 1 -> "разговор"
+    n % 10 in 2..4 -> "разговора"
+    else -> "разговоров"
+}
+
+// ============================================================
+// PREVIEW
+// ============================================================
+
+@Preview(showBackground = true, backgroundColor = 0xFF0E0E12)
 @Composable
 private fun AssistantScreenPreview() {
     AmaliaTheme {

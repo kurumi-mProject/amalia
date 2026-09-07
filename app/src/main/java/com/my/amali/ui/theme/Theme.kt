@@ -5,7 +5,6 @@ import android.os.Build
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.darkColorScheme
 import androidx.compose.material3.dynamicDarkColorScheme
-import androidx.compose.material3.dynamicLightColorScheme
 import androidx.compose.material3.lightColorScheme
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.SideEffect
@@ -14,60 +13,52 @@ import androidx.compose.ui.platform.LocalView
 import androidx.core.view.WindowCompat
 
 private val AmaliaDarkScheme = darkColorScheme(
-    primary = AuroraViolet,
-    onPrimary = ColorTokens.White,
-    primaryContainer = AuroraViolet.copy(alpha = 0.22f),
-    onPrimaryContainer = ColorTokens.NearWhite,
-    secondary = AuroraCyan,
-    onSecondary = ColorTokens.Deep,
-    secondaryContainer = AuroraCyan.copy(alpha = 0.16f),
-    onSecondaryContainer = ColorTokens.NearWhite,
-    tertiary = AuroraPink,
-    onTertiary = ColorTokens.Deep,
-    background = DeepNavy,
-    onBackground = TextPrimaryDark,
-    surface = SurfaceDark,
-    onSurface = TextPrimaryDark,
-    surfaceVariant = SurfaceHigh,
-    onSurfaceVariant = TextSecondaryDark,
-    surfaceContainerHighest = SurfaceHigh,
-    surfaceContainerHigh = SurfaceHigh,
-    surfaceContainer = SurfaceDark,
-    surfaceContainerLow = DeepNavy,
-    surfaceContainerLowest = DeepNavy,
-    outline = SurfaceStroke,
-    outlineVariant = SurfaceStroke.copy(alpha = 0.6f),
-    error = ListenRed,
+    primary = AccentDim,
+    onPrimary = TextPrimary,
+    primaryContainer = AccentDim.copy(alpha = 0.14f),
+    onPrimaryContainer = TextPrimary,
+    secondary = AccentSoft,
+    onSecondary = TextPrimary,
+    secondaryContainer = AccentSoft.copy(alpha = 0.10f),
+    onSecondaryContainer = TextPrimary,
+    tertiary = AccentGlow,
+    onTertiary = TextPrimary,
+    background = BgBase,
+    onBackground = TextPrimary,
+    surface = BgSurface,
+    onSurface = TextPrimary,
+    surfaceVariant = BgSurfaceHigh,
+    onSurfaceVariant = TextSecondary,
+    surfaceContainerHighest = BgSurfaceHigh,
+    surfaceContainerHigh = BgSurfaceHigh,
+    surfaceContainer = BgSurface,
+    surfaceContainerLow = BgBase,
+    surfaceContainerLowest = BgBase,
+    outline = BgStroke,
+    outlineVariant = BgStroke.copy(alpha = 0.5f),
+    error = StateError,
 )
 
 private val AmaliaLightScheme = lightColorScheme(
-    primary = AuroraViolet,
-    onPrimary = ColorTokens.White,
-    primaryContainer = AuroraViolet.copy(alpha = 0.16f),
-    onPrimaryContainer = ColorTokens.Deep,
-    secondary = ColorTokens.IndigoDeep,
-    onSecondary = ColorTokens.White,
-    secondaryContainer = AuroraCyan.copy(alpha = 0.25f),
-    onSecondaryContainer = ColorTokens.Deep,
-    tertiary = AuroraPink,
+    primary = AccentDim,
+    onPrimary = LightSurface,
+    primaryContainer = AccentDim.copy(alpha = 0.12f),
+    onPrimaryContainer = LightTextPrimary,
+    secondary = AccentSoft,
+    onSecondary = LightSurface,
     background = LightBg,
     onBackground = LightTextPrimary,
     surface = LightSurface,
     onSurface = LightTextPrimary,
-    surfaceVariant = ColorTokens.LightSurfaceVariant,
+    surfaceVariant = LightBg,
     onSurfaceVariant = LightTextSecondary,
-    outline = ColorTokens.LightOutline,
+    outline = BgStroke,
 )
 
-/**
- * Тема Амалии. Продукт тёмный по своей природе («амбиент»): по умолчанию
- * всегда тёмная схема. Когда доступны динамические цвета Material You
- * (Android 12+), берём их как основу — приложение подстраивается под обои.
- */
 @Composable
 fun AmaliaTheme(
     darkTheme: Boolean = true,
-    dynamicColor: Boolean = true,
+    dynamicColor: Boolean = false,
     content: @Composable () -> Unit,
 ) {
     val context = LocalContext.current
@@ -97,14 +88,4 @@ fun AmaliaTheme(
         typography = AmaliaTypography,
         content = content,
     )
-}
-
-/** Внутренние служебные цвета (конкретные места, не схема целиком). */
-private object ColorTokens {
-    val White = androidx.compose.ui.graphics.Color(0xFFFFFFFF)
-    val NearWhite = androidx.compose.ui.graphics.Color(0xFFF4F5FB)
-    val Deep = androidx.compose.ui.graphics.Color(0xFF0B1020)
-    val IndigoDeep = androidx.compose.ui.graphics.Color(0xFF4F46E5)
-    val LightSurfaceVariant = androidx.compose.ui.graphics.Color(0xFFE9EAF5)
-    val LightOutline = androidx.compose.ui.graphics.Color(0xFFC9CCE0)
 }
