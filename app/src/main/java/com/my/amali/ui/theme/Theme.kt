@@ -64,7 +64,10 @@ fun AmaliaTheme(
     val context = LocalContext.current
     val colorScheme = when {
         dynamicColor && Build.VERSION.SDK_INT >= Build.VERSION_CODES.S -> {
-            if (darkTheme) dynamicDarkColorScheme(context) else dynamicLightColorScheme(context)
+            if (darkTheme) dynamicDarkColorScheme(context) else {
+                // dynamicLightColorScheme недоступен в этой версии BOM — fallback
+                AmaliaLightScheme
+            }
         }
         darkTheme -> AmaliaDarkScheme
         else -> AmaliaLightScheme

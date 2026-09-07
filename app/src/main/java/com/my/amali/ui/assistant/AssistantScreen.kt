@@ -33,6 +33,7 @@ import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.my.amali.ui.theme.*
+import kotlinx.coroutines.delay
 
 @Composable
 fun AssistantScreen(
