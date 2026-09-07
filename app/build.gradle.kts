@@ -74,6 +74,9 @@ dependencies {
     implementation("androidx.compose.ui:ui-tooling-preview")
     implementation("androidx.compose.material3:material3")
 
+    // Material Icons (needed for Icons.Filled.Mic / Stop)
+    implementation("androidx.compose.material:material-icons-core")
+
     debugImplementation("androidx.compose.ui:ui-tooling")
 
     // Java 11+ API на старых Android через desugaring.
