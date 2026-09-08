@@ -11,7 +11,6 @@ import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Mic
 import androidx.compose.material.icons.filled.Stop
 import androidx.compose.material3.*
@@ -31,6 +30,10 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.my.amali.domain.entity.VoiceState
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.Chat
+import androidx.compose.material.icons.filled.Settings
 import com.my.amali.ui.components.GlassCard
 import com.my.amali.ui.theme.*
 import kotlinx.coroutines.delay
@@ -195,7 +198,7 @@ private fun AssistantTopBar(
         // История
         androidx.compose.material3.IconButton(onClick = onNavigateToHistory) {
             androidx.compose.material3.Icon(
-                imageVector = androidx.compose.material.icons.Icons.AutoMirrored.Filled.Chat,
+                imageVector = Icons.AutoMirrored.Filled.Chat,
                 contentDescription = "История",
                 tint = GlassTextSecondary,
             )
@@ -203,7 +206,7 @@ private fun AssistantTopBar(
         // Настройки
         androidx.compose.material3.IconButton(onClick = onNavigateToSettings) {
             androidx.compose.material3.Icon(
-                imageVector = androidx.compose.material.icons.Icons.Filled.Settings,
+                imageVector = Icons.Filled.Settings,
                 contentDescription = "Настройки",
                 tint = GlassTextSecondary,
             )
@@ -394,7 +397,7 @@ private fun SuggestionChip(text: String, onClick: () -> Unit) {
     Surface(
         onClick = onClick,
         shape = RoundedCornerShape(50),
-        color = BgSurfaceHigh,
+        color = GlassBgSurfaceHigh,
         contentColor = GlassTextSecondary,
         modifier = Modifier
             .height(36.dp)
@@ -435,7 +438,7 @@ private fun MicButton(
     val bgColor = when (state) {
         VoiceState.Listening -> GlassAccentDim
         VoiceState.Speaking -> GlassAccentSoft
-        VoiceState.Thinking -> BgSurfaceHigh
+        VoiceState.Thinking -> GlassBgSurfaceHigh
         VoiceState.Error -> GlassStateError
         VoiceState.Idle -> GlassAccentDim
     }

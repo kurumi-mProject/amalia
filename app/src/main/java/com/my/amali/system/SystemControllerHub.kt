@@ -56,9 +56,9 @@ class SystemControllerHub(private val context: Context) {
      * Вызывается при открытии экрана управления устройством.
      */
     suspend fun refresh(): DeviceStatus = withContext(Dispatchers.Default) {
-        val wifi = runCatching { wifiManager?.isWifiEnabled }.getOrDefault(false)
+        val wifi = runCatching { wifiManager?.isWifiEnabled == true }.getOrDefault(false)
         val bt = runCatching {
-            bluetoothManager?.adapter?.isEnabled
+            bluetoothManager?.adapter?.isEnabled == true
         }.getOrDefault(false)
         val brightness = runCatching {
             SystemSettings.System.getInt(

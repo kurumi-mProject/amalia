@@ -41,7 +41,7 @@ class ConversationRepository(
 
     /** Поток всех разговоров, новые сверху. */
     val conversations: Flow<List<Conversation>> = dataStore.data
-        .catch { emit(emptyList()) }
+        .catch { emit(androidx.datastore.preferences.core.emptyPreferences()) }
         .map { prefs ->
             val raw = prefs[Keys.CONVERSATIONS] ?: return@map emptyList()
             runCatching { json.decodeFromString(serializer, raw) }.getOrDefault(emptyList())

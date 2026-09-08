@@ -46,7 +46,7 @@ class MockTextToSpeechEngine : TextToSpeechEngine {
 
             emit(chunk)
             // Real-time playback pacing: wait as long as the chunk would play.
-            delay(durationMs)
+            delay(durationMs.toLong())
         }
 
         // Trailing silence, as if the speaker finished a sentence.
