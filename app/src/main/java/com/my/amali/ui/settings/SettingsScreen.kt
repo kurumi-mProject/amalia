@@ -15,14 +15,14 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
-androidx.compose.material.icons.filled.DarkMode
-androidx.compose.material.icons.filled.Info
-androidx.compose.material.icons.filled.Language
-androidx.compose.material.icons.filled.Mic
-androidx.compose.material.icons.filled.Notifications
-androidx.compose.material.icons.filled.Palette
-androidx.compose.material.icons.filled.PhoneAndroid
-androidx.compose.material.icons.filled.Security
+import androidx.compose.material.icons.filled.DarkMode
+import androidx.compose.material.icons.filled.Info
+import androidx.compose.material.icons.filled.Language
+import androidx.compose.material.icons.filled.Mic
+import androidx.compose.material.icons.filled.Notifications
+import androidx.compose.material.icons.filled.Palette
+import androidx.compose.material.icons.filled.PhoneAndroid
+import androidx.compose.material.icons.filled.Security
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.BluetoothAudio
 import androidx.compose.material.icons.filled.DarkMode

@@ -31,8 +31,8 @@ import androidx.compose.foundation.pager.HorizontalPager
 import androidx.compose.foundation.pager.rememberPagerState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
-androidx.compose.material.icons.filled.CheckCircle
-androidx.compose.material.icons.filled.Mic
+import androidx.compose.material.icons.filled.CheckCircle
+import androidx.compose.material.icons.filled.Mic
 import androidx.compose.material.icons.filled.AutoAwesome
 import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.Mic

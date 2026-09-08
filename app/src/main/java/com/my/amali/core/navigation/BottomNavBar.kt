@@ -7,12 +7,12 @@ import androidx.compose.animation.fadeOut
 import androidx.compose.animation.slideInVertically
 import androidx.compose.animation.slideOutVertically
 import androidx.compose.material.icons.Icons
-androidx.compose.material.icons.automirrored.filled.Chat
-androidx.compose.material.icons.automirrored.outlined.Chat
-androidx.compose.material.icons.filled.History
-androidx.compose.material.icons.filled.Settings
-androidx.compose.material.icons.outlined.History
-androidx.compose.material.icons.outlined.Settings
+import androidx.compose.material.icons.automirrored.filled.Chat
+import androidx.compose.material.icons.automirrored.outlined.Chat
+import androidx.compose.material.icons.filled.History
+import androidx.compose.material.icons.filled.Settings
+import androidx.compose.material.icons.outlined.History
+import androidx.compose.material.icons.outlined.Settings
 import androidx.compose.material.icons.automirrored.filled.Chat
 import androidx.compose.material.icons.automirrored.outlined.Chat
 import androidx.compose.material.icons.filled.Settings

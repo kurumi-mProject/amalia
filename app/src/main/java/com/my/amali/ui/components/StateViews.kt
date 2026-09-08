@@ -1,7 +1,7 @@
 package com.my.amali.ui.components
 
 import androidx.compose.material.icons.Icons
-androidx.compose.material.icons.filled.ErrorOutline
+import androidx.compose.material.icons.filled.ErrorOutline
 import androidx.compose.animation.core.LinearEasing
 import androidx.compose.animation.core.RepeatMode
 import androidx.compose.animation.core.animateFloat
