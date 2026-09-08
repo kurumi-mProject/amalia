@@ -13,6 +13,16 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+androidx.compose.material.icons.automirrored.filled.ArrowBack
+androidx.compose.material.icons.filled.BluetoothAudio
+androidx.compose.material.icons.filled.Call
+androidx.compose.material.icons.filled.Collections
+androidx.compose.material.icons.filled.Contacts
+androidx.compose.material.icons.filled.LocationOn
+androidx.compose.material.icons.filled.Mic
+androidx.compose.material.icons.filled.MusicNote
+androidx.compose.material.icons.filled.Notifications
+androidx.compose.material.icons.filled.PhotoCamera
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Call
 import androidx.compose.material.icons.filled.Collections

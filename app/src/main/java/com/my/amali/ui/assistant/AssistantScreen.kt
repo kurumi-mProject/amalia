@@ -32,6 +32,10 @@ import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.my.amali.domain.entity.VoiceState
 import androidx.compose.material.icons.Icons
+androidx.compose.material.icons.automirrored.filled.Chat
+androidx.compose.material.icons.filled.Mic
+androidx.compose.material.icons.filled.Settings
+androidx.compose.material.icons.filled.Stop
 import androidx.compose.material.icons.automirrored.filled.Chat
 import androidx.compose.material.icons.filled.Settings
 import com.my.amali.ui.components.GlassCard

@@ -31,6 +31,8 @@ import androidx.compose.foundation.pager.HorizontalPager
 import androidx.compose.foundation.pager.rememberPagerState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
+androidx.compose.material.icons.filled.CheckCircle
+androidx.compose.material.icons.filled.Mic
 import androidx.compose.material.icons.filled.AutoAwesome
 import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.Mic
@@ -65,7 +67,7 @@ import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.my.amali.R
-import com.my.amali.ui.components.AmaliaButton
+import com.my.amali.ui.components.PrimaryButton
 import com.my.amali.ui.components.GlassCard
 import com.my.amali.ui.components.GradientBackground
 import com.my.amali.ui.theme.AmaliaTheme
@@ -125,7 +127,7 @@ fun OnboardingScreen(
 
     Box(modifier = modifier.fillMaxSize()) {
         GradientBackground(
-            palette = GlassGradientPalette,
+            visualTheme = com.my.amali.ui.theme.AmaliaVisualTheme.LIQUID_GLASS,
             modifier = Modifier.matchParentSize(),
         )
         Column(
@@ -427,7 +429,7 @@ private fun FinishSlide(
             textAlign = TextAlign.Center,
         )
         Spacer(Modifier.height(40.dp))
-        AmaliaButton(
+        PrimaryButton(
             text = stringResource(R.string.onboarding_start),
             onClick = onGetStarted,
             modifier = Modifier
@@ -571,7 +573,7 @@ private fun BottomControls(
             }
         }
         Spacer(Modifier.weight(1f))
-        AmaliaButton(
+        PrimaryButton(
             text = stringResource(
                 if (isLastPage) R.string.onboarding_start else R.string.onboarding_next
             ),

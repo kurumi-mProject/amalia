@@ -18,7 +18,7 @@ import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.drawscope.scale
 import androidx.compose.ui.unit.dp
-import com.my.amali.domain.entity.BioTimeOfDay
+import com.my.amali.ui.theme.BioTimeOfDay
 import com.my.amali.ui.theme.currentGradientPalette
 import java.util.Calendar
 import kotlin.math.sin

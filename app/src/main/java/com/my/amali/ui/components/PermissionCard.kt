@@ -10,6 +10,9 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material.icons.Icons
+androidx.compose.material.icons.filled.CheckCircle
+import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
@@ -90,7 +93,7 @@ fun PermissionCard(
                 )
                 if (granted) {
                     Icon(
-                        imageVector = androidx.compose.material.icons.Icons.Filled.CheckCircle,
+                        imageVector = Icons.Filled.CheckCircle,
                         contentDescription = grantedLabel,
                         tint = MaterialTheme.colorScheme.primary,
                         modifier = Modifier.size(22.dp),
