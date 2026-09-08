@@ -18,7 +18,6 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.blur
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.scale
 import androidx.compose.ui.graphics.Brush
@@ -32,11 +31,14 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.my.amali.ui.components.GlassCard
 import com.my.amali.ui.theme.*
 import kotlinx.coroutines.delay
 
 @Composable
 fun AssistantScreen(
+    onNavigateToHistory: () -> Unit = {},
+    onNavigateToSettings: () -> Unit = {},
     modifier: Modifier = Modifier,
 ) {
     val vm: AssistantViewModel = androidx.lifecycle.viewmodel.compose.viewModel()
@@ -63,13 +65,15 @@ fun AssistantScreen(
             // === ТОПБАР ===
             AssistantTopBar(
                 conversationCount = state.conversationCount,
+                onNavigateToHistory = onNavigateToHistory,
+                onNavigateToSettings = onNavigateToSettings,
                 modifier = Modifier.fillMaxWidth(),
             )
 
             Spacer(Modifier.weight(1f))
 
-            // === ЦЕНТР: визуализатор + статус ===
-            VoiceVisualizer(
+            // === ЦЕНТР: био-волна ===
+            com.my.amali.ui.components.VoiceWave(
                 state = state.voiceState,
                 audioLevel = state.audioLevel,
                 modifier = Modifier
@@ -139,9 +143,9 @@ fun AssistantScreen(
             }
 
             // === Кнопка микрофона ===
-            MicButton(
+            com.my.amali.ui.components.MicButton(
                 isActive = state.voiceState != VoiceState.Idle,
-                state = state.voiceState,
+                stateLabel = state.voiceState.label,
                 onClick = { vm.toggleConversation() },
             )
 
@@ -157,6 +161,8 @@ fun AssistantScreen(
 @Composable
 private fun AssistantTopBar(
     conversationCount: Int,
+    onNavigateToHistory: () -> Unit = {},
+    onNavigateToSettings: () -> Unit = {},
     modifier: Modifier = Modifier,
 ) {
     Row(
@@ -169,21 +175,37 @@ private fun AssistantTopBar(
             modifier = Modifier
                 .size(10.dp)
                 .clip(CircleShape)
-                .background(AccentDim)
+                .background(GlassAccentDim)
         )
         Spacer(Modifier.width(10.dp))
-        Column {
+        Column(Modifier.weight(1f)) {
             Text(
                 text = "Амалия",
                 style = MaterialTheme.typography.titleMedium,
-                color = TextPrimary,
+                color = GlassTextPrimary,
             )
             Text(
                 text = if (conversationCount > 0)
                     "$conversationCount ${pluralize(conversationCount)}"
                 else "на связи",
                 style = MaterialTheme.typography.labelSmall,
-                color = TextFaint,
+                color = GlassTextFaint,
+            )
+        }
+        // История
+        androidx.compose.material3.IconButton(onClick = onNavigateToHistory) {
+            androidx.compose.material3.Icon(
+                imageVector = androidx.compose.material.icons.Icons.AutoMirrored.Filled.Chat,
+                contentDescription = "История",
+                tint = GlassTextSecondary,
+            )
+        }
+        // Настройки
+        androidx.compose.material3.IconButton(onClick = onNavigateToSettings) {
+            androidx.compose.material3.Icon(
+                imageVector = androidx.compose.material.icons.Icons.Filled.Settings,
+                contentDescription = "Настройки",
+                tint = GlassTextSecondary,
             )
         }
     }
@@ -196,11 +218,11 @@ private fun StatusText(
 ) {
     val text = state.label
     val color = when (state) {
-        VoiceState.Idle -> TextSecondary
-        VoiceState.Listening -> AccentSoft
-        VoiceState.Thinking -> TextSecondary
-        VoiceState.Speaking -> AccentSoft
-        VoiceState.Error -> StateError
+        VoiceState.Idle -> GlassTextSecondary
+        VoiceState.Listening -> GlassAccentSoft
+        VoiceState.Thinking -> GlassTextSecondary
+        VoiceState.Speaking -> GlassAccentSoft
+        VoiceState.Error -> GlassStateError
     }
     Text(
         text = text,
@@ -224,7 +246,7 @@ private fun TranscriptCard(
         Text(
             text = text,
             style = MaterialTheme.typography.bodyMedium,
-            color = TextSecondary,
+            color = GlassTextSecondary,
             modifier = Modifier.padding(horizontal = 20.dp, vertical = 14.dp),
         )
     }
@@ -258,7 +280,7 @@ private fun ThinkingCard() {
                     modifier = Modifier
                         .size(6.dp)
                         .clip(CircleShape)
-                        .background(AccentSoft.copy(alpha = alpha))
+                        .background(GlassAccentSoft.copy(alpha = alpha))
                         .padding(start = if (i > 0) 4.dp else 0.dp)
                 )
                 if (i < 2) Spacer(Modifier.width(4.dp))
@@ -286,7 +308,7 @@ private fun ReplyCard(
             Text(
                 text = "Амалия",
                 style = MaterialTheme.typography.labelSmall,
-                color = AccentSoft,
+                color = GlassAccentSoft,
             )
             Spacer(Modifier.height(6.dp))
             // Текст ответа
@@ -297,7 +319,7 @@ private fun ReplyCard(
             Text(
                 text = visibleText,
                 style = MaterialTheme.typography.bodyMedium,
-                color = TextPrimary,
+                color = GlassTextPrimary,
                 maxLines = 6,
                 overflow = TextOverflow.Ellipsis,
             )
@@ -308,7 +330,7 @@ private fun ReplyCard(
                     Text(
                         text = "повторить",
                         style = MaterialTheme.typography.labelMedium,
-                        color = AccentSoft,
+                        color = GlassAccentSoft,
                         modifier = Modifier
                             .clip(RoundedCornerShape(50))
                             .clickable(onClick = onRepeat)
@@ -336,14 +358,14 @@ private fun WelcomeCard() {
             Text(
                 text = "Нажми и говори",
                 style = MaterialTheme.typography.titleMedium,
-                color = TextPrimary,
+                color = GlassTextPrimary,
                 textAlign = TextAlign.Center,
             )
             Spacer(Modifier.height(6.dp))
             Text(
                 text = "Я Амалия — голосовой ассистент.\nДержи кнопку, чтобы начать разговор.",
                 style = MaterialTheme.typography.bodySmall,
-                color = TextSecondary,
+                color = GlassTextSecondary,
                 textAlign = TextAlign.Center,
             )
         }
@@ -373,7 +395,7 @@ private fun SuggestionChip(text: String, onClick: () -> Unit) {
         onClick = onClick,
         shape = RoundedCornerShape(50),
         color = BgSurfaceHigh,
-        contentColor = TextSecondary,
+        contentColor = GlassTextSecondary,
         modifier = Modifier
             .height(36.dp)
             .semantics { role = Role.Button }
@@ -381,7 +403,7 @@ private fun SuggestionChip(text: String, onClick: () -> Unit) {
         Text(
             text = text,
             style = MaterialTheme.typography.labelMedium,
-            color = TextSecondary,
+            color = GlassTextSecondary,
             modifier = Modifier
                 .padding(horizontal = 16.dp)
                 .wrapContentHeight(Alignment.CenterVertically)
@@ -411,11 +433,11 @@ private fun MicButton(
     )
 
     val bgColor = when (state) {
-        VoiceState.Listening -> AccentDim
-        VoiceState.Speaking -> AccentSoft
+        VoiceState.Listening -> GlassAccentDim
+        VoiceState.Speaking -> GlassAccentSoft
         VoiceState.Thinking -> BgSurfaceHigh
-        VoiceState.Error -> StateError
-        VoiceState.Idle -> AccentDim
+        VoiceState.Error -> GlassStateError
+        VoiceState.Idle -> GlassAccentDim
     }
 
     Box(
@@ -446,42 +468,6 @@ private fun MicButton(
             tint = Color.White,
             modifier = Modifier.size(32.dp)
         )
-    }
-}
-
-// ============================================================
-// GLASS CARD — полупрозрачная карточка с blur-эффектом
-// ============================================================
-
-@Composable
-private fun GlassCard(
-    modifier: Modifier = Modifier,
-    content: @Composable () -> Unit,
-) {
-    // Glass-эффект: полупрозрачный фон + лёгкий blur
-    Box(
-        modifier = modifier
-            .clip(RoundedCornerShape(20.dp))
-            .background(
-                color = BgGlass.copy(alpha = 0.6f)
-            )
-            .blur(0.dp) // нативный blur пока недоступен без graphicsLayer
-    ) {
-        // Тонкая граница через overlay
-        Box(
-            modifier = Modifier
-                .fillMaxSize()
-                .background(
-                    brush = Brush.linearGradient(
-                        colors = listOf(
-                            Color.White.copy(alpha = 0.04f),
-                            Color.Transparent,
-                        )
-                    )
-                )
-        ) {
-            content()
-        }
     }
 }
 

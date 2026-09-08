@@ -1,3 +1,213 @@
+<?xml version="1.0" encoding="utf-8"?>
 <resources>
     <string name="app_name">Амалия</string>
+    <string name="accessibility_service_label">Служба Амалии</string>
+    <string name="accessibility_service_desc">Служба доступности для управления устройством голосовыми командами Амалии.</string>
+
+    <!-- === Навигация === -->
+    <string name="nav_assistant">Ассистент</string>
+    <string name="nav_history">История</string>
+    <string name="nav_settings">Настройки</string>
+
+    <!-- === Онбординг === -->
+    <string name="onboarding_welcome_title">Привет, я Амалия</string>
+    <string name="onboarding_welcome_desc">Твой голосовой ассистент. Слушаю, думаю, отвечаю — и управляю устройством.</string>
+    <string name="onboarding_voice_title">Голос — главный интерфейс</string>
+    <string name="onboarding_voice_desc">Нажми кнопку и говори. Я распознаю речь, подумаю и отвечу голосом.</string>
+    <string name="onboarding_control_title">Управление устройством</string>
+    <string name="onboarding_control_desc">Wi-Fi, Bluetooth, яркость, громкость — всё по голосовой команде.</string>
+    <string name="onboarding_theme_title">Две темы, один комфорт</string>
+    <string name="onboarding_theme_desc">Liquid Glass — строгий минимализм. Биофильная — нежные градиенты для отдыха глаз.</string>
+    <string name="onboarding_start">Начать</string>
+    <string name="onboarding_skip">Пропустить</string>
+    <string name="onboarding_next">Далее</string>
+    <string name="onboarding_back">Назад</string>
+    <string name="onboarding_finish">Готово</string>
+
+    <!-- === Гайд === -->
+    <string name="guide_mic_title">Кнопка микрофона</string>
+    <string name="guide_mic_desc">Нажми и удерживай, чтобы говорить со мной</string>
+    <string name="guide_chips_title">Подсказки</string>
+    <string name="guide_chips_desc">Нажми на подсказку, чтобы быстро задать вопрос</string>
+    <string name="guide_settings_title">Настройки</string>
+    <string name="guide_settings_desc">Здесь можно выбрать тему, язык и настроить управление</string>
+    <string name="guide_history_title">История разговоров</string>
+    <string name="guide_history_desc">Все твои разговоры сохраняются здесь</string>
+    <string name="guide_close">Понятно</string>
+    <string name="guide_skip_all">Пропустить гайд</string>
+
+    <!-- === Ассистент === -->
+    <string name="assistant_idle">на связи</string>
+    <string name="assistant_listening">слушаю…</string>
+    <string name="assistant_thinking">думаю…</string>
+    <string name="assistant_speaking">говорю…</string>
+    <string name="assistant_error">ошибка</string>
+    <string name="assistant_welcome_hint">Нажми и говори</string>
+    <string name="assistant_welcome_desc">Я Амалия — голосовой ассистент. Держи кнопку, чтобы начать разговор.</string>
+    <string name="assistant_repeat">повторить</string>
+    <string name="assistant_copy">копировать</string>
+    <string name="assistant_share">поделиться</string>
+    <string name="assistant_stop">остановить</string>
+
+    <!-- === Подсказки === -->
+    <string name="suggestion_hello">Привет</string>
+    <string name="suggestion_how_are_you">Как дела?</string>
+    <string name="suggestion_about">Расскажи о себе</string>
+    <string name="suggestion_thanks">Спасибо</string>
+    <string name="suggestion_more">Ещё вопрос</string>
+    <string name="suggestion_repeat">Повтори</string>
+    <string name="suggestion_wifi_on">Включи Wi-Fi</string>
+    <string name="suggestion_brightness">Сделай ярче</string>
+    <string name="suggestion_time">Который час?</string>
+    <string name="suggestion_weather">Какая погода?</string>
+
+    <!-- === Настройки === -->
+    <string name="settings_title">Настройки</string>
+    <string name="settings_appearance">Внешний вид</string>
+    <string name="settings_appearance_desc">Тема, цвета, стекло</string>
+    <string name="settings_language">Язык</string>
+    <string name="settings_language_desc">Язык интерфейса</string>
+    <string name="settings_voice">Голос и речь</string>
+    <string name="settings_voice_desc">Движок TTS, скорость, тон</string>
+    <string name="settings_device">Управление устройством</string>
+    <string name="settings_device_desc">Wi-Fi, Bluetooth, яркость</string>
+    <string name="settings_privacy">Приватность и разрешения</string>
+    <string name="settings_privacy_desc">Доступ к данным и функциям</string>
+    <string name="settings_notifications">Уведомления</string>
+    <string name="settings_notifications_desc">Push-уведомления</string>
+    <string name="settings_about">О приложении</string>
+    <string name="settings_about_desc">Версия, лицензии, связь</string>
+
+    <!-- === Внешний вид === -->
+    <string name="appearance_theme">Визуальная тема</string>
+    <string name="appearance_theme_glass">Liquid Glass</string>
+    <string name="appearance_theme_bio">Биофильная релаксация</string>
+    <string name="appearance_dark_mode">Тёмная тема</string>
+    <string name="appearance_dark_system">Системная</string>
+    <string name="appearance_dark_always">Всегда тёмная</string>
+    <string name="appearance_dark_never">Всегда светлая</string>
+    <string name="appearance_bio_time">Адаптация по времени суток</string>
+    <string name="appearance_bio_time_desc">Автоматически менять палитру: днём — светлые, вечером — тёплые, ночью — глубокие тона</string>
+    <string name="appearance_glass_intensity">Интенсивность стекла</string>
+    <string name="appearance_glass_blur">Сила размытия</string>
+
+    <!-- === Язык === -->
+    <string name="language_follow_system">Системный язык</string>
+    <string name="language_russian">Русский</string>
+    <string name="language_english">English</string>
+    <string name="language_spanish">Español</string>
+    <string name="language_arabic">العربية</string>
+    <string name="language_german">Deutsch</string>
+    <string name="language_french">Français</string>
+    <string name="language_hindi">हिन्दी</string>
+    <string name="language_japanese">日本語</string>
+    <string name="language_chinese">中文</string>
+
+    <!-- === Голос === -->
+    <string name="voice_tts_engine">Движок синтеза речи</string>
+    <string name="voice_tts_engine_mock">Демо (заглушка)</string>
+    <string name="voice_speech_rate">Скорость речи</string>
+    <string name="voice_speech_pitch">Тон голоса</string>
+    <string name="voice_voice_id">Голос</string>
+    <string name="voice_test">Проверить голос</string>
+    <string name="voice_auto_listen">Авто-слушание</string>
+    <string name="voice_auto_listen_desc">Начинать слушать при открытии приложения</string>
+    <string name="voice_wake_word">Ключевое слово</string>
+    <string name="voice_wake_word_desc">Активировать по слову «Амалия»</string>
+
+    <!-- === Управление устройством === -->
+    <string name="device_wifi">Wi-Fi</string>
+    <string name="device_bluetooth">Bluetooth</string>
+    <string name="device_brightness">Яркость экрана</string>
+    <string name="device_volume">Громкость</string>
+    <string name="device_location">Местоположение</string>
+    <string name="device_contacts">Контакты</string>
+    <string name="device_notifications">Уведомления</string>
+    <string name="device_status_on">Включено</string>
+    <string name="device_status_off">Выключено</string>
+    <string name="device_status_unknown">Неизвестно</string>
+    <string name="device_permission_required">Требуется разрешение</string>
+    <string name="device_grant_permission">Предоставить</string>
+
+    <!-- === Приватность === -->
+    <string name="privacy_permissions">Разрешения</string>
+    <string name="privacy_microphone">Микрофон</string>
+    <string name="privacy_microphone_desc">Запись голосовых команд</string>
+    <string name="privacy_location">Местоположение</string>
+    <string name="privacy_location_desc">Для команд с геолокацией</string>
+    <string name="privacy_contacts">Контакты</string>
+    <string name="privacy_contacts_desc">Для звонков и сообщений</string>
+    <string name="privacy_storage">Хранилище</string>
+    <string name="privacy_storage_desc">Доступ к медиафайлам</string>
+    <string name="privacy_notifications">Уведомления</string>
+    <string name="privacy_notifications_desc">Отправка уведомлений</string>
+    <string name="privacy_bluetooth">Bluetooth</string>
+    <string name="privacy_bluetooth_desc">Управление Bluetooth-устройствами</string>
+    <string name="privacy_data_retention">Хранение данных</string>
+    <string name="privacy_data_retention_desc">Сколько хранить историю разговоров</string>
+    <string name="privacy_clear_history">Очистить историю</string>
+    <string name="privacy_clear_history_confirm">Удалить все разговоры?</string>
+    <string name="privacy_clear_history_confirm_desc">Это действие нельзя отменить.</string>
+    <string name="privacy_clear">Очистить</string>
+    <string name="privacy_cancel">Отмена</string>
+    <string name="privacy_retention_7">7 дней</string>
+    <string name="privacy_retention_30">30 дней</string>
+    <string name="privacy_retention_90">90 дней</string>
+    <string name="privacy_retention_forever">Без ограничения</string>
+
+    <!-- === Разрешения === -->
+    <string name="permission_rationale_title">Нужно разрешение</string>
+    <string name="permission_mic_rationale">Амалии нужен доступ к микрофону, чтобы слышать твои команды. Без этого ассистент не сможет работать.</string>
+    <string name="permission_location_rationale">Доступ к местоположению нужен для команд вроде «какая погода» и «найди ближайшее кафе».</string>
+    <string name="permission_contacts_rationale">Доступ к контактам нужен для команд «позвони [имя]» и «напиши [имя]».</string>
+    <string name="permission_notifications_rationale">Уведомления нужны, чтобы Амалия могла сообщать о важных событиях.</string>
+    <string name="permission_bluetooth_rationale">Доступ к Bluetooth нужен для управления устройствами.</string>
+    <string name="permission_storage_rationale">Доступ к медиафайлам нужен для команд «покажи фото» и «включи музыку».</string>
+    <string name="permission_grant">Предоставить</string>
+    <string name="permission_deny">Отклонить</string>
+    <string name="permission_open_settings">Открыть настройки</string>
+    <string name="permission_permanently_denied">Разрешение отклонено. Включи его в настройках приложения.</string>
+
+    <!-- === История === -->
+    <string name="history_title">История</string>
+    <string name="history_empty">Пока нет разговоров</string>
+    <string name="history_empty_desc">Начни разговор с Амалией, и он появится здесь</string>
+    <string name="history_today">Сегодня</string>
+    <string name="history_yesterday">Вчера</string>
+    <string name="history_this_week">На этой неделе</string>
+    <string name="history_older">Ранее</string>
+
+    <!-- === О приложении === -->
+    <string name="about_version">Версия</string>
+    <string name="about_description">Амалия — автономный голосовой ассистент для Android. Создан на Kotlin, Jetpack Compose и Material Design 3.</string>
+    <string name="about_developer">Разработчик</string>
+    <string name="about_developer_name">Команда Амалии</string>
+    <string name="about_contact">Связаться</string>
+    <string name="about_licenses">Лицензии</string>
+    <string name="about_privacy_policy">Политика конфиденциальности</string>
+    <string name="about_terms">Условия использования</string>
+
+    <!-- === Общее === -->
+    <string name="common_ok">OK</string>
+    <string name="common_cancel">Отмена</string>
+    <string name="common_save">Сохранить</string>
+    <string name="common_delete">Удалить</string>
+    <string name="common_edit">Изменить</string>
+    <string name="common_close">Закрыть</string>
+    <string name="common_back">Назад</string>
+    <string name="common_retry">Повторить</string>
+    <string name="common_loading">Загрузка…</string>
+    <string name="common_error">Ошибка</string>
+    <string name="common_search">Поиск</string>
+    <string name="common_yes">Да</string>
+    <string name="common_no">Нет</string>
+
+    <!-- === AI-движки === -->
+    <string name="ai_engine_stt">Распознавание речи</string>
+    <string name="ai_engine_tts">Синтез речи</string>
+    <string name="ai_engine_llm">Языковая модель</string>
+    <string name="ai_engine_mock">Демо (заглушка)</string>
+    <string name="ai_engine_not_connected">Не подключено</string>
+    <string name="ai_engine_connected">Подключено</string>
+    <string name="ai_engine_settings_desc">Настройте движки для STT, TTS и LLM. Сейчас работают демо-заглушки.</string>
 </resources>

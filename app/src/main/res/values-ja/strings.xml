@@ -1,0 +1,197 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">アマリア</string>
+    <string name="accessibility_service_label">アマリアサービス</string>
+    <string name="accessibility_service_desc">アマリアの音声コマンドでデバイスを操作するユーザー補助サービス。</string>
+
+    <string name="nav_assistant">アシスタント</string>
+    <string name="nav_history">履歴</string>
+    <string name="nav_settings">設定</string>
+
+    <string name="onboarding_welcome_title">こんにちは、アマリアです</string>
+    <string name="onboarding_welcome_desc">あなたの音声アシスタント。聞いて、考えて、答えます — デバイスも操作します。</string>
+    <string name="onboarding_voice_title">音声がメインのインターフェース</string>
+    <string name="onboarding_voice_desc">ボタンを押して話しかけて。声を認識して、考えて、声で答えます。</string>
+    <string name="onboarding_control_title">デバイスコントロール</string>
+    <string name="onboarding_control_desc">Wi-Fi、Bluetooth、明るさ、音量 — すべて音声コマンドで。</string>
+    <string name="onboarding_theme_title">2つのテーマ、1つの心地よさ</string>
+    <string name="onboarding_theme_desc">Liquid Glass — すっきりミニマル。Biophilic — 目にやさしいグラデーション。</string>
+    <string name="onboarding_start">はじめる</string>
+    <string name="onboarding_skip">スキップ</string>
+    <string name="onboarding_next">次へ</string>
+    <string name="onboarding_back">戻る</string>
+    <string name="onboarding_finish">完了</string>
+
+    <string name="guide_mic_title">マイクボタン</string>
+    <string name="guide_mic_desc">押し続けて私に話しかけて</string>
+    <string name="guide_chips_title">提案</string>
+    <string name="guide_chips_desc">提案をタップするとすぐ質問できます</string>
+    <string name="guide_settings_title">設定</string>
+    <string name="guide_settings_desc">テーマ、言語、操作はここで選べます</string>
+    <string name="guide_history_title">会話履歴</string>
+    <string name="guide_history_desc">会話はすべてここに保存されます</string>
+    <string name="guide_close">了解</string>
+    <string name="guide_skip_all">ガイドをスキップ</string>
+
+    <string name="assistant_idle">オンライン</string>
+    <string name="assistant_listening">聞いています…</string>
+    <string name="assistant_thinking">考えています…</string>
+    <string name="assistant_speaking">話しています…</string>
+    <string name="assistant_error">エラー</string>
+    <string name="assistant_welcome_hint">押して話す</string>
+    <string name="assistant_welcome_desc">私はアマリア、あなたの音声アシスタント。ボタンを押し続けて話しかけて。</string>
+    <string name="assistant_repeat">繰り返す</string>
+    <string name="assistant_copy">コピー</string>
+    <string name="assistant_share">共有</string>
+    <string name="assistant_stop">停止</string>
+
+    <string name="suggestion_hello">こんにちは</string>
+    <string name="suggestion_how_are_you">調子はどう？</string>
+    <string name="suggestion_about">自己紹介して</string>
+    <string name="suggestion_thanks">ありがとう</string>
+    <string name="suggestion_more">もう一つ質問</string>
+    <string name="suggestion_repeat">もう一回</string>
+    <string name="suggestion_wifi_on">Wi-Fiをつけて</string>
+    <string name="suggestion_brightness">明るくして</string>
+    <string name="suggestion_time">今何時？</string>
+    <string name="suggestion_weather">今日雨降る？</string>
+
+    <string name="settings_title">設定</string>
+    <string name="settings_appearance">外観</string>
+    <string name="settings_appearance_desc">テーマ、ダークモード、ガラス効果</string>
+    <string name="settings_language">言語</string>
+    <string name="settings_language_desc">インターフェースと音声の言語</string>
+    <string name="settings_voice">音声</string>
+    <string name="settings_voice_desc">速さ、ピッチ、ウェイクワード</string>
+    <string name="settings_device">デバイス</string>
+    <string name="settings_device_desc">Wi-Fi、Bluetooth、明るさ、音量</string>
+    <string name="settings_privacy">プライバシー</string>
+    <string name="settings_privacy_desc">権限とデータ保持</string>
+    <string name="settings_notifications">通知</string>
+    <string name="settings_notifications_desc">通知の権限</string>
+    <string name="settings_about">情報</string>
+    <string name="settings_about_desc">バージョン、開発者、ライセンス</string>
+
+    <string name="appearance_theme">ビジュアルテーマ</string>
+    <string name="appearance_theme_glass">Liquid Glass</string>
+    <string name="appearance_theme_bio">Biophilic</string>
+    <string name="appearance_dark_mode">ダークモード</string>
+    <string name="appearance_dark_system">システムに合わせる</string>
+    <string name="appearance_dark_always">常にダーク</string>
+    <string name="appearance_dark_never">常にライト</string>
+    <string name="appearance_bio_time">バイオ時間適応</string>
+    <string name="appearance_bio_time_desc">パレットが時間帯に合わせて変化</string>
+    <string name="appearance_glass_intensity">ガラスの強さ</string>
+    <string name="appearance_glass_blur">ガラスのぼかし</string>
+
+    <string name="language_follow_system">システムの言語</string>
+    <string name="language_russian">ロシア語</string>
+    <string name="language_english">英語</string>
+    <string name="language_spanish">スペイン語</string>
+    <string name="language_arabic">アラビア語</string>
+    <string name="language_german">ドイツ語</string>
+    <string name="language_french">フランス語</string>
+    <string name="language_hindi">ヒンディー語</string>
+    <string name="language_japanese">日本語</string>
+    <string name="language_chinese">中国語</string>
+
+    <string name="voice_tts_engine">音声エンジン</string>
+    <string name="voice_tts_engine_mock">テストエンジン</string>
+    <string name="voice_speech_rate">話す速さ</string>
+    <string name="voice_speech_pitch">声のピッチ</string>
+    <string name="voice_voice_id">声</string>
+    <string name="voice_test">声を試す</string>
+    <string name="voice_auto_listen">自動リスン</string>
+    <string name="voice_auto_listen_desc">アプリを開くと聞き始めます</string>
+    <string name="voice_wake_word">ウェイクワード</string>
+    <string name="voice_wake_word_desc">バックグラウンドで「アマリア」を聞きます</string>
+
+    <string name="device_wifi">Wi-Fi</string>
+    <string name="device_bluetooth">Bluetooth</string>
+    <string name="device_brightness">明るさ</string>
+    <string name="device_volume">音量</string>
+    <string name="device_location">位置情報</string>
+    <string name="device_contacts">連絡先</string>
+    <string name="device_notifications">通知</string>
+    <string name="device_status_on">オン</string>
+    <string name="device_status_off">オフ</string>
+    <string name="device_status_unknown">不明</string>
+    <string name="device_permission_required">権限が必要です</string>
+    <string name="device_grant_permission">権限を許可</string>
+
+    <string name="privacy_permissions">権限</string>
+    <string name="privacy_microphone">マイク</string>
+    <string name="privacy_microphone_desc">音声コマンドを聞くために必要</string>
+    <string name="privacy_location">位置情報</string>
+    <string name="privacy_location_desc">天気や現在地に関する回答のため</string>
+    <string name="privacy_contacts">連絡先</string>
+    <string name="privacy_contacts_desc">「ママに電話して」と名前で発信</string>
+    <string name="privacy_storage">メディア</string>
+    <string name="privacy_storage_desc">写真・音楽・動画を探すため</string>
+    <string name="privacy_notifications">通知</string>
+    <string name="privacy_notifications_desc">バックグラウンドでも回答するため</string>
+    <string name="privacy_bluetooth">Bluetooth</string>
+    <string name="privacy_bluetooth_desc">ワイヤレスイヤホンやデバイスのため</string>
+    <string name="privacy_data_retention">データ保持</string>
+    <string name="privacy_data_retention_desc">会話を保存する期間</string>
+    <string name="privacy_clear_history">履歴を消去</string>
+    <string name="privacy_clear_history_confirm">すべての会話を消去しますか？</string>
+    <string name="privacy_clear_history_confirm_desc">すべての会話が完全に削除されます。元に戻せません。</string>
+    <string name="privacy_clear">消去</string>
+    <string name="privacy_cancel">キャンセル</string>
+    <string name="privacy_retention_7">7日</string>
+    <string name="privacy_retention_30">30日</string>
+    <string name="privacy_retention_90">90日</string>
+    <string name="privacy_retention_forever">無期限</string>
+
+    <string name="permission_rationale_title">アマリアが権限を求める理由</string>
+    <string name="permission_mic_rationale">マイクはアマリアと話している間だけ使います。音声はあなたの操作なしで保存・送信されません。</string>
+    <string name="permission_location_rationale">位置情報は天気の回答や近くの場所を探すのに役立ちます。</string>
+    <string name="permission_contacts_rationale">連絡先があれば「ママに電話して」— アマリアが番号を見つけます。</string>
+    <string name="permission_notifications_rationale">通知があればアプリを最小化してもアマリアは答えられます。</string>
+    <string name="permission_bluetooth_rationale">Bluetoothでイヤホンやウェアラブル接続ができます。</string>
+    <string name="permission_storage_rationale">メディアへのアクセスで写真・音楽・動画を探せます。</string>
+    <string name="permission_grant">許可</string>
+    <string name="permission_deny">後で</string>
+    <string name="permission_open_settings">設定を開く</string>
+    <string name="permission_permanently_denied">権限が拒否されました。システム設定で有効にしてください。</string>
+
+    <string name="history_title">履歴</string>
+    <string name="history_empty">まだ会話がありません</string>
+    <string name="history_empty_desc">アマリアと話すと会話がここに表示されます。</string>
+    <string name="history_today">今日</string>
+    <string name="history_yesterday">昨日</string>
+    <string name="history_this_week">今週</string>
+    <string name="history_older">もっと前</string>
+
+    <string name="about_version">バージョン</string>
+    <string name="about_description">アマリアはデバイスコントロール、2つの心地よいテーマ、多言語対応の音声アシスタントです。</string>
+    <string name="about_developer">開発者</string>
+    <string name="about_developer_name">アマリアチーム</string>
+    <string name="about_contact">連絡先</string>
+    <string name="about_licenses">ライセンス</string>
+    <string name="about_privacy_policy">プライバシーポリシー</string>
+    <string name="about_terms">利用規約</string>
+
+    <string name="common_ok">OK</string>
+    <string name="common_cancel">キャンセル</string>
+    <string name="common_save">保存</string>
+    <string name="common_delete">削除</string>
+    <string name="common_edit">編集</string>
+    <string name="common_close">閉じる</string>
+    <string name="common_back">戻る</string>
+    <string name="common_retry">再試行</string>
+    <string name="common_loading">読み込み中…</string>
+    <string name="common_error">問題が発生しました</string>
+    <string name="common_search">検索</string>
+    <string name="common_yes">はい</string>
+    <string name="common_no">いいえ</string>
+
+    <string name="ai_engine_stt">音声認識</string>
+    <string name="ai_engine_tts">音声合成</string>
+    <string name="ai_engine_llm">言語モデル</string>
+    <string name="ai_engine_mock">テストエンジン</string>
+    <string name="ai_engine_not_connected">未接続</string>
+    <string name="ai_engine_connected">接続済み</string>
+    <string name="ai_engine_settings_desc">エンジンは開発者設定で接続します</string>
+</resources>

@@ -1,0 +1,197 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">अमालिया</string>
+    <string name="accessibility_service_label">अमालिया सेवा</string>
+    <string name="accessibility_service_desc">अमालिया वॉइस कमांड से डिवाइस नियंत्रण हेतु एक्सेसिबिलिटी सेवा।</string>
+
+    <string name="nav_assistant">सहायक</string>
+    <string name="nav_history">इतिहास</string>
+    <string name="nav_settings">सेटिंग्स</string>
+
+    <string name="onboarding_welcome_title">नमस्ते, मैं अमालिया हूँ</string>
+    <string name="onboarding_welcome_desc">तुम्हारी वॉइस असिस्टेंट। सुनती हूँ, सोचती हूँ, जवाब देती हूँ — और डिवाइस चलाती हूँ।</string>
+    <string name="onboarding_voice_title">आवाज़ ही मुख्य इंटरफ़ेस है</string>
+    <string name="onboarding_voice_desc">बटन दबाओ और बोलो। मैं आवाज़ पहचानती हूँ, सोचती हूँ और अपनी आवाज़ में जवाब देती हूँ।</string>
+    <string name="onboarding_control_title">डिवाइस नियंत्रण</string>
+    <string name="onboarding_control_desc">वाई-फाई, ब्लूटूथ, ब्राइटनेस, वॉल्यूम — सब वॉइस कमांड से।</string>
+    <string name="onboarding_theme_title">दो थीम, एक आराम</string>
+    <string name="onboarding_theme_desc">Liquid Glass — साफ़ मिनिमलिज़्म। Biophilic — आँखों के लिए कोमल ग्रेडिएंट्स।</string>
+    <string name="onboarding_start">शुरू करें</string>
+    <string name="onboarding_skip">छोड़ें</string>
+    <string name="onboarding_next">आगे</string>
+    <string name="onboarding_back">पीछे</string>
+    <string name="onboarding_finish">हो गया</string>
+
+    <string name="guide_mic_title">माइक बटन</string>
+    <string name="guide_mic_desc">मुझसे बात करने के लिए दबाकर रखें</string>
+    <string name="guide_chips_title">सुझाव</string>
+    <string name="guide_chips_desc">जल्दी पूछने के लिए सुझाव दबाएँ</string>
+    <string name="guide_settings_title">सेटिंग्स</string>
+    <string name="guide_settings_desc">थीम, भाषा और नियंत्रण यहाँ चुनें</string>
+    <string name="guide_history_title">बातचीत का इतिहास</string>
+    <string name="guide_history_desc">तुम्हारी सारी बातचीत यहाँ सहेजी जाती है</string>
+    <string name="guide_close">समझ गया</string>
+    <string name="guide_skip_all">गाइड छोड़ें</string>
+
+    <string name="assistant_idle">ऑनलाइन</string>
+    <string name="assistant_listening">सुन रही हूँ…</string>
+    <string name="assistant_thinking">सोच रही हूँ…</string>
+    <string name="assistant_speaking">बोल रही हूँ…</string>
+    <string name="assistant_error">त्रुटि</string>
+    <string name="assistant_welcome_hint">दबाओ और बोलो</string>
+    <string name="assistant_welcome_desc">मैं अमालिया हूँ, तुम्हारी वॉइस असिस्टेंट। बात शुरू करने के लिए बटन दबाकर रखें।</string>
+    <string name="assistant_repeat">दोहराओ</string>
+    <string name="assistant_copy">कॉपी</string>
+    <string name="assistant_share">शेयर</string>
+    <string name="assistant_stop">रोकें</string>
+
+    <string name="suggestion_hello">नमस्ते</string>
+    <string name="suggestion_how_are_you">कैसी हो?</string>
+    <string name="suggestion_about">अपने बारे में बताओ</string>
+    <string name="suggestion_thanks">धन्यवाद</string>
+    <string name="suggestion_more">एक और सवाल</string>
+    <string name="suggestion_repeat">फिर बोलो</string>
+    <string name="suggestion_wifi_on">वाई-फाई चालू करो</string>
+    <string name="suggestion_brightness">उजाला बढ़ाओ</string>
+    <string name="suggestion_time">कितने बजे हैं?</string>
+    <string name="suggestion_weather">आज बारिश होगी?</string>
+
+    <string name="settings_title">सेटिंग्स</string>
+    <string name="settings_appearance">रूप-रंग</string>
+    <string name="settings_appearance_desc">थीम, डार्क मोड, ग्लास इफ़ेक्ट</string>
+    <string name="settings_language">भाषा</string>
+    <string name="settings_language_desc">इंटरफ़ेस और आवाज़ की भाषा</string>
+    <string name="settings_voice">आवाज़</string>
+    <string name="settings_voice_desc">गति, पिच, वेक-वर्ड</string>
+    <string name="settings_device">डिवाइस</string>
+    <string name="settings_device_desc">वाई-फाई, ब्लूटूथ, ब्राइटनेस, वॉल्यूम</string>
+    <string name="settings_privacy">प्राइवेसी</string>
+    <string name="settings_privacy_desc">अनुमतियाँ और डेटा प्रतिधारण</string>
+    <string name="settings_notifications">सूचनाएँ</string>
+    <string name="settings_notifications_desc">सूचना अनुमतियाँ</string>
+    <string name="settings_about">परिचय</string>
+    <string name="settings_about_desc">संस्करण, डेवलपर, लाइसेंस</string>
+
+    <string name="appearance_theme">विज़ुअल थीम</string>
+    <string name="appearance_theme_glass">Liquid Glass</string>
+    <string name="appearance_theme_bio">Biophilic</string>
+    <string name="appearance_dark_mode">डार्क मोड</string>
+    <string name="appearance_dark_system">सिस्टम के अनुसार</string>
+    <string name="appearance_dark_always">हमेशा डार्क</string>
+    <string name="appearance_dark_never">हमेशा लाइट</string>
+    <string name="appearance_bio_time">बायो-टाइम अनुकूलन</string>
+    <string name="appearance_bio_time_desc">पैलेट दिन के समय के अनुसार</string>
+    <string name="appearance_glass_intensity">ग्लास तीव्रता</string>
+    <string name="appearance_glass_blur">ग्लास ब्लर</string>
+
+    <string name="language_follow_system">सिस्टम भाषा</string>
+    <string name="language_russian">रूसी</string>
+    <string name="language_english">अंग्रेज़ी</string>
+    <string name="language_spanish">स्पेनिश</string>
+    <string name="language_arabic">अरबी</string>
+    <string name="language_german">जर्मन</string>
+    <string name="language_french">फ़्रेंच</string>
+    <string name="language_hindi">हिन्दी</string>
+    <string name="language_japanese">जापानी</string>
+    <string name="language_chinese">चीनी</string>
+
+    <string name="voice_tts_engine">स्पीच इंजन</string>
+    <string name="voice_tts_engine_mock">टेस्ट इंजन</string>
+    <string name="voice_speech_rate">बोलने की गति</string>
+    <string name="voice_speech_pitch">आवाज़ की पिच</string>
+    <string name="voice_voice_id">आवाज़</string>
+    <string name="voice_test">आवाज़ जाँचें</string>
+    <string name="voice_auto_listen">ऑटो-लिसन</string>
+    <string name="voice_auto_listen_desc">ऐप खुलने पर सुनना शुरू करें</string>
+    <string name="voice_wake_word">वेक-वर्ड</string>
+    <string name="voice_wake_word_desc">बैकग्राउंड में “अमालिया” सुनें</string>
+
+    <string name="device_wifi">वाई-फाई</string>
+    <string name="device_bluetooth">ब्लूटूथ</string>
+    <string name="device_brightness">ब्राइटनेस</string>
+    <string name="device_volume">वॉल्यूम</string>
+    <string name="device_location">स्थान</string>
+    <string name="device_contacts">संपर्क</string>
+    <string name="device_notifications">सूचनाएँ</string>
+    <string name="device_status_on">चालू</string>
+    <string name="device_status_off">बंद</string>
+    <string name="device_status_unknown">अज्ञात</string>
+    <string name="device_permission_required">अनुमति आवश्यक</string>
+    <string name="device_grant_permission">अनुमति दें</string>
+
+    <string name="privacy_permissions">अनुमतियाँ</string>
+    <string name="privacy_microphone">माइक्रोफ़ोन</string>
+    <string name="privacy_microphone_desc">तुम्हारी वॉइस कमांड सुनने के लिए</string>
+    <string name="privacy_location">स्थान</string>
+    <string name="privacy_location_desc">मौसम और स्थान-आधारित जवाबों के लिए</string>
+    <string name="privacy_contacts">संपर्क</string>
+    <string name="privacy_contacts_desc">“मम्मी को कॉल करो” — अमालिया नंबर ढूँढ़ेगी</string>
+    <string name="privacy_storage">मीडिया</string>
+    <string name="privacy_storage_desc">फ़ोटो, संगीत और वीडियो खोजने के लिए</string>
+    <string name="privacy_notifications">सूचनाएँ</string>
+    <string name="privacy_notifications_desc">बैकग्राउंड में भी जवाब देने के लिए</string>
+    <string name="privacy_bluetooth">ब्लूटूथ</string>
+    <string name="privacy_bluetooth_desc">वायरलेस हेडफ़ोन और डिवाइस के लिए</string>
+    <string name="privacy_data_retention">डेटा प्रतिधारण</string>
+    <string name="privacy_data_retention_desc">बातचीत कितने समय रखी जाती है</string>
+    <string name="privacy_clear_history">इतिहास मिटाएँ</string>
+    <string name="privacy_clear_history_confirm">सारी बातचीत मिटाएँ?</string>
+    <string name="privacy_clear_history_confirm_desc">सारी बातचीत स्थायी रूप से हट जाएगी। यह वापस नहीं आ सकती।</string>
+    <string name="privacy_clear">मिटाएँ</string>
+    <string name="privacy_cancel">रद्द करें</string>
+    <string name="privacy_retention_7">7 दिन</string>
+    <string name="privacy_retention_30">30 दिन</string>
+    <string name="privacy_retention_90">90 दिन</string>
+    <string name="privacy_retention_forever">हमेशा</string>
+
+    <string name="permission_rationale_title">अमालिया अनुमति क्यों माँगती है</string>
+    <string name="permission_mic_rationale">माइक केवल तब उपयोग होता है जब तुम अमालिया से बात करते हो। ऑडियो बिना तुम्हारी क्रिया के कहीं नहीं जाता।</string>
+    <string name="permission_location_rationale">स्थान से “मौसम कैसा है” और नज़दीकी जगहों के जवाब मिलते हैं।</string>
+    <string name="permission_contacts_rationale">संपर्कों से “मम्मी को कॉल करो” कह सकते हो — नंबर अमालिया ढूँढ़ेगी।</string>
+    <string name="permission_notifications_rationale">सूचनाओं से अमालिया बैकग्राउंड में भी जवाब दे पाती है।</string>
+    <string name="permission_bluetooth_rationale">ब्लूटूथ से हेडफ़ोन और पहनने योग्य डिवाइस जुड़ते हैं।</string>
+    <string name="permission_storage_rationale">मीडिया एक्सेस से फ़ोटो, संगीत और वीडियो खोजे जाते हैं।</string>
+    <string name="permission_grant">अनुमति दें</string>
+    <string name="permission_deny">अभी नहीं</string>
+    <string name="permission_open_settings">सेटिंग्स खोलें</string>
+    <string name="permission_permanently_denied">अनुमति अस्वीकृत। सिस्टम सेटिंग्स में चालू करें।</string>
+
+    <string name="history_title">इतिहास</string>
+    <string name="history_empty">अभी कोई बातचीत नहीं</string>
+    <string name="history_empty_desc">अमालिया से बात करो, बातचीत यहाँ दिखेगी।</string>
+    <string name="history_today">आज</string>
+    <string name="history_yesterday">कल</string>
+    <string name="history_this_week">इस सप्ताह</string>
+    <string name="history_older">पहले</string>
+
+    <string name="about_version">संस्करण</string>
+    <string name="about_description">अमालिया एक वॉइस असिस्टेंट है — डिवाइस नियंत्रण, दो आरामदायक थीम और बहुभाषी समर्थन के साथ।</string>
+    <string name="about_developer">डेवलपर</string>
+    <string name="about_developer_name">अमालिया टीम</string>
+    <string name="about_contact">संपर्क</string>
+    <string name="about_licenses">लाइसेंस</string>
+    <string name="about_privacy_policy">प्राइवेसी नीति</string>
+    <string name="about_terms">उपयोग की शर्तें</string>
+
+    <string name="common_ok">ठीक है</string>
+    <string name="common_cancel">रद्द करें</string>
+    <string name="common_save">सहेजें</string>
+    <string name="common_delete">हटाएँ</string>
+    <string name="common_edit">संपादित करें</string>
+    <string name="common_close">बंद करें</string>
+    <string name="common_back">पीछे</string>
+    <string name="common_retry">फिर कोशिश करें</string>
+    <string name="common_loading">लोड हो रहा है…</string>
+    <string name="common_error">कुछ ग़लत हो गया</string>
+    <string name="common_search">खोजें</string>
+    <string name="common_yes">हाँ</string>
+    <string name="common_no">नहीं</string>
+
+    <string name="ai_engine_stt">स्पीच रिकग्निशन</string>
+    <string name="ai_engine_tts">स्पीच सिंथेसिस</string>
+    <string name="ai_engine_llm">भाषा मॉडल</string>
+    <string name="ai_engine_mock">टेस्ट इंजन</string>
+    <string name="ai_engine_not_connected">कनेक्ट नहीं</string>
+    <string name="ai_engine_connected">कनेक्टेड</string>
+    <string name="ai_engine_settings_desc">इंजन डेवलपर सेटिंग्स में जुड़ते हैं</string>
+</resources>

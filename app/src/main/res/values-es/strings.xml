@@ -1,0 +1,197 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">Amalia</string>
+    <string name="accessibility_service_label">Servicio de Amalia</string>
+    <string name="accessibility_service_desc">Servicio de accesibilidad para controlar el dispositivo con comandos de voz de Amalia.</string>
+
+    <string name="nav_assistant">Asistente</string>
+    <string name="nav_history">Historial</string>
+    <string name="nav_settings">Ajustes</string>
+
+    <string name="onboarding_welcome_title">Hola, soy Amalia</string>
+    <string name="onboarding_welcome_desc">Tu asistente de voz. Escucho, pienso, respondo y controlo tu dispositivo.</string>
+    <string name="onboarding_voice_title">La voz es la interfaz principal</string>
+    <string name="onboarding_voice_desc">Pulsa el botón y habla. Reconozco tu voz, pienso y respondo con mi voz.</string>
+    <string name="onboarding_control_title">Control del dispositivo</string>
+    <string name="onboarding_control_desc">Wi-Fi, Bluetooth, brillo, volumen — todo por comando de voz.</string>
+    <string name="onboarding_theme_title">Dos temas, una comodidad</string>
+    <string name="onboarding_theme_desc">Liquid Glass — minimalismo puro. Biofílico — degradados suaves para descansar la vista.</string>
+    <string name="onboarding_start">Empezar</string>
+    <string name="onboarding_skip">Omitir</string>
+    <string name="onboarding_next">Siguiente</string>
+    <string name="onboarding_back">Atrás</string>
+    <string name="onboarding_finish">Listo</string>
+
+    <string name="guide_mic_title">Botón del micrófono</string>
+    <string name="guide_mic_desc">Mantén pulsado para hablar conmigo</string>
+    <string name="guide_chips_title">Sugerencias</string>
+    <string name="guide_chips_desc">Toca una sugerencia para preguntar rápido</string>
+    <string name="guide_settings_title">Ajustes</string>
+    <string name="guide_settings_desc">Aquí eliges tema, idioma y control</string>
+    <string name="guide_history_title">Historial de conversaciones</string>
+    <string name="guide_history_desc">Tus conversaciones se guardan aquí</string>
+    <string name="guide_close">Entendido</string>
+    <string name="guide_skip_all">Omitir guía</string>
+
+    <string name="assistant_idle">en línea</string>
+    <string name="assistant_listening">escuchando…</string>
+    <string name="assistant_thinking">pensando…</string>
+    <string name="assistant_speaking">hablando…</string>
+    <string name="assistant_error">error</string>
+    <string name="assistant_welcome_hint">Pulsa y habla</string>
+    <string name="assistant_welcome_desc">Soy Amalia, tu asistente de voz. Mantén pulsado el botón para hablar.</string>
+    <string name="assistant_repeat">repetir</string>
+    <string name="assistant_copy">copiar</string>
+    <string name="assistant_share">compartir</string>
+    <string name="assistant_stop">detener</string>
+
+    <string name="suggestion_hello">Hola</string>
+    <string name="suggestion_how_are_you">¿Cómo estás?</string>
+    <string name="suggestion_about">Háblame de ti</string>
+    <string name="suggestion_thanks">Gracias</string>
+    <string name="suggestion_more">Otra pregunta</string>
+    <string name="suggestion_repeat">Repite</string>
+    <string name="suggestion_wifi_on">Activa el Wi-Fi</string>
+    <string name="suggestion_brightness">Más brillo</string>
+    <string name="suggestion_time">¿Qué hora es?</string>
+    <string name="suggestion_weather">¿Lloverá hoy?</string>
+
+    <string name="settings_title">Ajustes</string>
+    <string name="settings_appearance">Apariencia</string>
+    <string name="settings_appearance_desc">Tema, modo oscuro, efectos de cristal</string>
+    <string name="settings_language">Idioma</string>
+    <string name="settings_language_desc">Idioma de la interfaz y de la voz</string>
+    <string name="settings_voice">Voz</string>
+    <string name="settings_voice_desc">Velocidad, tono, palabra de activación</string>
+    <string name="settings_device">Dispositivo</string>
+    <string name="settings_device_desc">Wi-Fi, Bluetooth, brillo, volumen</string>
+    <string name="settings_privacy">Privacidad</string>
+    <string name="settings_privacy_desc">Permisos y conservación de datos</string>
+    <string name="settings_notifications">Notificaciones</string>
+    <string name="settings_notifications_desc">Permisos de notificaciones</string>
+    <string name="settings_about">Acerca de</string>
+    <string name="settings_about_desc">Versión, desarrollador, licencias</string>
+
+    <string name="appearance_theme">Tema visual</string>
+    <string name="appearance_theme_glass">Liquid Glass</string>
+    <string name="appearance_theme_bio">Biofílico</string>
+    <string name="appearance_dark_mode">Modo oscuro</string>
+    <string name="appearance_dark_system">Según el sistema</string>
+    <string name="appearance_dark_always">Siempre oscuro</string>
+    <string name="appearance_dark_never">Siempre claro</string>
+    <string name="appearance_bio_time">Adaptación bio-temporal</string>
+    <string name="appearance_bio_time_desc">La paleta sigue la hora del día</string>
+    <string name="appearance_glass_intensity">Intensidad del cristal</string>
+    <string name="appearance_glass_blur">Fuerza del desenfoque</string>
+
+    <string name="language_follow_system">Idioma del sistema</string>
+    <string name="language_russian">Ruso</string>
+    <string name="language_english">Inglés</string>
+    <string name="language_spanish">Español</string>
+    <string name="language_arabic">Árabe</string>
+    <string name="language_german">Alemán</string>
+    <string name="language_french">Francés</string>
+    <string name="language_hindi">Hindi</string>
+    <string name="language_japanese">Japonés</string>
+    <string name="language_chinese">Chino</string>
+
+    <string name="voice_tts_engine">Motor de voz</string>
+    <string name="voice_tts_engine_mock">Motor de prueba</string>
+    <string name="voice_speech_rate">Velocidad del habla</string>
+    <string name="voice_speech_pitch">Tono de voz</string>
+    <string name="voice_voice_id">Voz</string>
+    <string name="voice_test">Probar voz</string>
+    <string name="voice_auto_listen">Escucha automática</string>
+    <string name="voice_auto_listen_desc">Empieza a escuchar al abrir la app</string>
+    <string name="voice_wake_word">Palabra de activación</string>
+    <string name="voice_wake_word_desc">Escucha “Amalia” en segundo plano</string>
+
+    <string name="device_wifi">Wi-Fi</string>
+    <string name="device_bluetooth">Bluetooth</string>
+    <string name="device_brightness">Brillo</string>
+    <string name="device_volume">Volumen</string>
+    <string name="device_location">Ubicación</string>
+    <string name="device_contacts">Contactos</string>
+    <string name="device_notifications">Notificaciones</string>
+    <string name="device_status_on">Activado</string>
+    <string name="device_status_off">Desactivado</string>
+    <string name="device_status_unknown">Desconocido</string>
+    <string name="device_permission_required">Se necesita permiso</string>
+    <string name="device_grant_permission">Conceder permiso</string>
+
+    <string name="privacy_permissions">Permisos</string>
+    <string name="privacy_microphone">Micrófono</string>
+    <string name="privacy_microphone_desc">Necesario para oír tus comandos de voz</string>
+    <string name="privacy_location">Ubicación</string>
+    <string name="privacy_location_desc">Para el tiempo y respuestas por ubicación</string>
+    <string name="privacy_contacts">Contactos</string>
+    <string name="privacy_contacts_desc">Para llamar a tus contactos por nombre</string>
+    <string name="privacy_storage">Multimedia</string>
+    <string name="privacy_storage_desc">Para encontrar fotos, música y vídeos</string>
+    <string name="privacy_notifications">Notificaciones</string>
+    <string name="privacy_notifications_desc">Para responder con la app en segundo plano</string>
+    <string name="privacy_bluetooth">Bluetooth</string>
+    <string name="privacy_bluetooth_desc">Para auriculares y dispositivos inalámbricos</string>
+    <string name="privacy_data_retention">Conservación de datos</string>
+    <string name="privacy_data_retention_desc">Cuánto tiempo se guardan las conversaciones</string>
+    <string name="privacy_clear_history">Borrar historial</string>
+    <string name="privacy_clear_history_confirm">¿Borrar todas las conversaciones?</string>
+    <string name="privacy_clear_history_confirm_desc">Todas las conversaciones se eliminarán permanentemente. No se puede deshacer.</string>
+    <string name="privacy_clear">Borrar</string>
+    <string name="privacy_cancel">Cancelar</string>
+    <string name="privacy_retention_7">7 días</string>
+    <string name="privacy_retention_30">30 días</string>
+    <string name="privacy_retention_90">90 días</string>
+    <string name="privacy_retention_forever">Para siempre</string>
+
+    <string name="permission_rationale_title">Por qué Amalia pide permisos</string>
+    <string name="permission_mic_rationale">El micrófono se usa solo mientras hablas con Amalia. El audio nunca se guarda ni se envía sin tu acción.</string>
+    <string name="permission_location_rationale">La ubicación ayuda a responder “¿qué tiempo hace?” y a encontrar lugares cercanos.</string>
+    <string name="permission_contacts_rationale">Los contactos permiten decir “llama a mamá” — Amalia encuentra el número.</string>
+    <string name="permission_notifications_rationale">Las notificaciones permiten a Amalia responder con la app minimizada.</string>
+    <string name="permission_bluetooth_rationale">Bluetooth permite conectar tus auriculares y wearables.</string>
+    <string name="permission_storage_rationale">El acceso a multimedia permite encontrar fotos, música y vídeos cuando lo pidas.</string>
+    <string name="permission_grant">Conceder</string>
+    <string name="permission_deny">Ahora no</string>
+    <string name="permission_open_settings">Abrir ajustes</string>
+    <string name="permission_permanently_denied">Permiso denegado. Actívalo en los ajustes del sistema.</string>
+
+    <string name="history_title">Historial</string>
+    <string name="history_empty">Aún no hay conversaciones</string>
+    <string name="history_empty_desc">Habla con Amalia y tus conversaciones aparecerán aquí.</string>
+    <string name="history_today">Hoy</string>
+    <string name="history_yesterday">Ayer</string>
+    <string name="history_this_week">Esta semana</string>
+    <string name="history_older">Antes</string>
+
+    <string name="about_version">Versión</string>
+    <string name="about_description">Amalia es un asistente de voz con control del dispositivo, dos temas relajantes y soporte multi-idioma.</string>
+    <string name="about_developer">Desarrollador</string>
+    <string name="about_developer_name">Equipo Amalia</string>
+    <string name="about_contact">Contacto</string>
+    <string name="about_licenses">Licencias</string>
+    <string name="about_privacy_policy">Política de privacidad</string>
+    <string name="about_terms">Términos de uso</string>
+
+    <string name="common_ok">OK</string>
+    <string name="common_cancel">Cancelar</string>
+    <string name="common_save">Guardar</string>
+    <string name="common_delete">Eliminar</string>
+    <string name="common_edit">Editar</string>
+    <string name="common_close">Cerrar</string>
+    <string name="common_back">Atrás</string>
+    <string name="common_retry">Reintentar</string>
+    <string name="common_loading">Cargando…</string>
+    <string name="common_error">Algo salió mal</string>
+    <string name="common_search">Buscar</string>
+    <string name="common_yes">Sí</string>
+    <string name="common_no">No</string>
+
+    <string name="ai_engine_stt">Reconocimiento de voz</string>
+    <string name="ai_engine_tts">Síntesis de voz</string>
+    <string name="ai_engine_llm">Modelo de lenguaje</string>
+    <string name="ai_engine_mock">Motor de prueba</string>
+    <string name="ai_engine_not_connected">No conectado</string>
+    <string name="ai_engine_connected">Conectado</string>
+    <string name="ai_engine_settings_desc">Los motores se conectan en los ajustes de desarrollador</string>
+</resources>

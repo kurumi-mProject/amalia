@@ -1,0 +1,197 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">阿玛莉亚</string>
+    <string name="accessibility_service_label">阿玛莉亚服务</string>
+    <string name="accessibility_service_desc">用于以阿玛莉亚语音命令控制设备的无障碍服务。</string>
+
+    <string name="nav_assistant">助手</string>
+    <string name="nav_history">历史</string>
+    <string name="nav_settings">设置</string>
+
+    <string name="onboarding_welcome_title">嗨，我是阿玛莉亚</string>
+    <string name="onboarding_welcome_desc">你的语音助手。听你说，帮你想，替你答——还能控制设备。</string>
+    <string name="onboarding_voice_title">语音即主要界面</string>
+    <string name="onboarding_voice_desc">按下按钮说话。我会识别语音、思考并用声音回答。</string>
+    <string name="onboarding_control_title">设备控制</string>
+    <string name="onboarding_control_desc">Wi-Fi、蓝牙、亮度、音量——全部语音控制。</string>
+    <string name="onboarding_theme_title">两种主题，一样的舒适</string>
+    <string name="onboarding_theme_desc">Liquid Glass——极简纯净。Biophilic——护眼的柔和渐变。</string>
+    <string name="onboarding_start">开始</string>
+    <string name="onboarding_skip">跳过</string>
+    <string name="onboarding_next">下一步</string>
+    <string name="onboarding_back">返回</string>
+    <string name="onboarding_finish">完成</string>
+
+    <string name="guide_mic_title">麦克风按钮</string>
+    <string name="guide_mic_desc">按住即可与我对话</string>
+    <string name="guide_chips_title">快捷建议</string>
+    <string name="guide_chips_desc">点按建议即可快速提问</string>
+    <string name="guide_settings_title">设置</string>
+    <string name="guide_settings_desc">主题、语言和控制方式在这里选择</string>
+    <string name="guide_history_title">对话历史</string>
+    <string name="guide_history_desc">你的所有对话都保存在这里</string>
+    <string name="guide_close">明白了</string>
+    <string name="guide_skip_all">跳过引导</string>
+
+    <string name="assistant_idle">在线</string>
+    <string name="assistant_listening">正在听…</string>
+    <string name="assistant_thinking">思考中…</string>
+    <string name="assistant_speaking">正在说…</string>
+    <string name="assistant_error">错误</string>
+    <string name="assistant_welcome_hint">按下并说话</string>
+    <string name="assistant_welcome_desc">我是阿玛莉亚，你的语音助手。按住按钮开始对话。</string>
+    <string name="assistant_repeat">重复</string>
+    <string name="assistant_copy">复制</string>
+    <string name="assistant_share">分享</string>
+    <string name="assistant_stop">停止</string>
+
+    <string name="suggestion_hello">你好</string>
+    <string name="suggestion_how_are_you">你好吗？</string>
+    <string name="suggestion_about">介绍一下自己</string>
+    <string name="suggestion_thanks">谢谢</string>
+    <string name="suggestion_more">再问一个</string>
+    <string name="suggestion_repeat">再说一遍</string>
+    <string name="suggestion_wifi_on">打开Wi-Fi</string>
+    <string name="suggestion_brightness">调亮一点</string>
+    <string name="suggestion_time">现在几点？</string>
+    <string name="suggestion_weather">今天会下雨吗？</string>
+
+    <string name="settings_title">设置</string>
+    <string name="settings_appearance">外观</string>
+    <string name="settings_appearance_desc">主题、深色模式、玻璃效果</string>
+    <string name="settings_language">语言</string>
+    <string name="settings_language_desc">界面和语音语言</string>
+    <string name="settings_voice">语音</string>
+    <string name="settings_voice_desc">语速、音调、唤醒词</string>
+    <string name="settings_device">设备</string>
+    <string name="settings_device_desc">Wi-Fi、蓝牙、亮度、音量</string>
+    <string name="settings_privacy">隐私</string>
+    <string name="settings_privacy_desc">权限与数据保留</string>
+    <string name="settings_notifications">通知</string>
+    <string name="settings_notifications_desc">通知权限</string>
+    <string name="settings_about">关于</string>
+    <string name="settings_about_desc">版本、开发者、许可证</string>
+
+    <string name="appearance_theme">视觉主题</string>
+    <string name="appearance_theme_glass">Liquid Glass</string>
+    <string name="appearance_theme_bio">Biophilic</string>
+    <string name="appearance_dark_mode">深色模式</string>
+    <string name="appearance_dark_system">跟随系统</string>
+    <string name="appearance_dark_always">始终深色</string>
+    <string name="appearance_dark_never">始终浅色</string>
+    <string name="appearance_bio_time">生物时钟适应</string>
+    <string name="appearance_bio_time_desc">配色随一天的时间变化</string>
+    <string name="appearance_glass_intensity">玻璃强度</string>
+    <string name="appearance_glass_blur">玻璃模糊度</string>
+
+    <string name="language_follow_system">跟随系统语言</string>
+    <string name="language_russian">俄语</string>
+    <string name="language_english">英语</string>
+    <string name="language_spanish">西班牙语</string>
+    <string name="language_arabic">阿拉伯语</string>
+    <string name="language_german">德语</string>
+    <string name="language_french">法语</string>
+    <string name="language_hindi">印地语</string>
+    <string name="language_japanese">日语</string>
+    <string name="language_chinese">中文</string>
+
+    <string name="voice_tts_engine">语音引擎</string>
+    <string name="voice_tts_engine_mock">测试引擎</string>
+    <string name="voice_speech_rate">语速</string>
+    <string name="voice_speech_pitch">音调</string>
+    <string name="voice_voice_id">声音</string>
+    <string name="voice_test">试听</string>
+    <string name="voice_auto_listen">自动聆听</string>
+    <string name="voice_auto_listen_desc">打开应用即开始聆听</string>
+    <string name="voice_wake_word">唤醒词</string>
+    <string name="voice_wake_word_desc">后台监听“阿玛莉亚”</string>
+
+    <string name="device_wifi">Wi-Fi</string>
+    <string name="device_bluetooth">蓝牙</string>
+    <string name="device_brightness">亮度</string>
+    <string name="device_volume">音量</string>
+    <string name="device_location">位置</string>
+    <string name="device_contacts">通讯录</string>
+    <string name="device_notifications">通知</string>
+    <string name="device_status_on">开</string>
+    <string name="device_status_off">关</string>
+    <string name="device_status_unknown">未知</string>
+    <string name="device_permission_required">需要权限</string>
+    <string name="device_grant_permission">授予权限</string>
+
+    <string name="privacy_permissions">权限</string>
+    <string name="privacy_microphone">麦克风</string>
+    <string name="privacy_microphone_desc">用于听取你的语音命令</string>
+    <string name="privacy_location">位置</string>
+    <string name="privacy_location_desc">用于天气和基于位置的回答</string>
+    <string name="privacy_contacts">通讯录</string>
+    <string name="privacy_contacts_desc">“打给妈妈”——阿玛莉亚帮你找号码</string>
+    <string name="privacy_storage">媒体</string>
+    <string name="privacy_storage_desc">查找照片、音乐和视频</string>
+    <string name="privacy_notifications">通知</string>
+    <string name="privacy_notifications_desc">在后台也能回答你</string>
+    <string name="privacy_bluetooth">蓝牙</string>
+    <string name="privacy_bluetooth_desc">连接无线耳机和设备</string>
+    <string name="privacy_data_retention">数据保留</string>
+    <string name="privacy_data_retention_desc">对话保存多久</string>
+    <string name="privacy_clear_history">清除历史</string>
+    <string name="privacy_clear_history_confirm">清除所有对话？</string>
+    <string name="privacy_clear_history_confirm_desc">所有对话将被永久删除，无法恢复。</string>
+    <string name="privacy_clear">清除</string>
+    <string name="privacy_cancel">取消</string>
+    <string name="privacy_retention_7">7天</string>
+    <string name="privacy_retention_30">30天</string>
+    <string name="privacy_retention_90">90天</string>
+    <string name="privacy_retention_forever">永久</string>
+
+    <string name="permission_rationale_title">阿玛莉亚为什么申请权限</string>
+    <string name="permission_mic_rationale">麦克风只在你与阿玛莉亚对话时使用。未经你的操作，音频不会被存储或发送。</string>
+    <string name="permission_location_rationale">位置信息用于回答天气问题和查找附近地点。</string>
+    <string name="permission_contacts_rationale">通讯录让你说“打给妈妈”——阿玛莉亚帮你找号码。</string>
+    <string name="permission_notifications_rationale">通知让阿玛莉亚在应用最小化时也能回答。</string>
+    <string name="permission_bluetooth_rationale">蓝牙用于连接你的耳机和穿戴设备。</string>
+    <string name="permission_storage_rationale">媒体访问用于按你的要求查找照片、音乐和视频。</string>
+    <string name="permission_grant">授权</string>
+    <string name="permission_deny">暂不</string>
+    <string name="permission_open_settings">打开设置</string>
+    <string name="permission_permanently_denied">权限被拒绝。请在系统设置中开启。</string>
+
+    <string name="history_title">历史</string>
+    <string name="history_empty">还没有对话</string>
+    <string name="history_empty_desc">和阿玛莉亚聊聊，对话会显示在这里。</string>
+    <string name="history_today">今天</string>
+    <string name="history_yesterday">昨天</string>
+    <string name="history_this_week">本周</string>
+    <string name="history_older">更早</string>
+
+    <string name="about_version">版本</string>
+    <string name="about_description">阿玛莉亚是一款语音助手，支持设备控制、两款舒适主题和多语言。</string>
+    <string name="about_developer">开发者</string>
+    <string name="about_developer_name">阿玛莉亚团队</string>
+    <string name="about_contact">联系方式</string>
+    <string name="about_licenses">许可证</string>
+    <string name="about_privacy_policy">隐私政策</string>
+    <string name="about_terms">使用条款</string>
+
+    <string name="common_ok">好的</string>
+    <string name="common_cancel">取消</string>
+    <string name="common_save">保存</string>
+    <string name="common_delete">删除</string>
+    <string name="common_edit">编辑</string>
+    <string name="common_close">关闭</string>
+    <string name="common_back">返回</string>
+    <string name="common_retry">重试</string>
+    <string name="common_loading">加载中…</string>
+    <string name="common_error">出错了</string>
+    <string name="common_search">搜索</string>
+    <string name="common_yes">是</string>
+    <string name="common_no">否</string>
+
+    <string name="ai_engine_stt">语音识别</string>
+    <string name="ai_engine_tts">语音合成</string>
+    <string name="ai_engine_llm">语言模型</string>
+    <string name="ai_engine_mock">测试引擎</string>
+    <string name="ai_engine_not_connected">未连接</string>
+    <string name="ai_engine_connected">已连接</string>
+    <string name="ai_engine_settings_desc">引擎在开发者设置中连接</string>
+</resources>

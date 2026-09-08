@@ -1,0 +1,197 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">أماليا</string>
+    <string name="accessibility_service_label">خدمة أماليا</string>
+    <string name="accessibility_service_desc">خدمة إمكانية الوصول للتحكم في الجهاز بأوامر صوتية من أماليا.</string>
+
+    <string name="nav_assistant">المساعد</string>
+    <string name="nav_history">السجل</string>
+    <string name="nav_settings">الإعدادات</string>
+
+    <string name="onboarding_welcome_title">مرحباً، أنا أماليا</string>
+    <string name="onboarding_welcome_desc">مساعدك الصوتي. أستمع وأفكر وأجيب — وأتحكم في جهازك.</string>
+    <string name="onboarding_voice_title">الصوت هو الواجهة الرئيسية</string>
+    <string name="onboarding_voice_desc">اضغط الزر وتحدث. أتعرف على كلامك وأفكر وأجيب بصوتي.</string>
+    <string name="onboarding_control_title">التحكم في الجهاز</string>
+    <string name="onboarding_control_desc">واي فاي، بلوتوث، السطوع، الصوت — كل ذلك بأمر صوتي.</string>
+    <string name="onboarding_theme_title">سِمَتان وراحة واحدة</string>
+    <string name="onboarding_theme_desc">Liquid Glass — بساطة صارمة. Biophilic — تدرجات ناعمة تريح العين.</string>
+    <string name="onboarding_start">ابدأ</string>
+    <string name="onboarding_skip">تخطي</string>
+    <string name="onboarding_next">التالي</string>
+    <string name="onboarding_back">رجوع</string>
+    <string name="onboarding_finish">تم</string>
+
+    <string name="guide_mic_title">زر الميكروفون</string>
+    <string name="guide_mic_desc">اضغط باستمرار للتحدث معي</string>
+    <string name="guide_chips_title">اقتراحات</string>
+    <string name="guide_chips_desc">اضغط اقتراحاً لطرح سؤال سريع</string>
+    <string name="guide_settings_title">الإعدادات</string>
+    <string name="guide_settings_desc">اختر السِمة واللغة وخيارات التحكم هنا</string>
+    <string name="guide_history_title">سجل المحادثات</string>
+    <string name="guide_history_desc">تُحفظ جميع محادثاتك هنا</string>
+    <string name="guide_close">فهمت</string>
+    <string name="guide_skip_all">تخطي الدليل</string>
+
+    <string name="assistant_idle">متاحة</string>
+    <string name="assistant_listening">أستمع…</string>
+    <string name="assistant_thinking">أفكر…</string>
+    <string name="assistant_speaking">أتحدث…</string>
+    <string name="assistant_error">خطأ</string>
+    <string name="assistant_welcome_hint">اضغط وتحدث</string>
+    <string name="assistant_welcome_desc">أنا أماليا، مساعدتك الصوتية. اضغط الزر باستمرار لبدء الحديث.</string>
+    <string name="assistant_repeat">إعادة</string>
+    <string name="assistant_copy">نسخ</string>
+    <string name="assistant_share">مشاركة</string>
+    <string name="assistant_stop">إيقاف</string>
+
+    <string name="suggestion_hello">مرحباً</string>
+    <string name="suggestion_how_are_you">كيف حالك؟</string>
+    <string name="suggestion_about">عرّفني بنفسك</string>
+    <string name="suggestion_thanks">شكراً</string>
+    <string name="suggestion_more">سؤال آخر</string>
+    <string name="suggestion_repeat">أعيدي</string>
+    <string name="suggestion_wifi_on">شغّلي الواي فاي</string>
+    <string name="suggestion_brightness">زيدي السطوع</string>
+    <string name="suggestion_time">كم الساعة؟</string>
+    <string name="suggestion_weather">هل ستمطر اليوم؟</string>
+
+    <string name="settings_title">الإعدادات</string>
+    <string name="settings_appearance">المظهر</string>
+    <string name="settings_appearance_desc">السِمة، الوضع الداكن، تأثيرات الزجاج</string>
+    <string name="settings_language">اللغة</string>
+    <string name="settings_language_desc">لغة الواجهة والصوت</string>
+    <string name="settings_voice">الصوت</string>
+    <string name="settings_voice_desc">السرعة، النبرة، كلمة الاستيقاظ</string>
+    <string name="settings_device">الجهاز</string>
+    <string name="settings_device_desc">واي فاي، بلوتوث، السطوع، الصوت</string>
+    <string name="settings_privacy">الخصوصية</string>
+    <string name="settings_privacy_desc">الأذونات والاحتفاظ بالبيانات</string>
+    <string name="settings_notifications">الإشعارات</string>
+    <string name="settings_notifications_desc">أذونات الإشعارات</string>
+    <string name="settings_about">حول</string>
+    <string name="settings_about_desc">الإصدار، المطوّر، التراخيص</string>
+
+    <string name="appearance_theme">السِمة المرئية</string>
+    <string name="appearance_theme_glass">Liquid Glass</string>
+    <string name="appearance_theme_bio">Biophilic</string>
+    <string name="appearance_dark_mode">الوضع الداكن</string>
+    <string name="appearance_dark_system">حسب النظام</string>
+    <string name="appearance_dark_always">داكن دائماً</string>
+    <string name="appearance_dark_never">فاتح دائماً</string>
+    <string name="appearance_bio_time">التكيف الحيوي الزمني</string>
+    <string name="appearance_bio_time_desc">تتبع اللوحة الوقت حسب اليوم</string>
+    <string name="appearance_glass_intensity">قوة الزجاج</string>
+    <string name="appearance_glass_blur">قوة التمويه</string>
+
+    <string name="language_follow_system">لغة النظام</string>
+    <string name="language_russian">الروسية</string>
+    <string name="language_english">الإنجليزية</string>
+    <string name="language_spanish">الإسبانية</string>
+    <string name="language_arabic">العربية</string>
+    <string name="language_german">الألمانية</string>
+    <string name="language_french">الفرنسية</string>
+    <string name="language_hindi">الهندية</string>
+    <string name="language_japanese">اليابانية</string>
+    <string name="language_chinese">الصينية</string>
+
+    <string name="voice_tts_engine">محرك النطق</string>
+    <string name="voice_tts_engine_mock">محرك تجريبي</string>
+    <string name="voice_speech_rate">سرعة الكلام</string>
+    <string name="voice_speech_pitch">نبرة الصوت</string>
+    <string name="voice_voice_id">الصوت</string>
+    <string name="voice_test">تجربة الصوت</string>
+    <string name="voice_auto_listen">استماع تلقائي</string>
+    <string name="voice_auto_listen_desc">البدء بالاستماع عند فتح التطبيق</string>
+    <string name="voice_wake_word">كلمة الاستيقاظ</string>
+    <string name="voice_wake_word_desc">الاستماع لـ «أماليا» في الخلفية</string>
+
+    <string name="device_wifi">واي فاي</string>
+    <string name="device_bluetooth">بلوتوث</string>
+    <string name="device_brightness">السطوع</string>
+    <string name="device_volume">الصوت</string>
+    <string name="device_location">الموقع</string>
+    <string name="device_contacts">جهات الاتصال</string>
+    <string name="device_notifications">الإشعارات</string>
+    <string name="device_status_on">مُفعّل</string>
+    <string name="device_status_off">مُعطّل</string>
+    <string name="device_status_unknown">غير معروف</string>
+    <string name="device_permission_required">الإذن مطلوب</string>
+    <string name="device_grant_permission">منح الإذن</string>
+
+    <string name="privacy_permissions">الأذونات</string>
+    <string name="privacy_microphone">الميكروفون</string>
+    <string name="privacy_microphone_desc">لاستخدام أوامرك الصوتية</string>
+    <string name="privacy_location">الموقع</string>
+    <string name="privacy_location_desc">للطقس والإجابات حسب الموقع</string>
+    <string name="privacy_contacts">جهات الاتصال</string>
+    <string name="privacy_contacts_desc">للاتصال بالأشخاص بالاسم</string>
+    <string name="privacy_storage">الوسائط</string>
+    <string name="privacy_storage_desc">لإيجاد الصور والموسيقى والفيديو</string>
+    <string name="privacy_notifications">الإشعارات</string>
+    <string name="privacy_notifications_desc">للرد والتطبيق في الخلفية</string>
+    <string name="privacy_bluetooth">بلوتوث</string>
+    <string name="privacy_bluetooth_desc">للسماعات والأجهزة اللاسلكية</string>
+    <string name="privacy_data_retention">مدة الاحتفاظ بالبيانات</string>
+    <string name="privacy_data_retention_desc">كم يُحتفظ بالمحادثات</string>
+    <string name="privacy_clear_history">مسح السجل</string>
+    <string name="privacy_clear_history_confirm">مسح جميع المحادثات؟</string>
+    <string name="privacy_clear_history_confirm_desc">ستُحذف جميع المحادثات نهائياً. لا يمكن التراجع.</string>
+    <string name="privacy_clear">مسح</string>
+    <string name="privacy_cancel">إلغاء</string>
+    <string name="privacy_retention_7">7 أيام</string>
+    <string name="privacy_retention_30">30 يوماً</string>
+    <string name="privacy_retention_90">90 يوماً</string>
+    <string name="privacy_retention_forever">للأبد</string>
+
+    <string name="permission_rationale_title">لماذا تطلب أماليا الأذونات</string>
+    <string name="permission_mic_rationale">يُستخدم الميكروفون فقط أثناء حديثك مع أماليا. لا يُحفظ الصوت ولا يُرسل دون إجراء منك.</string>
+    <string name="permission_location_rationale">يساعد الموقع على الإجابة عن الطقس وإيجاد الأماكن القريبة.</string>
+    <string name="permission_contacts_rationale">تتيح جهات الاتصال قول «اتصل بأمي» — تجد أماليا الرقم لك.</string>
+    <string name="permission_notifications_rationale">تتيح الإشعارات لأماليا الرد حتى مع تصغير التطبيق.</string>
+    <string name="permission_bluetooth_rationale">يتيح بلوتوث الاتصال بسماعاتك وأجهزتك القابلة للارتداء.</string>
+    <string name="permission_storage_rationale">يتيح الوصول للوسائط إيجاد الصور والموسيقى والفيديو عند الطلب.</string>
+    <string name="permission_grant">منح</string>
+    <string name="permission_deny">ليس الآن</string>
+    <string name="permission_open_settings">فتح الإعدادات</string>
+    <string name="permission_permanently_denied">رُفض الإذن. فعّله من إعدادات النظام.</string>
+
+    <string name="history_title">السجل</string>
+    <string name="history_empty">لا محادثات بعد</string>
+    <string name="history_empty_desc">تحدث مع أماليا وستظهر محادثاتك هنا.</string>
+    <string name="history_today">اليوم</string>
+    <string name="history_yesterday">أمس</string>
+    <string name="history_this_week">هذا الأسبوع</string>
+    <string name="history_older">أقدم</string>
+
+    <string name="about_version">الإصدار</string>
+    <string name="about_description">أماليا مساعدة صوتية مع تحكم في الجهاز وسِمتين مريحتين ودعم متعدد اللغات.</string>
+    <string name="about_developer">المطوّر</string>
+    <string name="about_developer_name">فريق أماليا</string>
+    <string name="about_contact">التواصل</string>
+    <string name="about_licenses">التراخيص</string>
+    <string name="about_privacy_policy">سياسة الخصوصية</string>
+    <string name="about_terms">شروط الاستخدام</string>
+
+    <string name="common_ok">حسناً</string>
+    <string name="common_cancel">إلغاء</string>
+    <string name="common_save">حفظ</string>
+    <string name="common_delete">حذف</string>
+    <string name="common_edit">تعديل</string>
+    <string name="common_close">إغلاق</string>
+    <string name="common_back">رجوع</string>
+    <string name="common_retry">إعادة المحاولة</string>
+    <string name="common_loading">جارٍ التحميل…</string>
+    <string name="common_error">حدث خطأ ما</string>
+    <string name="common_search">بحث</string>
+    <string name="common_yes">نعم</string>
+    <string name="common_no">لا</string>
+
+    <string name="ai_engine_stt">التعرف على الكلام</string>
+    <string name="ai_engine_tts">توليد الكلام</string>
+    <string name="ai_engine_llm">النموذج اللغوي</string>
+    <string name="ai_engine_mock">محرك تجريبي</string>
+    <string name="ai_engine_not_connected">غير متصل</string>
+    <string name="ai_engine_connected">متصل</string>
+    <string name="ai_engine_settings_desc">تُوصل المحركات في إعدادات المطور</string>
+</resources>
