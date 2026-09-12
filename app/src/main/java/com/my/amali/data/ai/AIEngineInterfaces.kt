@@ -98,14 +98,33 @@ interface SpeechToTextEngine {
 }
 
 /**
- * Контракт движка синтеза речи: текст → поток воспроизводимых PCM-чанков.
+ * Контракт движка синтеза речи.
+ *
+ * WebSocket-режим: движок держит открытое соединение и принимает токены
+ * по одному через [sendToken]/[flush]/[stop] вместо одного вызова [speak].
+ * Это позволяет Fish Audio начать генерацию аудио пока LLM ещё говорит.
  */
 interface TextToSpeechEngine {
     suspend fun initialize()
     suspend fun close()
 
-    /** Синтезирует [text], эмитя [AudioChunk] в порядке воспроизведения. */
+    /** Синтезирует [text] целиком (используется для коротких фраз). */
     fun speak(text: String, options: EngineOptions = EngineOptions.Default): Flow<AudioChunk>
+
+    /** Открывает сессию стриминга — вызвать перед первым [sendToken]. */
+    suspend fun startStreaming(options: EngineOptions = EngineOptions.Default) {}
+
+    /** Отправляет один токен LLM в открытую сессию. */
+    suspend fun sendToken(token: String) {}
+
+    /** Форсирует синтез накопленного текста. */
+    suspend fun flushStreaming() {}
+
+    /** Завершает сессию и закрывает соединение. */
+    suspend fun stopStreaming() {}
+
+    /** Поток аудио чанков из стриминговой сессии. */
+    val streamingAudio: Flow<AudioChunk> get() = kotlinx.coroutines.flow.emptyFlow()
 }
 
 /**

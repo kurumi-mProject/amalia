@@ -2,7 +2,6 @@ package com.my.amali.data.ai
 
 import com.my.amali.data.model.ChatMessage
 import kotlinx.coroutines.CancellationException
-import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.FlowCollector
 import kotlinx.coroutines.flow.catch
@@ -129,9 +128,10 @@ class AIOrchestrator(
     // ── Ядро конвейера ───────────────────────────────────────────────────
 
     /**
-     * LLM и TTS с пофразовым пайплайном.
+     * LLM и TTS с прямым стримингом токенов в Fish Audio WebSocket.
      *
-     * @param emit коллбэк отправки события в поток (уже внутри channelFlow).
+     * Токены от Groq идут напрямую в WS без накопления предложений.
+     * Fish Audio начинает синтез сразу — минимальная задержка.
      */
     private suspend fun runPipeline(
         commandText: String,
@@ -141,66 +141,54 @@ class AIOrchestrator(
     ) = kotlinx.coroutines.coroutineScope {
         emit(AiResponse.Thinking(true))
 
-        // Очередь готовых к озвучке предложений.
-        val sentences = Channel<String>(capacity = Channel.UNLIMITED)
         var thinkingClosed = false
         var speakingOpened = false
 
-        // Озвучка идёт параллельно генерации, но строго по порядку фраз.
-        val speakJob = launch {
-            for (sentence in sentences) {
+        // Запускаем WS сессию
+        ttsEngine.startStreaming(options)
+
+        // Корутина читает аудио из WS и эмитит
+        val audioJob = launch {
+            ttsEngine.streamingAudio.collect { chunk ->
                 if (!speakingOpened) {
                     speakingOpened = true
                     emit(AiResponse.Speaking(true))
                 }
-                ttsEngine.speak(sentence, options).collect { chunk ->
-                    emit(AiResponse.Audio(chunk))
-                }
+                emit(AiResponse.Audio(chunk))
             }
         }
 
         val answer = StringBuilder()
-        val pending = StringBuilder()
 
         try {
             llmEngine.generateResponse(commandText, history, options).collect { delta ->
                 answer.append(delta)
-                pending.append(delta)
                 emit(AiResponse.ReplyDelta(delta, answer.toString()))
 
-                // Как только набралось законченное предложение — отправляем в синтез.
-                while (true) {
-                    val cut = sentenceBoundary(pending) ?: break
-                    val sentence = pending.substring(0, cut).trim()
-                    pending.delete(0, cut)
-                    if (sentence.isNotEmpty()) {
-                        if (!thinkingClosed) {
-                            thinkingClosed = true
-                            emit(AiResponse.Thinking(false))
-                        }
-                        sentences.send(sentence)
-                    }
-                }
-            }
-
-            // Хвост, не заканчивающийся знаком препинания.
-            val tail = pending.toString().trim()
-            if (tail.isNotEmpty()) {
+                // Первый токен — закрываем Thinking
                 if (!thinkingClosed) {
                     thinkingClosed = true
                     emit(AiResponse.Thinking(false))
                 }
-                sentences.send(tail)
+
+                // Стримим токен напрямую в Fish Audio WS
+                ttsEngine.sendToken(delta)
             }
-            sentences.close()
-            speakJob.join()
+
+            // LLM закончил — флашим и стопаем WS
+            ttsEngine.flushStreaming()
+            ttsEngine.stopStreaming()
+
+            // Ждём пока всё аудио придёт
+            audioJob.join()
+
         } catch (e: CancellationException) {
-            sentences.close()
-            speakJob.cancel()
+            ttsEngine.stopStreaming()
+            audioJob.cancel()
             throw e
         } catch (e: Throwable) {
-            sentences.close()
-            speakJob.cancel()
+            ttsEngine.stopStreaming()
+            audioJob.cancel()
             if (!thinkingClosed) emit(AiResponse.Thinking(false))
             if (speakingOpened) emit(AiResponse.Speaking(false))
             throw e
@@ -268,13 +256,5 @@ class AIOrchestrator(
         const val ERROR_EMPTY_COMMAND = "Пустая команда — нечего обрабатывать."
         const val ERROR_UNKNOWN = "Что-то пошло не так. Попробуй ещё раз."
         const val FALLBACK_ANSWER = "Я не смогла сформулировать ответ. Попробуй переспросить."
-
-        /** Минимальная длина фразы, отдаваемой в синтез. */
-        const val MIN_SENTENCE_CHARS = 24
-
-        /** Длина, после которой режем фразу даже без терминального знака. */
-        const val SOFT_CUT_CHARS = 140
-
-        val TERMINATORS = charArrayOf('.', '!', '?', '…', ';', ':')
     }
 }

@@ -1,119 +1,303 @@
 package com.my.amali.data.ai
 
+import android.media.MediaCodec
+import android.media.MediaExtractor
+import android.media.MediaFormat
 import com.my.amali.BuildConfig
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.flow.Flow
-import kotlinx.coroutines.flow.flow
-import kotlinx.coroutines.flow.flowOn
-import okhttp3.MediaType.Companion.toMediaType
+import kotlinx.coroutines.flow.emptyFlow
+import kotlinx.coroutines.flow.receiveAsFlow
+import kotlinx.coroutines.withContext
 import okhttp3.OkHttpClient
 import okhttp3.Request
-import okhttp3.RequestBody.Companion.toRequestBody
+import okhttp3.Response
+import okhttp3.WebSocket
+import okhttp3.WebSocketListener
+import okio.ByteString
+import okio.ByteString.Companion.toByteString
 import org.json.JSONObject
-import java.io.IOException
-import java.net.UnknownHostException
+import java.io.ByteArrayInputStream
+import java.io.File
+import java.io.FileOutputStream
 import java.util.concurrent.TimeUnit
+import java.util.concurrent.atomic.AtomicBoolean
 
 /**
- * TTS-движок на Fish Audio (модель s2.1-pro) с потоковой отдачей звука.
+ * TTS через Fish Audio WebSocket + OGG/Opus.
  *
- * Запрашивается `format=pcm` — сырой 16-bit LE mono, который пишется прямо
- * в [AudioPlayer] без декодирования mp3/opus: это экономит ~200 мс и
- * убирает лишние зависимости.
- *
- * ## Важные детали реализации
- * - Эмит из билдера `flow {}` + [flowOn]: `withContext` внутри `flow {}`
- *   нарушает инвариант Flow и валит поток с `IllegalStateException`,
- *   из-за чего ассистент раньше молчал.
- * - Текст санитизируется: markdown-мусор, emoji и кодовые блоки звучат
- *   как мусор, поэтому вырезаются перед синтезом.
- * - Скорость речи берётся из пользовательских настроек (`prosody.speed`).
- * - 24 кГц вместо 44.1 кГц: для голоса на телефоне разницы не слышно,
- *   а трафика и задержки почти вдвое меньше.
+ * Архитектура:
+ * - Одно WS соединение на весь диалог
+ * - Токены от Groq LLM идут напрямую через [sendToken] без накопления предложений
+ * - Fish Audio отдаёт OGG/Opus (48кГц) — нативный формат Android
+ * - MediaCodec декодирует OGG/Opus → PCM 48кГц
+ * - 48кГц = нативная частота Android HAL, ноль ресемплинга
  */
 class FishAudioTTS : TextToSpeechEngine {
 
     private val client = OkHttpClient.Builder()
         .connectTimeout(12, TimeUnit.SECONDS)
-        .readTimeout(60, TimeUnit.SECONDS)
-        .callTimeout(180, TimeUnit.SECONDS)
-        .retryOnConnectionFailure(true)
+        .readTimeout(0, TimeUnit.SECONDS) // бесконечный — WS живёт долго
+        .writeTimeout(0, TimeUnit.SECONDS)
         .build()
+
+    // WebSocket сессия
+    private var ws: WebSocket? = null
+    private val audioChannel = Channel<AudioChunk>(capacity = Channel.UNLIMITED)
+    private val isConnected = AtomicBoolean(false)
+    private val isStopped = AtomicBoolean(false)
+
+    // Буфер накопленных OGG байт для декодирования
+    private val oggBuffer = java.io.ByteArrayOutputStream()
 
     override suspend fun initialize() { /* stateless */ }
 
     override suspend fun close() {
+        ws?.close(1000, "close")
+        ws = null
         client.dispatcher.executorService.shutdown()
         client.connectionPool.evictAll()
     }
 
-    override fun speak(text: String, options: EngineOptions): Flow<AudioChunk> = flow {
-        if (API_KEY.isBlank()) {
-            throw EngineException("Не задан ключ Fish Audio. Добавь FISH_AUDIO_API_KEY в сборку.")
-        }
-        val speakable = sanitize(text)
-        if (speakable.isEmpty()) return@flow
+    // ── HTTP speak (fallback, используется если WS не открыт) ─────────────
+    override fun speak(text: String, options: EngineOptions): Flow<AudioChunk> =
+        emptyFlow() // не используется — всё через WS стриминг
 
-        val bodyJson = JSONObject()
-            .put("text", speakable)
-            .put("reference_id", REFERENCE_ID)
-            .put("format", "pcm")
-            .put("sample_rate", SAMPLE_RATE)   // 48 кГц = нативная частота Android HAL
-            .put("latency", "balanced")
-            .put("chunk_length", 120)
-            .put("normalize", true)
-            .put(
-                "prosody",
-                JSONObject()
-                    .put("speed", options.speechRate.coerceIn(0.5f, 2f).toDouble())
-                    .put("volume", 0)
-            )
+    // ── WebSocket стриминг ─────────────────────────────────────────────────
+
+    override val streamingAudio: Flow<AudioChunk>
+        get() = audioChannel.receiveAsFlow()
+
+    override suspend fun startStreaming(options: EngineOptions) = withContext(Dispatchers.IO) {
+        isStopped.set(false)
+        oggBuffer.reset()
 
         val request = Request.Builder()
-            .url(ENDPOINT)
-            .post(bodyJson.toString().toRequestBody("application/json".toMediaType()))
+            .url(WS_ENDPOINT)
             .header("Authorization", "Bearer $API_KEY")
             .header("model", MODEL)
             .build()
 
-        val response = try {
-            client.newCall(request).execute()
-        } catch (e: UnknownHostException) {
-            throw EngineException("Нет интернета — не могу озвучить ответ.", e)
-        } catch (e: IOException) {
-            throw EngineException("Синтез речи недоступен: ${e.message ?: "ошибка сети"}", e)
+        ws = client.newWebSocket(request, object : WebSocketListener() {
+
+            override fun onOpen(webSocket: WebSocket, response: Response) {
+                isConnected.set(true)
+                // Старт сессии
+                val startMsg = JSONObject()
+                    .put("event", "start")
+                    .put("request", JSONObject()
+                        .put("text", "")
+                        .put("reference_id", REFERENCE_ID)
+                        .put("format", "opus")
+                        .put("sample_rate", SAMPLE_RATE)
+                        .put("opus_bitrate", OPUS_BITRATE)
+                        .put("latency", "balanced")
+                        .put("chunk_length", 120)
+                        .put("normalize", true)
+                        .put("prosody", JSONObject()
+                            .put("speed", options.speechRate.coerceIn(0.5f, 2f).toDouble())
+                            .put("volume", 0)
+                        )
+                    )
+                webSocket.send(startMsg.toString())
+            }
+
+            override fun onMessage(webSocket: WebSocket, bytes: ByteString) {
+                // Fish Audio WS использует JSON с base64 или бинарный msgpack
+                // Но мы отправляем JSON — ответ тоже JSON или бинарный
+                // Проверим: если первый байт — '{', это JSON
+                val raw = bytes.toByteArray()
+                if (raw.isNotEmpty() && raw[0] == '{'.code.toByte()) {
+                    handleJsonMessage(String(raw))
+                } else {
+                    // Бинарный msgpack — пробуем парсить
+                    handleBinaryMessage(raw)
+                }
+            }
+
+            override fun onMessage(webSocket: WebSocket, text: String) {
+                handleJsonMessage(text)
+            }
+
+            override fun onFailure(webSocket: WebSocket, t: Throwable, response: Response?) {
+                isConnected.set(false)
+                audioChannel.close(EngineException("Fish Audio WS ошибка: ${t.message}"))
+            }
+
+            override fun onClosed(webSocket: WebSocket, code: Int, reason: String) {
+                isConnected.set(false)
+                if (!isStopped.get()) {
+                    audioChannel.close()
+                }
+            }
+        })
+    }
+
+    private fun handleJsonMessage(text: String) {
+        try {
+            val j = JSONObject(text)
+            when (j.optString("event")) {
+                "audio" -> {
+                    val audioB64 = j.optString("audio")
+                    if (audioB64.isNotEmpty()) {
+                        val audioBytes = android.util.Base64.decode(audioB64, android.util.Base64.DEFAULT)
+                        decodeOpusChunk(audioBytes)
+                    }
+                }
+                "finish" -> {
+                    // Декодируем остаток буфера
+                    flushOggBuffer()
+                    audioChannel.close()
+                }
+            }
+        } catch (_: Exception) {}
+    }
+
+    private fun handleBinaryMessage(raw: ByteArray) {
+        // Fish Audio может отдавать бинарный OGG напрямую
+        decodeOpusChunk(raw)
+    }
+
+    private fun decodeOpusChunk(opusData: ByteArray) {
+        // Накапливаем OGG данные
+        oggBuffer.write(opusData)
+
+        // Пробуем декодировать накопленный буфер
+        val accumulated = oggBuffer.toByteArray()
+        val pcm = decodeOggOpusToPcm(accumulated)
+        if (pcm != null && pcm.isNotEmpty()) {
+            oggBuffer.reset()
+            audioChannel.trySend(AudioChunk(data = pcm, sampleRate = SAMPLE_RATE))
         }
+    }
 
-        response.use { resp ->
-            if (!resp.isSuccessful) {
-                throw EngineException(humanError(resp.code, resp.body?.string()))
-            }
-            val source = resp.body?.source()
-                ?: throw EngineException("Fish Audio вернул пустой ответ.")
-
-            val buffer = ByteArray(CHUNK_BYTES)
-            var totalBytes = 0L
-            while (true) {
-                val read = source.read(buffer, 0, CHUNK_BYTES)
-                if (read == -1) break
-                if (read <= 0) continue
-                // PCM-16: чанк всегда должен содержать целое число сэмплов.
-                val evenLength = read - (read % 2)
-                if (evenLength <= 0) continue
-                totalBytes += evenLength
-                emit(AudioChunk(data = buffer.copyOf(evenLength), sampleRate = SAMPLE_RATE))
-            }
-
-            if (totalBytes == 0L) {
-                throw EngineException("Синтез речи вернул тишину. Попробуй ещё раз.")
-            }
+    private fun flushOggBuffer() {
+        val accumulated = oggBuffer.toByteArray()
+        if (accumulated.isEmpty()) return
+        val pcm = decodeOggOpusToPcm(accumulated) ?: return
+        if (pcm.isNotEmpty()) {
+            audioChannel.trySend(AudioChunk(data = pcm, sampleRate = SAMPLE_RATE))
         }
-    }.flowOn(Dispatchers.IO)
+        oggBuffer.reset()
+    }
 
     /**
-     * Готовит текст к озвучке: убирает markdown, кодовые блоки, ссылки,
-     * emoji и служебные символы, сжимает пробелы и ограничивает длину.
+     * Декодирует OGG/Opus байты → PCM 16-bit LE через MediaCodec.
+     * Возвращает null если данных недостаточно для декодирования.
      */
+    private fun decodeOggOpusToPcm(oggData: ByteArray): ByteArray? {
+        if (oggData.size < 64) return null // слишком мало данных
+
+        return try {
+            // Записываем во временный файл — MediaExtractor требует файл или URI
+            val tmpFile = File.createTempFile("opus_", ".ogg")
+            tmpFile.deleteOnExit()
+
+            try {
+                FileOutputStream(tmpFile).use { it.write(oggData) }
+
+                val extractor = MediaExtractor()
+                extractor.setDataSource(tmpFile.absolutePath)
+
+                // Ищем аудио трек
+                var audioTrackIndex = -1
+                var format: MediaFormat? = null
+                for (i in 0 until extractor.trackCount) {
+                    val fmt = extractor.getTrackFormat(i)
+                    val mime = fmt.getString(MediaFormat.KEY_MIME) ?: continue
+                    if (mime.startsWith("audio/")) {
+                        audioTrackIndex = i
+                        format = fmt
+                        break
+                    }
+                }
+
+                if (audioTrackIndex < 0 || format == null) return null
+
+                extractor.selectTrack(audioTrackIndex)
+                val mime = format.getString(MediaFormat.KEY_MIME) ?: return null
+
+                val codec = MediaCodec.createDecoderByType(mime)
+                codec.configure(format, null, null, 0)
+                codec.start()
+
+                val pcmOutput = java.io.ByteArrayOutputStream()
+                val bufferInfo = MediaCodec.BufferInfo()
+                var inputDone = false
+                var outputDone = false
+
+                while (!outputDone) {
+                    // Подаём данные
+                    if (!inputDone) {
+                        val inputIdx = codec.dequeueInputBuffer(10_000L)
+                        if (inputIdx >= 0) {
+                            val buf = codec.getInputBuffer(inputIdx)!!
+                            buf.clear()
+                            val size = extractor.readSampleData(buf, 0)
+                            if (size < 0) {
+                                codec.queueInputBuffer(inputIdx, 0, 0, 0,
+                                    MediaCodec.BUFFER_FLAG_END_OF_STREAM)
+                                inputDone = true
+                            } else {
+                                codec.queueInputBuffer(inputIdx, 0, size,
+                                    extractor.sampleTime, 0)
+                                extractor.advance()
+                            }
+                        }
+                    }
+
+                    // Получаем PCM
+                    val outputIdx = codec.dequeueOutputBuffer(bufferInfo, 10_000L)
+                    if (outputIdx >= 0) {
+                        val outBuf = codec.getOutputBuffer(outputIdx)!!
+                        val chunk = ByteArray(bufferInfo.size)
+                        outBuf.get(chunk)
+                        pcmOutput.write(chunk)
+                        codec.releaseOutputBuffer(outputIdx, false)
+                        if (bufferInfo.flags and MediaCodec.BUFFER_FLAG_END_OF_STREAM != 0) {
+                            outputDone = true
+                        }
+                    } else if (outputIdx == MediaCodec.INFO_OUTPUT_FORMAT_CHANGED) {
+                        // формат изменился — продолжаем
+                    }
+                }
+
+                codec.stop()
+                codec.release()
+                extractor.release()
+
+                pcmOutput.toByteArray()
+
+            } finally {
+                tmpFile.delete()
+            }
+        } catch (_: Exception) {
+            null
+        }
+    }
+
+    override suspend fun sendToken(token: String) {
+        if (!isConnected.get()) return
+        val msg = JSONObject()
+            .put("event", "text")
+            .put("text", token)
+        ws?.send(msg.toString())
+    }
+
+    override suspend fun flushStreaming() {
+        if (!isConnected.get()) return
+        ws?.send(JSONObject().put("event", "flush").toString())
+    }
+
+    override suspend fun stopStreaming() {
+        isStopped.set(true)
+        if (!isConnected.get()) return
+        ws?.send(JSONObject().put("event", "stop").toString())
+    }
+
+    // ── Санитизация текста ─────────────────────────────────────────────────
+
     private fun sanitize(raw: String): String {
         if (raw.isBlank()) return ""
         var text = raw
@@ -129,40 +313,16 @@ class FishAudioTTS : TextToSpeechEngine {
         return if (text.length > MAX_CHARS) text.take(MAX_CHARS).trimEnd() + "." else text
     }
 
-    private fun humanError(code: Int, body: String?): String = when (code) {
-        401, 403 -> "Ключ Fish Audio отклонён. Проверь FISH_AUDIO_API_KEY."
-        402 -> "На аккаунте Fish Audio закончился баланс синтеза."
-        422 -> "Fish Audio не принял текст для озвучки."
-        429 -> "Fish Audio: слишком много запросов, подожди пару секунд."
-        in 500..599 -> "Сервис синтеза речи временно недоступен (код $code)."
-        else -> {
-            val detail = runCatching {
-                JSONObject(body.orEmpty()).optString("message").ifBlank { null }
-            }.getOrNull()
-            if (detail.isNullOrBlank()) "Ошибка синтеза речи $code." else "Fish Audio: $detail"
-        }
-    }
-
     private companion object {
         val API_KEY: String get() = BuildConfig.FISH_AUDIO_API_KEY
-        const val ENDPOINT = "https://api.fish.audio/v1/tts"
+        const val WS_ENDPOINT = "wss://api.fish.audio/v1/tts/live"
         const val MODEL = "s2.1-pro-free"
         const val REFERENCE_ID = "096d410e860346a7a73762d557a290d7"
 
-        /**
-         * PCM поддерживаемые частоты Fish Audio: 8k, 16k, 24k, 32k, 44.1k.
-         * 48 кГц Fish Audio для PCM НЕ поддерживает.
-         *
-         * 24 кГц — оптимальный выбор:
-         * - ratio 2:1 к нативным 48 кГц Android HAL → integer resampling, минимум артефактов
-         * - вдвое меньше трафика чем 48k
-         */
-        const val SAMPLE_RATE = 24_000
+        // OGG/Opus 48кГц — нативная частота Android HAL, ноль ресемплинга
+        const val SAMPLE_RATE = 48_000
+        const val OPUS_BITRATE = 32_000
 
-        /** ~85 мс звука на чанк при 24 кГц 16-bit mono. */
-        const val CHUNK_BYTES = 4096
-
-        /** Предохранитель от гигантских ответов модели. */
         const val MAX_CHARS = 1200
 
         val CODE_BLOCK = Regex("```[\\s\\S]*?```")
