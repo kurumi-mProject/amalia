@@ -147,14 +147,55 @@ class AIOrchestrator(
         var speakingOpened = false
 
         // Озвучка идёт параллельно генерации, но строго по порядку фраз.
+        // Prefetch: пока текущее предложение синтезируется/играет, следующий
+        // HTTP-запрос к TTS уже летит — нет паузы между предложениями.
         val speakJob = launch {
+            // Буфер аудио текущего предложения накапливается заранее.
+            var prefetchedChunks: List<AudioChunk>? = null
+            var prefetchedFor: String? = null
+
             for (sentence in sentences) {
                 if (!speakingOpened) {
                     speakingOpened = true
                     emit(AiResponse.Speaking(true))
                 }
-                ttsEngine.speak(sentence, options).collect { chunk ->
-                    emit(AiResponse.Audio(chunk))
+
+                // Используем уже prefetch-нутые данные если они для этого предложения.
+                val chunks: List<AudioChunk> = if (prefetchedFor == sentence && prefetchedChunks != null) {
+                    prefetchedChunks!!
+                } else {
+                    val buf = mutableListOf<AudioChunk>()
+                    ttsEngine.speak(sentence, options).collect { buf.add(it) }
+                    buf
+                }
+                prefetchedChunks = null
+                prefetchedFor = null
+
+                // Запускаем prefetch следующего предложения параллельно с отдачей текущего.
+                val nextSentence = sentences.tryReceive().getOrNull()
+                val prefetchJob = if (nextSentence != null) {
+                    launch {
+                        val buf = mutableListOf<AudioChunk>()
+                        ttsEngine.speak(nextSentence, options).collect { buf.add(it) }
+                        prefetchedChunks = buf
+                        prefetchedFor = nextSentence
+                    }
+                } else null
+
+                // Отдаём аудио текущего предложения.
+                for (chunk in chunks) emit(AiResponse.Audio(chunk))
+
+                // Если следующее предложение было взято из канала — обрабатываем его.
+                if (nextSentence != null) {
+                    prefetchJob?.join()
+                    if (!speakingOpened) {
+                        speakingOpened = true
+                        emit(AiResponse.Speaking(true))
+                    }
+                    val nextChunks = prefetchedChunks ?: emptyList()
+                    prefetchedChunks = null
+                    prefetchedFor = null
+                    for (chunk in nextChunks) emit(AiResponse.Audio(chunk))
                 }
             }
         }
