@@ -2,16 +2,22 @@ package com.my.amali.ui.assistant
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.my.amali.core.di.ServiceLocator
+import com.my.amali.data.ai.AIOrchestrator
+import com.my.amali.data.ai.AiResponse
+import com.my.amali.data.ai.AudioChunk
+import com.my.amali.data.ai.AudioPlayer
+import com.my.amali.data.model.ChatMessage
+import com.my.amali.data.repository.ConversationRepository
 import com.my.amali.domain.entity.VoiceState
 import kotlinx.coroutines.Job
-import kotlinx.coroutines.delay
+import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.receiveAsFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
-import kotlin.math.sin
-import kotlin.random.Random
 
 data class AssistantUiState(
     val voiceState: VoiceState = VoiceState.Idle,
@@ -26,7 +32,10 @@ data class AssistantUiState(
     val suggestions: List<String> = emptyList(),
 )
 
-class AssistantViewModel : ViewModel() {
+class AssistantViewModel(
+    private val orchestrator: AIOrchestrator = ServiceLocator.aiOrchestrator,
+    private val conversationRepo: ConversationRepository = ServiceLocator.conversationRepository,
+) : ViewModel() {
 
     private val _uiState = MutableStateFlow(AssistantUiState())
     val uiState: StateFlow<AssistantUiState> = _uiState.asStateFlow()
@@ -34,17 +43,19 @@ class AssistantViewModel : ViewModel() {
     private var conversationJob: Job? = null
 
     private val defaultSuggestions = listOf("Привет", "Как дела?", "Расскажи о себе")
-    private val activeSuggestions = listOf("Спасибо", "Ещё", "Повтори")
+    private val activeSuggestions  = listOf("Стоп", "Повтори", "Спасибо")
+
+    // ── Public API ────────────────────────────────────────────────────────────
 
     fun onFirstLaunchHandled() {
         _uiState.update { it.copy(isFirstLaunch = false) }
     }
 
     fun toggleConversation() {
-        val current = _uiState.value
-        if (current.voiceState == VoiceState.Listening ||
-            current.voiceState == VoiceState.Thinking ||
-            current.voiceState == VoiceState.Speaking
+        val state = _uiState.value.voiceState
+        if (state == VoiceState.Listening ||
+            state == VoiceState.Thinking  ||
+            state == VoiceState.Speaking
         ) {
             cancelConversation()
         } else {
@@ -52,78 +63,160 @@ class AssistantViewModel : ViewModel() {
         }
     }
 
+    /**
+     * Starts the full STT → LLM → TTS pipeline.
+     *
+     * @param prompt If provided, skips the STT phase and sends this text directly to the LLM.
+     *               Used when the user taps a suggestion chip or types text manually.
+     */
     fun startConversation(prompt: String? = null) {
         conversationJob?.cancel()
+
         _uiState.update {
             it.copy(
-                voiceState = VoiceState.Listening,
-                userTranscript = "",
-                amaliaReply = "",
-                replyProgress = 0f,
-                isSpeaking = false,
-                errorMessage = null,
-                suggestions = activeSuggestions,
+                voiceState     = if (prompt != null) VoiceState.Thinking else VoiceState.Listening,
+                userTranscript = prompt ?: "",
+                amaliaReply    = "",
+                replyProgress  = 0f,
+                isSpeaking     = false,
+                errorMessage   = null,
+                suggestions    = activeSuggestions,
+                audioLevel     = 0f,
             )
         }
 
         conversationJob = viewModelScope.launch {
-            // === СЛУШАЕМ ===
-            val listeningDuration = Random.nextLong(1400, 2400)
-            val startTime = System.currentTimeMillis()
-            while (System.currentTimeMillis() - startTime < listeningDuration) {
-                val progress = (System.currentTimeMillis() - startTime) / listeningDuration.toFloat()
-                val wave = (sin(progress * 6.2f) * 0.5f + 0.5f) * 0.65f +
-                        (sin(progress * 14f + 1.3f) * 0.5f + 0.5f) * 0.35f
-                val level = (0.25f + wave * 0.75f).coerceIn(0f, 1f)
-                _uiState.update { it.copy(audioLevel = level) }
-                delay(38)
-            }
-            _uiState.update { it.copy(audioLevel = 0f) }
+            try {
+                // ── Phase 1: STT ──────────────────────────────────────────────
+                val userText: String = if (prompt != null) {
+                    prompt
+                } else {
+                    listenAndTranscribe()
+                }
 
-            // === ДУМАЕМ ===
-            _uiState.update {
-                it.copy(
-                    voiceState = VoiceState.Thinking,
-                    audioLevel = 0f,
-                    userTranscript = prompt ?: generateUserPrompt(),
-                )
-            }
-            delay(Random.nextLong(800, 1400))
+                if (userText.isBlank()) {
+                    _uiState.update {
+                        it.copy(
+                            voiceState   = VoiceState.Idle,
+                            errorMessage = "Не удалось распознать речь. Попробуй ещё раз.",
+                            suggestions  = defaultSuggestions,
+                        )
+                    }
+                    return@launch
+                }
 
-            // === ГОВОРИМ ===
-            val reply = generateReply(_uiState.value.userTranscript)
-            _uiState.update {
-                it.copy(
-                    voiceState = VoiceState.Speaking,
-                    amaliaReply = reply,
-                    isSpeaking = true,
-                    replyProgress = 0f,
-                )
-            }
-
-            // Стриминг ответа по словам
-            val words = reply.split(" ")
-            val totalDelay = 2200L
-            val perWord = (totalDelay / words.size).coerceAtLeast(45L)
-            for (i in words.indices) {
-                delay(perWord)
+                // Show what the user said and move to Thinking state.
                 _uiState.update {
                     it.copy(
-                        replyProgress = (i + 1f) / words.size,
-                        audioLevel = (0.3f + sin(i * 0.9f) * 0.25f).coerceIn(0.1f, 0.7f)
+                        voiceState     = VoiceState.Thinking,
+                        userTranscript = userText,
+                        audioLevel     = 0f,
                     )
                 }
-            }
 
-            _uiState.update {
-                it.copy(
-                    voiceState = VoiceState.Idle,
-                    audioLevel = 0f,
-                    isSpeaking = false,
-                    replyProgress = 1f,
-                    conversationCount = it.conversationCount + 1,
-                    suggestions = defaultSuggestions,
-                )
+                // ── Phase 2+3: LLM + TTS (run in parallel) ───────────────────
+                //
+                // AIOrchestrator.processTextCommand() emits:
+                //   Interim → partial LLM tokens (update reply text live)
+                //   Thinking(false) → model done, TTS starting
+                //   Speaking(true) → first audio chunk incoming
+                //   Audio(chunk) → PCM data to play
+                //   Speaking(false) → audio stream ended
+                //   Finished → full reply text available, save to history
+                //   Error → surface to UI
+                //
+                // We pipe Audio chunks to a Channel so AudioPlayer can consume
+                // them in a parallel coroutine, playing audio as chunks arrive
+                // while we keep collecting remaining events (no stall waiting
+                // for playback to finish before getting the next LLM token).
+                //
+                val audioChannel = Channel<AudioChunk>(capacity = Channel.UNLIMITED)
+                var fullReply    = ""
+
+                // Parallel coroutine: plays whatever the channel delivers.
+                val playJob = launch {
+                    AudioPlayer.play(audioChannel.receiveAsFlow())
+                }
+
+                // Collect orchestrator events.
+                orchestrator.processTextCommand(
+                    text    = userText,
+                    history = buildHistory(_uiState.value.userTranscript, _uiState.value.amaliaReply),
+                ).collect { event ->
+                    when (event) {
+                        is AiResponse.Thinking -> {
+                            if (event.isThinking) {
+                                _uiState.update { it.copy(voiceState = VoiceState.Thinking) }
+                            }
+                        }
+
+                        is AiResponse.Interim -> {
+                            // While Thinking: interim is the accumulating LLM reply.
+                            // While Speaking: it stays at the final text.
+                            _uiState.update { it.copy(amaliaReply = event.text) }
+                        }
+
+                        is AiResponse.Speaking -> {
+                            _uiState.update {
+                                it.copy(
+                                    voiceState = if (event.isSpeaking) VoiceState.Speaking else it.voiceState,
+                                    isSpeaking = event.isSpeaking,
+                                )
+                            }
+                        }
+
+                        is AiResponse.Audio -> {
+                            // Forward PCM chunk to the player coroutine immediately.
+                            audioChannel.trySend(event.chunk)
+                        }
+
+                        is AiResponse.Finished -> {
+                            fullReply = event.responseText
+                            // Close channel — player will finish after draining remaining chunks.
+                            audioChannel.close()
+                            // Persist to conversation history.
+                            saveConversation(userText, fullReply)
+                        }
+
+                        is AiResponse.Error -> {
+                            audioChannel.close()
+                            _uiState.update {
+                                it.copy(
+                                    voiceState   = VoiceState.Error,
+                                    errorMessage = event.message,
+                                    isSpeaking   = false,
+                                    suggestions  = defaultSuggestions,
+                                )
+                            }
+                            return@collect
+                        }
+                    }
+                }
+
+                // Wait for playback to drain before marking Idle.
+                playJob.join()
+
+                _uiState.update {
+                    it.copy(
+                        voiceState        = VoiceState.Idle,
+                        audioLevel        = 0f,
+                        isSpeaking        = false,
+                        replyProgress     = 1f,
+                        conversationCount = it.conversationCount + 1,
+                        suggestions       = defaultSuggestions,
+                    )
+                }
+
+            } catch (e: Exception) {
+                _uiState.update {
+                    it.copy(
+                        voiceState   = VoiceState.Idle,
+                        isSpeaking   = false,
+                        audioLevel   = 0f,
+                        errorMessage = e.message ?: "Неизвестная ошибка",
+                        suggestions  = defaultSuggestions,
+                    )
+                }
             }
         }
     }
@@ -132,42 +225,70 @@ class AssistantViewModel : ViewModel() {
         conversationJob?.cancel()
         _uiState.update {
             it.copy(
-                voiceState = VoiceState.Idle,
-                audioLevel = 0f,
-                isSpeaking = false,
+                voiceState   = VoiceState.Idle,
+                audioLevel   = 0f,
+                isSpeaking   = false,
                 errorMessage = null,
-                suggestions = defaultSuggestions,
+                suggestions  = defaultSuggestions,
             )
         }
     }
 
-    private fun generateUserPrompt(): String {
-        val prompts = listOf(
-            "Привет, Амалия",
-            "Как у тебя дела?",
-            "Расскажи что-нибудь",
-            "Чем занимаешься?",
-            "Помоги мне",
-        )
-        return prompts.random()
+    // ── Private helpers ───────────────────────────────────────────────────────
+
+    /**
+     * Opens the microphone, streams audio to Deepgram, and returns the final
+     * transcript. Interim transcripts are shown in the UI as captions while
+     * the user is still speaking.
+     *
+     * The coroutine is cancelled automatically when [cancelConversation] is
+     * called because [conversationJob] is cancelled, which propagates to this
+     * suspend function via structured concurrency.
+     */
+    private suspend fun listenAndTranscribe(): String {
+        var finalText = ""
+        orchestrator.sttEngine.transcribe(0f).collect { partial ->
+            // Update caption in real time.
+            _uiState.update { it.copy(userTranscript = partial) }
+            finalText = partial
+        }
+        return finalText
     }
 
-    private fun generateReply(userText: String): String {
-        val lower = userText.lowercase()
-        return when {
-            "привет" in lower || "хай" in lower || "здрав" in lower ->
-                "Привет. Я Амалия — твой голосовой ассистент. Чем могу помочь?"
-            "как дела" in lower || "как ты" in lower || "чё как" in lower ->
-                "У меня всё стабильно. Готова к работе. Что нужно?"
-            "кто ты" in lower || "о себе" in lower || "расскажи" in lower ->
-                "Я Амалия. Голосовой ассистент на Kotlin и Compose. Слушаю, думаю, отвечаю."
-            "пока" in lower || "до свид" in lower || "бай" in lower ->
-                "До встречи. Я на связи."
-            "спасибо" in lower || "благодар" in lower ->
-                "Обращайся в любой момент."
-            "помоги" in lower || "что умеешь" in lower || "что ты можешь" in lower ->
-                "Могу разговаривать, отвечать на вопросы и помогать с задачами. Пока работаю в демо-режиме, но скоро подключу реальные модели."
-            else -> "Я тебя услышала. Пока работаю в демо-режиме, но скоро буду отвечать полнее."
+    /** Saves the user/assistant exchange to the persistent conversation history. */
+    private fun saveConversation(userText: String, replyText: String) {
+        viewModelScope.launch {
+            try {
+                val convId = conversationRepo.create(userText.take(48)).id
+                conversationRepo.appendMessage(convId, ChatMessage.user(userText))
+                conversationRepo.appendMessage(
+                    convId,
+                    ChatMessage(
+                        id        = ChatMessage.newId(),
+                        role      = com.my.amali.data.model.MessageRole.ASSISTANT,
+                        content   = replyText,
+                        timestamp = System.currentTimeMillis(),
+                    )
+                )
+            } catch (_: Exception) { /* non-fatal — history persistence failure */ }
         }
+    }
+
+    /**
+     * Builds a minimal history list from the current UI state so the LLM
+     * has context for multi-turn conversations. At this point [userTranscript]
+     * and [amaliaReply] hold the previous turn (if any).
+     */
+    private fun buildHistory(prevUser: String, prevAssistant: String): List<ChatMessage> {
+        if (prevUser.isBlank() || prevAssistant.isBlank()) return emptyList()
+        return listOf(
+            ChatMessage.user(prevUser),
+            ChatMessage(
+                id        = ChatMessage.newId(),
+                role      = com.my.amali.data.model.MessageRole.ASSISTANT,
+                content   = prevAssistant,
+                timestamp = System.currentTimeMillis(),
+            )
+        )
     }
 }

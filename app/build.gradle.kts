@@ -1,10 +1,19 @@
 import org.jetbrains.kotlin.gradle.dsl.JvmTarget
+import java.util.Properties
 
 plugins {
     id("com.android.application")
     id("org.jetbrains.kotlin.plugin.compose")
     id("org.jetbrains.kotlin.plugin.serialization")
 }
+
+// Load keys from local.properties (local dev) or environment variables (CI)
+val localProps = Properties().apply {
+    val f = rootProject.file("local.properties")
+    if (f.exists()) load(f.inputStream())
+}
+fun secret(name: String): String =
+    System.getenv(name) ?: localProps.getProperty(name) ?: ""
 
 android {
     namespace = "com.my.amali"
@@ -20,6 +29,11 @@ android {
         resourceConfigurations += listOf(
             "en", "ru", "es", "ar", "de", "fr", "hi", "ja", "zh"
         )
+
+        // API keys injected at build time — never stored in source code
+        buildConfigField("String", "DEEPGRAM_API_KEY",   "\"${secret("DEEPGRAM_API_KEY")}\"")
+        buildConfigField("String", "GROQ_API_KEY",       "\"${secret("GROQ_API_KEY")}\"")
+        buildConfigField("String", "FISH_AUDIO_API_KEY", "\"${secret("FISH_AUDIO_API_KEY")}\"")
     }
 
     buildTypes {
@@ -114,6 +128,9 @@ dependencies {
 
     // ===== Splash Screen =====
     implementation("androidx.core:core-splashscreen:1.0.1")
+
+    // ===== Networking =====
+    implementation("com.squareup.okhttp3:okhttp:4.12.0")
 
     // ===== Desugaring =====
     coreLibraryDesugaring("com.android.tools:desugar_jdk_libs:2.1.4")

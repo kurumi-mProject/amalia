@@ -27,3 +27,9 @@
 -keep class com.my.amali.data.model.** { *; }
 -keep class com.my.amali.data.ai.** { *; }
 -keep class com.my.amali.domain.entity.** { *; }
+
+# ===== OkHttp + Okio =====
+-keep class okhttp3.** { *; }
+-keep class okio.** { *; }
+-dontwarn okhttp3.**
+-dontwarn okio.**
