@@ -150,14 +150,14 @@ class FishAudioTTS : TextToSpeechEngine {
         const val REFERENCE_ID = "096d410e860346a7a73762d557a290d7"
 
         /**
-         * 48 000 Гц — нативная частота Android Audio HAL на большинстве устройств.
-         * Fish Audio поддерживает: 8k, 16k, 24k, 32k, 44.1k, 48k.
-         * 
-         * 48 кГц позволяет избежать ресемплинга в AudioFlinger → меньше CPU,
-         * меньше задержка, нет артефактов от программного ресемплера.
-         * Размер трафика больше чем при 24k, но качество и стабильность важнее.
+         * PCM поддерживаемые частоты Fish Audio: 8k, 16k, 24k, 32k, 44.1k.
+         * 48 кГц Fish Audio для PCM НЕ поддерживает.
+         *
+         * 24 кГц — оптимальный выбор:
+         * - ratio 2:1 к нативным 48 кГц Android HAL → integer resampling, минимум артефактов
+         * - вдвое меньше трафика чем 48k
          */
-        const val SAMPLE_RATE = 48_000
+        const val SAMPLE_RATE = 24_000
 
         /** ~85 мс звука на чанк при 24 кГц 16-bit mono. */
         const val CHUNK_BYTES = 4096
