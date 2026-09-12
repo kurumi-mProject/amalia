@@ -211,39 +211,6 @@ class AIOrchestrator(
         emit(AiResponse.Error(message))
     }
 
-    /**
-     * Возвращает индекс конца первого законченного предложения в [buffer]
-     * или null, если предложение ещё не набралось.
-     *
-     * Предложение считается готовым, если найден терминальный знак и
-     * накопилось хотя бы [MIN_SENTENCE_CHARS] символов — иначе синтез
-     * дробился бы на бессмысленные обрывки вроде «Да.».
-     * Если текста уже много, а знаков препинания нет, режем по запятой
-     * или пробелу, чтобы не ждать конца длинной фразы.
-     */
-    private fun sentenceBoundary(buffer: StringBuilder): Int? {
-        val length = buffer.length
-        if (length < MIN_SENTENCE_CHARS) return null
-
-        for (i in MIN_SENTENCE_CHARS - 1 until length) {
-            val c = buffer[i]
-            if (c in TERMINATORS) {
-                // Не режем внутри «т.д.» и сокращений: следующий символ должен
-                // быть пробелом или концом буфера.
-                val next = if (i + 1 < length) buffer[i + 1] else ' '
-                if (next.isWhitespace()) return i + 1
-            }
-        }
-
-        if (length >= SOFT_CUT_CHARS) {
-            val comma = buffer.lastIndexOf(",")
-            if (comma >= MIN_SENTENCE_CHARS) return comma + 1
-            val space = buffer.lastIndexOf(" ")
-            if (space >= MIN_SENTENCE_CHARS) return space + 1
-        }
-        return null
-    }
-
     /** Склеивает уже финализированный текст с текущей гипотезой. */
     private fun joinTranscript(finalText: String, partial: String): String = when {
         partial.isBlank() -> finalText.trim()
