@@ -71,7 +71,7 @@ class FishAudioTTS : TextToSpeechEngine {
 
         val request = Request.Builder()
             .url(ENDPOINT)
-            .post(bodyJson.toString().toRequestBody(JSON_MEDIA_TYPE))
+            .post(bodyJson.toString().toRequestBody("application/json".toMediaType()))
             .header("Authorization", "Bearer $API_KEY")
             .header("model", MODEL)
             .build()

@@ -9,6 +9,7 @@ import com.my.amali.data.model.ChatMessage
 import com.my.amali.data.model.Conversation
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.catch
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.map
 import kotlinx.serialization.builtins.ListSerializer
 import kotlinx.serialization.json.Json
@@ -62,7 +63,7 @@ class ConversationRepository(
      * (из-за этого счётчик разговоров в шапке всегда оставался нулевым).
      */
     private suspend fun conversationsList(): List<Conversation> {
-        val raw = kotlinx.coroutines.flow.first(dataStore.data)[Keys.CONVERSATIONS] ?: ""
+        val raw = dataStore.data.first()[Keys.CONVERSATIONS] ?: ""
         val parsed = if (raw.isEmpty()) {
             emptyList()
         } else {

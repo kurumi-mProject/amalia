@@ -200,7 +200,7 @@ class DeepgramSTT(private val context: Context) : SpeechToTextEngine {
                     if (read <= 0) continue
 
                     if (socketReady.get()) {
-                        socket.send(ByteString.of(buffer, 0, read))
+                        socket.send(buffer.toByteString(0, read))
                     }
 
                     val level = normalizedLevel(buffer, read)
