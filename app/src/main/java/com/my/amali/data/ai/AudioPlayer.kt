@@ -4,61 +4,55 @@ import android.media.AudioAttributes
 import android.media.AudioFormat
 import android.media.AudioManager
 import android.media.AudioTrack
+import android.os.Process
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import java.util.concurrent.ArrayBlockingQueue
+import java.util.concurrent.TimeUnit
 
 /**
  * Воспроизводит поток [AudioChunk] (PCM 16-bit mono) через [AudioTrack].
  *
- * Producer/Consumer через [ArrayBlockingQueue]:
- * - Producer корутина читает из Flow (HTTP сеть) и кладёт чанки в очередь
- * - Consumer (основной тред) тянет из очереди и пишет в AudioTrack
+ * Двухуровневый буфер:
+ * - [ArrayBlockingQueue] поглощает паузы генерации Fish Audio (~500ms)
+ * - Буфер AudioTrack поглощает джиттер планировщика (~десятки мс)
  *
- * Это отвязывает скорость сети от скорости воспроизведения.
- * Паузы Fish Audio (~500ms) поглощаются очередью — AudioTrack не голодает.
+ * Ключевые правила:
+ * - NON_BLOCKING только при prefill (до play()), потом только BLOCKING
+ * - THREAD_PRIORITY_URGENT_AUDIO ставится в самом треде писателя
+ * - Байтовое выравнивание (carry byte) хранится между пачками
+ * - Все возвраты write() обрабатываются — нет потери байтов
  */
 class AudioPlayer {
 
-    @Volatile
-    private var track: AudioTrack? = null
+    @Volatile private var track: AudioTrack? = null
 
     // Sentinel — маркер конца стрима
     private val END_OF_STREAM = AudioChunk(ByteArray(0), -1)
+
+    // PCM-16 mono: кадр = 2 байта
+    private val FRAME = 2
 
     suspend fun play(
         chunks: Flow<AudioChunk>,
         onLevel: (Float) -> Unit = {},
     ) = withContext(Dispatchers.IO) {
-        android.os.Process.setThreadPriority(android.os.Process.THREAD_PRIORITY_URGENT_AUDIO)
 
-        // Очередь до ~1.5 сек аудио при 24кГц (72000 байт / 4096 ≈ 18 чанков)
         val queue = ArrayBlockingQueue<AudioChunk>(64)
 
         coroutineScope {
-            // Producer: читает из Flow и кладёт в очередь
+            // Producer: читает из Flow в очередь максимально быстро
             val producerJob = launch(Dispatchers.IO) {
-                var leftover: Byte? = null
                 try {
                     chunks.collect { chunk ->
                         if (chunk.data.isEmpty()) return@collect
-
-                        val rawData = if (leftover != null) {
-                            ByteArray(1 + chunk.data.size).also { buf ->
-                                buf[0] = leftover!!
-                                chunk.data.copyInto(buf, destinationOffset = 1)
-                            }
-                        } else chunk.data
-
-                        leftover = if (rawData.size % 2 != 0) rawData[rawData.size - 1] else null
-                        val evenSize = rawData.size - (rawData.size % 2)
-                        if (evenSize <= 0) return@collect
-
-                        val evenData = if (evenSize == rawData.size) rawData else rawData.copyOf(evenSize)
-                        queue.put(AudioChunk(evenData, chunk.sampleRate))
+                        // copyOf() обязателен — producer продолжает читать пока
+                        // consumer ещё не взял этот чанк из очереди
+                        queue.put(AudioChunk(chunk.data.copyOf(), chunk.sampleRate))
+                        onLevel(chunk.level())
                     }
                 } finally {
                     queue.put(END_OF_STREAM)
@@ -66,104 +60,145 @@ class AudioPlayer {
             }
 
             // Consumer: тянет из очереди и пишет в AudioTrack
-            var current: AudioTrack? = null
-            var sampleRate = -1
-            var minBufSize = 0
-            val prefill = mutableListOf<ByteArray>()
-            var prefillSize = 0
-            var playing = false
+            // Весь критический путь в одном потоке — URGENT_AUDIO здесь
+            launch(Dispatchers.IO) {
+                Process.setThreadPriority(Process.THREAD_PRIORITY_URGENT_AUDIO)
 
-            try {
-                while (true) {
-                    val chunk = queue.take()
-                    if (chunk === END_OF_STREAM) break
+                var current: AudioTrack? = null
+                var sampleRate = -1
+                var minBufSize = 0
+                var capacity = 0
 
-                    // Инициализируем AudioTrack при первом чанке
-                    if (current == null) {
-                        sampleRate = chunk.sampleRate
-                        minBufSize = AudioTrack.getMinBufferSize(
-                            sampleRate,
-                            AudioFormat.CHANNEL_OUT_MONO,
-                            AudioFormat.ENCODING_PCM_16BIT,
-                        ).coerceAtLeast(4096)
-                        current = buildTrack(sampleRate, minBufSize)
-                        track = current
+                // carry: хвостовой байт от предыдущей пачки (нечётный хвост PCM-16)
+                var hasTail = false
+                var tailByte: Byte = 0
+
+                // Отложенные данные при prefill NON_BLOCKING
+                val deferred = ArrayDeque<ByteArray>()
+
+                fun buildAndInitTrack(sr: Int) {
+                    minBufSize = AudioTrack.getMinBufferSize(
+                        sr, AudioFormat.CHANNEL_OUT_MONO, AudioFormat.ENCODING_PCM_16BIT
+                    ).coerceAtLeast(4096)
+                    // Буфер = 3× minBufSize (~300ms при 24кГц)
+                    // Задержку определяет prefill, не размер буфера
+                    capacity = minBufSize * 3
+
+                    current = AudioTrack.Builder()
+                        .setAudioAttributes(
+                            AudioAttributes.Builder()
+                                .setUsage(AudioAttributes.USAGE_ASSISTANT)
+                                .setContentType(AudioAttributes.CONTENT_TYPE_SPEECH)
+                                .build()
+                        )
+                        .setAudioFormat(
+                            AudioFormat.Builder()
+                                .setSampleRate(sr)
+                                .setEncoding(AudioFormat.ENCODING_PCM_16BIT)
+                                .setChannelMask(AudioFormat.CHANNEL_OUT_MONO)
+                                .build()
+                        )
+                        .setBufferSizeInBytes(capacity)
+                        .setTransferMode(AudioTrack.MODE_STREAM)
+                        .setPerformanceMode(AudioTrack.PERFORMANCE_MODE_LOW_LATENCY)
+                        .setSessionId(AudioManager.AUDIO_SESSION_ID_GENERATE)
+                        .build()
+                    track = current
+                }
+
+                // Запись с гарантией — loop пока не запишем все len байт
+                fun writeAll(data: ByteArray, off: Int, len: Int) {
+                    var o = off; var n = len
+                    while (n > 0) {
+                        val w = current?.write(data, o, n, AudioTrack.WRITE_BLOCKING) ?: break
+                        if (w <= 0) break
+                        o += w; n -= w
                     }
+                }
 
-                    onLevel(chunk.level())
+                // Склейка кадров: сохраняет carry между пачками
+                fun feed(data: ByteArray) {
+                    var p = 0; var n = data.size
+                    // Добиваем кадр из предыдущей пачки
+                    if (hasTail && n > 0) {
+                        val pair = ByteArray(2) { if (it == 0) tailByte else data[0] }
+                        writeAll(pair, 0, 2)
+                        hasTail = false; p = 1; n -= 1
+                    }
+                    // Целые кадры
+                    val aligned = (n / FRAME) * FRAME
+                    if (aligned > 0) writeAll(data, p, aligned)
+                    // Хвостовой байт — запомним для следующей пачки
+                    if (n > aligned) {
+                        tailByte = data[p + aligned]
+                        hasTail = true
+                    }
+                }
 
-                    if (!playing) {
-                        prefill.add(chunk.data)
-                        prefillSize += chunk.data.size
-                        if (prefillSize >= minBufSize) {
-                            runCatching { current?.play() }
-                            playing = true
-                            for (buf in prefill) writeAll(current, buf)
-                            prefill.clear()
+                try {
+                    // ── Фаза 1: Prefill до play() ──────────────────────────────
+                    // NON_BLOCKING: BLOCKING до play() зависнет — места в буфере
+                    // освобождает только играющий трек
+                    var banked = 0
+
+                    while (true) {
+                        val chunk = queue.poll(5, TimeUnit.SECONDS) ?: continue
+                        if (chunk === END_OF_STREAM) {
+                            // Стрим кончился до prefill — играем что есть
+                            queue.put(END_OF_STREAM)
+                            break
                         }
-                    } else {
-                        writeAll(current, chunk.data)
+
+                        if (current == null) {
+                            sampleRate = chunk.sampleRate
+                            buildAndInitTrack(sampleRate)
+                        }
+
+                        var done = 0
+                        while (done < chunk.data.size) {
+                            val w = current?.write(
+                                chunk.data, done, chunk.data.size - done,
+                                AudioTrack.WRITE_NON_BLOCKING
+                            ) ?: break
+                            if (w <= 0) {
+                                // Буфер полон — откладываем остаток
+                                deferred.addLast(chunk.data.copyOfRange(done, chunk.data.size))
+                                break
+                            }
+                            done += w; banked += w
+                        }
+
+                        if (banked >= capacity) break
                     }
+
+                    current?.play()
+
+                    // ── Фаза 2: Steady state — только BLOCKING ─────────────────
+                    while (true) {
+                        val chunk = deferred.removeFirstOrNull()
+                            ?: queue.poll(5, TimeUnit.SECONDS)
+                            ?: continue
+
+                        if (chunk === END_OF_STREAM) break
+                        feed(chunk.data)
+                    }
+
+                    current?.stop()
+
+                } finally {
+                    producerJob.cancel()
+                    onLevel(0f)
+                    track = null
+                    current?.let { runCatching { it.release() } }
                 }
-
-                // Короткий ответ — prefill не набрался, играем что есть
-                if (!playing && prefill.isNotEmpty()) {
-                    runCatching { current?.play() }
-                    for (buf in prefill) writeAll(current, buf)
-                }
-
-                runCatching { current?.stop() }
-
-            } finally {
-                producerJob.cancel()
-                onLevel(0f)
-                track = null
-                current?.let { runCatching { it.release() } }
             }
         }
     }
 
-    /** Мгновенно обрывает воспроизведение (кнопка «Стоп»). */
+    /** Мгновенно обрывает воспроизведение. */
     fun stopImmediately() {
         val active = track ?: return
         runCatching { active.pause() }
         runCatching { active.flush() }
-    }
-
-    private fun writeAll(t: AudioTrack?, data: ByteArray) {
-        if (t == null) return
-        var offset = 0
-        while (offset < data.size) {
-            val written = t.write(data, offset, data.size - offset)
-            if (written <= 0) break
-            offset += written
-        }
-    }
-
-    private fun buildTrack(sampleRate: Int, minBufSize: Int): AudioTrack {
-        // AudioTrack буфер = minBufSize × 3 (~300ms при 24кГц).
-        // Паузы Fish Audio поглощаются ArrayBlockingQueue в памяти,
-        // поэтому AudioTrack буфер может быть меньше — задержка ниже.
-        val bufSize = minBufSize * 3
-
-        return AudioTrack.Builder()
-            .setAudioAttributes(
-                AudioAttributes.Builder()
-                    .setUsage(AudioAttributes.USAGE_ASSISTANT)
-                    .setContentType(AudioAttributes.CONTENT_TYPE_SPEECH)
-                    .build()
-            )
-            .setAudioFormat(
-                AudioFormat.Builder()
-                    .setSampleRate(sampleRate)
-                    .setEncoding(AudioFormat.ENCODING_PCM_16BIT)
-                    .setChannelMask(AudioFormat.CHANNEL_OUT_MONO)
-                    .build()
-            )
-            .setBufferSizeInBytes(bufSize)
-            .setTransferMode(AudioTrack.MODE_STREAM)
-            .setPerformanceMode(AudioTrack.PERFORMANCE_MODE_LOW_LATENCY)
-            .setSessionId(AudioManager.AUDIO_SESSION_ID_GENERATE)
-            .build()
     }
 }
