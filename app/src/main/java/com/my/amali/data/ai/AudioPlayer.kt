@@ -80,9 +80,10 @@ class AudioPlayer {
                     minBufSize = AudioTrack.getMinBufferSize(
                         sr, AudioFormat.CHANNEL_OUT_MONO, AudioFormat.ENCODING_PCM_16BIT
                     ).coerceAtLeast(4096)
-                    // Буфер = 3× minBufSize (~300ms при 24кГц)
-                    // Задержку определяет prefill, не размер буфера
-                    capacity = minBufSize * 3
+                    // Буфер = 6× minBufSize — ёмкость бесплатна (задержку определяет prefill).
+                    // PERFORMANCE_MODE_NONE: LOW_LATENCY даёт слишком маленький аппаратный буфер
+                    // и вызывает underrun при малейшем джиттере планировщика.
+                    capacity = minBufSize * 6
 
                     current = AudioTrack.Builder()
                         .setAudioAttributes(
@@ -100,7 +101,6 @@ class AudioPlayer {
                         )
                         .setBufferSizeInBytes(capacity)
                         .setTransferMode(AudioTrack.MODE_STREAM)
-                        .setPerformanceMode(AudioTrack.PERFORMANCE_MODE_LOW_LATENCY)
                         .setSessionId(AudioManager.AUDIO_SESSION_ID_GENERATE)
                         .build()
                     track = current
