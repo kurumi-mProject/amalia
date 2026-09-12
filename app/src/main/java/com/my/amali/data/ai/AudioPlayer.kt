@@ -152,10 +152,10 @@ class AudioPlayer {
     }
 
     private fun buildTrack(sampleRate: Int, minBufSize: Int): AudioTrack {
-        // Минимальный буфер для low-latency path.
-        // При 24кГц: minBufSize обычно ~4800 байт ≈ 100мс.
-        // 2× минимума даёт запас против underrun при сетевом джиттере.
-        val bufSize = minBufSize * 2
+        // 3× минимума — перекрывает паузы Fish Audio (~200ms) без большой задержки.
+        // Fish Audio делает внутренние паузы до 200ms при генерации,
+        // буфер должен их поглощать чтобы не было underrun и треска.
+        val bufSize = minBufSize * 3
 
         return AudioTrack.Builder()
             .setAudioAttributes(
