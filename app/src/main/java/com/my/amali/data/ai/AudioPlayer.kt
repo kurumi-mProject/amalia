@@ -74,7 +74,7 @@ class AudioPlayer {
                 var tailByte: Byte = 0
 
                 // Отложенные данные при prefill NON_BLOCKING
-                val deferred = ArrayDeque<ByteArray>()
+                val deferred = ArrayDeque<AudioChunk>()
 
                 fun buildAndInitTrack(sr: Int) {
                     minBufSize = AudioTrack.getMinBufferSize(
@@ -162,7 +162,7 @@ class AudioPlayer {
                             ) ?: break
                             if (w <= 0) {
                                 // Буфер полон — откладываем остаток
-                                deferred.addLast(chunk.data.copyOfRange(done, chunk.data.size))
+                                deferred.addLast(AudioChunk(chunk.data.copyOfRange(done, chunk.data.size), sampleRate))
                                 break
                             }
                             done += w; banked += w
@@ -175,7 +175,7 @@ class AudioPlayer {
 
                     // ── Фаза 2: Steady state — только BLOCKING ─────────────────
                     while (true) {
-                        val chunk = deferred.removeFirstOrNull()
+                        val chunk: AudioChunk = deferred.removeFirstOrNull()
                             ?: queue.poll(5, TimeUnit.SECONDS)
                             ?: continue
 
