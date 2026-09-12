@@ -365,8 +365,19 @@ class FishAudioTTS : TextToSpeechEngine {
 
     override suspend fun stopStreaming() {
         isStopped.set(true)
-        if (!isConnected.get()) return
+        
+        // Если не подключены - сразу закрываем канал
+        if (!isConnected.get()) {
+            _audioChannel.close()
+            ws?.close(1000, "stopped")
+            return
+        }
+        
+        // Отправляем stop в WS
         ws?.send(JSONObject().put("event", "stop").toString())
+        
+        // Закрываем WS соединение (это должно вызвать onClosed -> _audioChannel.close())
+        ws?.close(1000, "stopped")
     }
 
     private companion object {

@@ -179,8 +179,12 @@ class AIOrchestrator(
             ttsEngine.flushStreaming()
             ttsEngine.stopStreaming()
 
-            // Ждём пока всё аудио придёт
-            audioJob.join()
+            // Ждём пока всё аудио придёт (с таймаутом 5 сек)
+            kotlinx.coroutines.withTimeoutOrNull(5000) {
+                audioJob.join()
+            } ?: run {
+                audioJob.cancel()
+            }
 
         } catch (e: CancellationException) {
             ttsEngine.stopStreaming()
