@@ -1,8 +1,5 @@
 package com.my.amali.data.ai
 
-import android.media.MediaCodec
-import android.media.MediaExtractor
-import android.media.MediaFormat
 import com.my.amali.BuildConfig
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.channels.Channel
@@ -15,23 +12,21 @@ import okhttp3.Request
 import okhttp3.Response
 import okhttp3.WebSocket
 import okhttp3.WebSocketListener
-import okio.ByteString
-import org.json.JSONObject
-import java.io.File
-import java.io.FileOutputStream
+import okio.ByteString.Companion.toByteString
 import java.util.concurrent.TimeUnit
 import java.util.concurrent.atomic.AtomicBoolean
 
 /**
- * TTS через Fish Audio WebSocket + OGG/Opus.
+ * TTS через Fish Audio WebSocket.
  *
- * Fish Audio WS протокол использует msgpack для бинарных сообщений.
- * Каждое сообщение — map с полем "event":
- *   - "audio": поле "audio" = bytes (OGG/Opus данные)
- *   - "finish": сессия завершена
+ * Протокол: бинарные WS фреймы + msgpack сериализация.
+ * Формат аудио: PCM 16-bit LE mono 24kHz — чистые сэмплы, без заголовков.
+ * Каждый чанк независим и сразу идёт в AudioTrack.
  *
- * MediaCodec декодирует накопленный OGG/Opus → PCM 16-bit 48кГц.
- * 48кГц = нативная частота Android HAL, ноль ресемплинга.
+ * КРИТИЧЕСКИ ВАЖНО: Fish Audio принимает ТОЛЬКО бинарные WS фреймы с msgpack.
+ * Текстовые JSON фреймы (как было раньше) — сервер сразу закрывает соединение.
+ *
+ * Msgpack кодируется вручную через минимальный encoder — без сторонних зависимостей.
  */
 class FishAudioTTS : TextToSpeechEngine {
 
@@ -45,9 +40,7 @@ class FishAudioTTS : TextToSpeechEngine {
     private val isConnected = AtomicBoolean(false)
     private val isStopped = AtomicBoolean(false)
 
-    // Пересоздаётся на каждый startStreaming
     @Volatile private var _audioChannel = Channel<AudioChunk>(capacity = Channel.UNLIMITED)
-    private val oggBuffer = java.io.ByteArrayOutputStream()
 
     override suspend fun initialize() {}
 
@@ -64,10 +57,8 @@ class FishAudioTTS : TextToSpeechEngine {
         get() = _audioChannel.receiveAsFlow()
 
     override suspend fun startStreaming(options: EngineOptions) = withContext(Dispatchers.IO) {
-        // Пересоздаём channel — предыдущий мог быть закрыт
         _audioChannel = Channel(capacity = Channel.UNLIMITED)
         isStopped.set(false)
-        oggBuffer.reset()
 
         val request = Request.Builder()
             .url(WS_ENDPOINT)
@@ -79,38 +70,32 @@ class FishAudioTTS : TextToSpeechEngine {
 
             override fun onOpen(webSocket: WebSocket, response: Response) {
                 isConnected.set(true)
-                // Отправляем start как JSON строку
-                webSocket.send(JSONObject()
-                    .put("event", "start")
-                    .put("request", JSONObject()
-                        .put("text", "")
-                        .put("reference_id", REFERENCE_ID)
-                        .put("format", "opus")
-                        .put("sample_rate", SAMPLE_RATE)
-                        .put("opus_bitrate", OPUS_BITRATE)
-                        .put("latency", "balanced")
-                        .put("chunk_length", 120)
-                        .put("normalize", true)
-                        .put("prosody", JSONObject()
-                            .put("speed", options.speechRate.coerceIn(0.5f, 2f).toDouble())
-                            .put("volume", 0)
+                // Отправляем start как msgpack бинарный фрейм
+                val startMsg = msgpackMap(
+                    "event" to "start",
+                    "request" to msgpackMapRaw(
+                        "text" to "",
+                        "reference_id" to REFERENCE_ID,
+                        "format" to "pcm",
+                        "sample_rate" to SAMPLE_RATE,
+                        "latency" to "balanced",
+                        "chunk_length" to 100,
+                        "normalize" to true,
+                        "prosody" to msgpackMapRaw(
+                            "speed" to options.speechRate.coerceIn(0.5f, 2f),
+                            "volume" to 0
                         )
-                    ).toString()
+                    )
                 )
+                webSocket.send(startMsg.toByteString())
             }
 
             override fun onMessage(webSocket: WebSocket, bytes: ByteString) {
-                parseMsgpackMessage(bytes.toByteArray())
+                parseMsgpack(bytes.toByteArray())
             }
 
             override fun onMessage(webSocket: WebSocket, text: String) {
-                try {
-                    val j = JSONObject(text)
-                    handleEvent(j.optString("event"), j.optString("audio", "").let {
-                        if (it.isNotEmpty()) android.util.Base64.decode(it, android.util.Base64.DEFAULT)
-                        else null
-                    })
-                } catch (_: Exception) {}
+                // не должно приходить, но на всякий случай
             }
 
             override fun onFailure(webSocket: WebSocket, t: Throwable, response: Response?) {
@@ -125,258 +110,232 @@ class FishAudioTTS : TextToSpeechEngine {
         })
     }
 
-    /**
-     * Минимальный msgpack парсер для Fish Audio протокола.
-     * Формат: fixmap с string ключами "event" и "audio".
-     *
-     * msgpack fixmap: 0x8N где N = число пар
-     * fixstr: 0xAN где N = длина строки
-     * bin8:   0xC4 + 1 байт длины + данные
-     * bin16:  0xC5 + 2 байта длины + данные
-     * bin32:  0xC6 + 4 байта длины + данные
-     */
-    private fun parseMsgpackMessage(data: ByteArray) {
+    // ── Msgpack парсер ───────────────────────────────────────────────────────
+
+    private fun parseMsgpack(data: ByteArray) {
         try {
-            var pos = 0
-            if (pos >= data.size) return
-
-            // Первый байт — тип (fixmap, map16, map32)
-            val firstByte = data[pos++].toInt() and 0xFF
-            val mapSize = when {
-                firstByte and 0xF0 == 0x80 -> firstByte and 0x0F // fixmap
-                firstByte == 0xDE -> { // map16
-                    val s = ((data[pos].toInt() and 0xFF) shl 8) or (data[pos+1].toInt() and 0xFF)
-                    pos += 2; s
-                }
-                else -> return
-            }
-
-            var eventStr = ""
-            var audioBytes: ByteArray? = null
-
-            repeat(mapSize) {
-                // Читаем ключ (строка)
-                val key = readMsgpackString(data, pos) ?: return
-                pos = key.second
-
-                // Читаем значение
-                when (key.first) {
-                    "event" -> {
-                        val v = readMsgpackString(data, pos) ?: return
-                        eventStr = v.first
-                        pos = v.second
-                    }
-                    "audio" -> {
-                        val v = readMsgpackBytes(data, pos) ?: return
-                        audioBytes = v.first
-                        pos = v.second
-                    }
-                    else -> {
-                        // Пропускаем значение
-                        pos = skipMsgpackValue(data, pos)
+            val (map, _) = readValue(data, 0) as? Pair<*, *> ?: return
+            @Suppress("UNCHECKED_CAST")
+            map as? Map<String, Any?> ?: return
+            val event = map["event"] as? String ?: return
+            when (event) {
+                "audio" -> {
+                    val audio = map["audio"]
+                    if (audio is ByteArray && audio.isNotEmpty()) {
+                        _audioChannel.trySend(AudioChunk(data = audio, sampleRate = SAMPLE_RATE))
                     }
                 }
+                "finish" -> {
+                    _audioChannel.close()
+                }
             }
-
-            handleEvent(eventStr, audioBytes)
         } catch (_: Exception) {}
     }
 
-    private fun readMsgpackString(data: ByteArray, pos: Int): Pair<String, Int>? {
-        if (pos >= data.size) return null
-        var p = pos
-        val b = data[p++].toInt() and 0xFF
-        val len = when {
-            b and 0xE0 == 0xA0 -> b and 0x1F // fixstr
-            b == 0xD9 -> { val l = data[p++].toInt() and 0xFF; l } // str8
-            b == 0xDA -> { val l = ((data[p].toInt() and 0xFF) shl 8) or (data[p+1].toInt() and 0xFF); p += 2; l } // str16
-            else -> return null
-        }
-        if (p + len > data.size) return null
-        return Pair(String(data, p, len, Charsets.UTF_8), p + len)
-    }
-
-    private fun readMsgpackBytes(data: ByteArray, pos: Int): Pair<ByteArray, Int>? {
-        if (pos >= data.size) return null
-        var p = pos
-        val b = data[p++].toInt() and 0xFF
-        val len = when (b) {
-            0xC4 -> { val l = data[p++].toInt() and 0xFF; l } // bin8
-            0xC5 -> { val l = ((data[p].toInt() and 0xFF) shl 8) or (data[p+1].toInt() and 0xFF); p += 2; l } // bin16
-            0xC6 -> { val l = ((data[p].toInt() and 0xFF) shl 24) or ((data[p+1].toInt() and 0xFF) shl 16) or ((data[p+2].toInt() and 0xFF) shl 8) or (data[p+3].toInt() and 0xFF); p += 4; l } // bin32
-            else -> return null
-        }
-        if (p + len > data.size) return null
-        return Pair(data.copyOfRange(p, p + len), p + len)
-    }
-
-    private fun skipMsgpackValue(data: ByteArray, pos: Int): Int {
-        if (pos >= data.size) return pos
+    /** Рекурсивный msgpack reader. Возвращает (value, nextPos). */
+    private fun readValue(data: ByteArray, pos: Int): Pair<Any?, Int> {
+        if (pos >= data.size) return Pair(null, pos)
         val b = data[pos].toInt() and 0xFF
         return when {
-            b and 0x80 == 0 -> pos + 1 // positive fixint
-            b and 0xE0 == 0xE0 -> pos + 1 // negative fixint
-            b and 0xE0 == 0xA0 -> pos + 1 + (b and 0x1F) // fixstr
-            b and 0xF0 == 0x80 -> pos + 1 // fixmap (упрощённо)
-            b == 0xC0 -> pos + 1 // nil
-            b == 0xC2 || b == 0xC3 -> pos + 1 // bool
-            b == 0xCC || b == 0xD0 -> pos + 2 // uint8/int8
-            b == 0xCD || b == 0xD1 -> pos + 3 // uint16/int16
-            b == 0xCE || b == 0xD2 || b == 0xCA -> pos + 5 // uint32/int32/float32
-            b == 0xCF || b == 0xD3 || b == 0xCB -> pos + 9 // uint64/int64/float64
-            b == 0xD9 -> pos + 2 + (data[pos+1].toInt() and 0xFF) // str8
-            b == 0xDA -> pos + 3 + ((data[pos+1].toInt() and 0xFF) shl 8) + (data[pos+2].toInt() and 0xFF) // str16
-            b == 0xC4 -> pos + 2 + (data[pos+1].toInt() and 0xFF) // bin8
-            b == 0xC5 -> pos + 3 + ((data[pos+1].toInt() and 0xFF) shl 8) + (data[pos+2].toInt() and 0xFF) // bin16
-            else -> pos + 1
-        }
-    }
-
-    private fun handleEvent(event: String, audioBytes: ByteArray?) {
-        when (event) {
-            "audio" -> {
-                if (audioBytes != null && audioBytes.isNotEmpty()) {
-                    decodeOpusChunk(audioBytes)
-                }
+            // positive fixint
+            b and 0x80 == 0 -> Pair(b, pos + 1)
+            // negative fixint
+            b and 0xE0 == 0xE0 -> Pair(b - 256, pos + 1)
+            // fixmap
+            b and 0xF0 == 0x80 -> readMap(data, pos + 1, b and 0x0F)
+            // fixarray
+            b and 0xF0 == 0x90 -> readArray(data, pos + 1, b and 0x0F)
+            // fixstr
+            b and 0xE0 == 0xA0 -> {
+                val len = b and 0x1F
+                Pair(String(data, pos + 1, len, Charsets.UTF_8), pos + 1 + len)
             }
-            "finish" -> {
-                flushOggBuffer()
-                _audioChannel.close()
+            // nil
+            b == 0xC0 -> Pair(null, pos + 1)
+            // false/true
+            b == 0xC2 -> Pair(false, pos + 1)
+            b == 0xC3 -> Pair(true, pos + 1)
+            // bin8
+            b == 0xC4 -> {
+                val len = data[pos + 1].toInt() and 0xFF
+                Pair(data.copyOfRange(pos + 2, pos + 2 + len), pos + 2 + len)
             }
-        }
-    }
-
-    private fun decodeOpusChunk(opusData: ByteArray) {
-        oggBuffer.write(opusData)
-        val accumulated = oggBuffer.toByteArray()
-        // Пробуем декодировать только если есть полный OGG пакет (заголовок OggS)
-        if (accumulated.size >= 64 && hasCompleteOggPage(accumulated)) {
-            val pcm = decodeOggOpusToPcm(accumulated)
-            if (pcm != null && pcm.isNotEmpty()) {
-                oggBuffer.reset()
-                _audioChannel.trySend(AudioChunk(data = pcm, sampleRate = SAMPLE_RATE))
+            // bin16
+            b == 0xC5 -> {
+                val len = u16(data, pos + 1)
+                Pair(data.copyOfRange(pos + 3, pos + 3 + len), pos + 3 + len)
             }
-        }
-    }
-
-    private fun flushOggBuffer() {
-        val accumulated = oggBuffer.toByteArray()
-        if (accumulated.size < 27) return
-        val pcm = decodeOggOpusToPcm(accumulated) ?: return
-        if (pcm.isNotEmpty()) {
-            _audioChannel.trySend(AudioChunk(data = pcm, sampleRate = SAMPLE_RATE))
-        }
-        oggBuffer.reset()
-    }
-
-    /** Проверяем что есть хотя бы 2 OGG страницы (заголовок + данные). */
-    private fun hasCompleteOggPage(data: ByteArray): Boolean {
-        var count = 0
-        var i = 0
-        while (i < data.size - 3) {
-            if (data[i] == 'O'.code.toByte() && data[i+1] == 'g'.code.toByte() &&
-                data[i+2] == 'g'.code.toByte() && data[i+3] == 'S'.code.toByte()) {
-                count++
-                if (count >= 2) return true
-                i += 27
-            } else i++
-        }
-        return false
-    }
-
-    private fun decodeOggOpusToPcm(oggData: ByteArray): ByteArray? {
-        if (oggData.size < 64) return null
-        return try {
-            val tmpFile = File.createTempFile("opus_", ".ogg")
-            tmpFile.deleteOnExit()
-            try {
-                FileOutputStream(tmpFile).use { it.write(oggData) }
-
-                val extractor = MediaExtractor()
-                extractor.setDataSource(tmpFile.absolutePath)
-
-                var trackIndex = -1
-                var format: MediaFormat? = null
-                for (i in 0 until extractor.trackCount) {
-                    val fmt = extractor.getTrackFormat(i)
-                    val mime = fmt.getString(MediaFormat.KEY_MIME) ?: continue
-                    if (mime.startsWith("audio/")) {
-                        trackIndex = i; format = fmt; break
-                    }
-                }
-                if (trackIndex < 0 || format == null) return null
-
-                extractor.selectTrack(trackIndex)
-                val mime = format.getString(MediaFormat.KEY_MIME) ?: return null
-
-                val codec = MediaCodec.createDecoderByType(mime)
-                codec.configure(format, null, null, 0)
-                codec.start()
-
-                val out = java.io.ByteArrayOutputStream()
-                val info = MediaCodec.BufferInfo()
-                var inputDone = false
-                var outputDone = false
-
-                while (!outputDone) {
-                    if (!inputDone) {
-                        val idx = codec.dequeueInputBuffer(10_000L)
-                        if (idx >= 0) {
-                            val buf = codec.getInputBuffer(idx)!!
-                            buf.clear()
-                            val size = extractor.readSampleData(buf, 0)
-                            if (size < 0) {
-                                codec.queueInputBuffer(idx, 0, 0, 0, MediaCodec.BUFFER_FLAG_END_OF_STREAM)
-                                inputDone = true
-                            } else {
-                                codec.queueInputBuffer(idx, 0, size, extractor.sampleTime, 0)
-                                extractor.advance()
-                            }
-                        }
-                    }
-                    val idx = codec.dequeueOutputBuffer(info, 10_000L)
-                    if (idx >= 0) {
-                        val buf = codec.getOutputBuffer(idx)!!
-                        val chunk = ByteArray(info.size)
-                        buf.get(chunk)
-                        out.write(chunk)
-                        codec.releaseOutputBuffer(idx, false)
-                        if (info.flags and MediaCodec.BUFFER_FLAG_END_OF_STREAM != 0) outputDone = true
-                    }
-                }
-
-                codec.stop(); codec.release(); extractor.release()
-                out.toByteArray()
-            } finally {
-                tmpFile.delete()
+            // bin32
+            b == 0xC6 -> {
+                val len = u32(data, pos + 1)
+                Pair(data.copyOfRange(pos + 5, pos + 5 + len), pos + 5 + len)
             }
-        } catch (_: Exception) { null }
+            // uint8
+            b == 0xCC -> Pair(data[pos + 1].toInt() and 0xFF, pos + 2)
+            // uint16
+            b == 0xCD -> Pair(u16(data, pos + 1), pos + 3)
+            // uint32
+            b == 0xCE -> Pair(u32(data, pos + 1), pos + 5)
+            // int8
+            b == 0xD0 -> Pair(data[pos + 1].toInt(), pos + 2)
+            // int16
+            b == 0xD1 -> Pair((data[pos+1].toInt() shl 8) or (data[pos+2].toInt() and 0xFF), pos + 3)
+            // int32
+            b == 0xD2 -> Pair(u32(data, pos + 1), pos + 5)
+            // str8
+            b == 0xD9 -> {
+                val len = data[pos + 1].toInt() and 0xFF
+                Pair(String(data, pos + 2, len, Charsets.UTF_8), pos + 2 + len)
+            }
+            // str16
+            b == 0xDA -> {
+                val len = u16(data, pos + 1)
+                Pair(String(data, pos + 3, len, Charsets.UTF_8), pos + 3 + len)
+            }
+            // str32
+            b == 0xDB -> {
+                val len = u32(data, pos + 1)
+                Pair(String(data, pos + 5, len, Charsets.UTF_8), pos + 5 + len)
+            }
+            // array16
+            b == 0xDC -> {
+                val len = u16(data, pos + 1)
+                readArray(data, pos + 3, len)
+            }
+            // map16
+            b == 0xDE -> {
+                val len = u16(data, pos + 1)
+                readMap(data, pos + 3, len)
+            }
+            // map32
+            b == 0xDF -> {
+                val len = u32(data, pos + 1)
+                readMap(data, pos + 5, len)
+            }
+            else -> Pair(null, pos + 1)
+        }
     }
+
+    private fun readMap(data: ByteArray, start: Int, count: Int): Pair<Map<String, Any?>, Int> {
+        val map = LinkedHashMap<String, Any?>(count)
+        var p = start
+        repeat(count) {
+            val (k, p1) = readValue(data, p)
+            val (v, p2) = readValue(data, p1)
+            if (k is String) map[k] = v
+            p = p2
+        }
+        return Pair(map, p)
+    }
+
+    private fun readArray(data: ByteArray, start: Int, count: Int): Pair<List<Any?>, Int> {
+        val list = ArrayList<Any?>(count)
+        var p = start
+        repeat(count) {
+            val (v, p1) = readValue(data, p)
+            list.add(v); p = p1
+        }
+        return Pair(list, p)
+    }
+
+    private fun u16(d: ByteArray, p: Int) = ((d[p].toInt() and 0xFF) shl 8) or (d[p+1].toInt() and 0xFF)
+    private fun u32(d: ByteArray, p: Int) = ((d[p].toInt() and 0xFF) shl 24) or ((d[p+1].toInt() and 0xFF) shl 16) or ((d[p+2].toInt() and 0xFF) shl 8) or (d[p+3].toInt() and 0xFF)
+
+    // ── Msgpack encoder ──────────────────────────────────────────────────────
+
+    /** Кодирует Map<String,Any?> → msgpack bytes */
+    private fun msgpackMap(vararg pairs: Pair<String, Any?>): ByteArray {
+        val out = java.io.ByteArrayOutputStream()
+        val map = pairs.toMap()
+        writeMap(out, map)
+        return out.toByteArray()
+    }
+
+    /** Вложенная map — возвращает уже сериализованные bytes для использования как значение */
+    private fun msgpackMapRaw(vararg pairs: Pair<String, Any?>): ByteArray {
+        val out = java.io.ByteArrayOutputStream()
+        writeMap(out, pairs.toMap())
+        return out.toByteArray()
+    }
+
+    private fun writeMap(out: java.io.ByteArrayOutputStream, map: Map<String, Any?>) {
+        val size = map.size
+        if (size <= 15) out.write(0x80 or size)
+        else { out.write(0xDE); out.write(size shr 8); out.write(size and 0xFF) }
+        for ((k, v) in map) {
+            writeStr(out, k)
+            writeValue(out, v)
+        }
+    }
+
+    private fun writeStr(out: java.io.ByteArrayOutputStream, s: String) {
+        val b = s.toByteArray(Charsets.UTF_8)
+        when {
+            b.size <= 31 -> { out.write(0xA0 or b.size); out.write(b) }
+            b.size <= 255 -> { out.write(0xD9); out.write(b.size); out.write(b) }
+            else -> { out.write(0xDA); out.write(b.size shr 8); out.write(b.size and 0xFF); out.write(b) }
+        }
+    }
+
+    private fun writeValue(out: java.io.ByteArrayOutputStream, v: Any?) {
+        when (v) {
+            null -> out.write(0xC0)
+            is Boolean -> out.write(if (v) 0xC3 else 0xC2)
+            is Int -> when {
+                v in 0..127 -> out.write(v)
+                v in -32..-1 -> out.write(v and 0xFF)
+                v in 0..0xFF -> { out.write(0xCC); out.write(v) }
+                v in 0..0xFFFF -> { out.write(0xCD); out.write(v shr 8); out.write(v and 0xFF) }
+                else -> { out.write(0xD2); out.write((v shr 24) and 0xFF); out.write((v shr 16) and 0xFF); out.write((v shr 8) and 0xFF); out.write(v and 0xFF) }
+            }
+            is Float -> {
+                val bits = java.lang.Float.floatToIntBits(v)
+                out.write(0xCA)
+                out.write((bits shr 24) and 0xFF); out.write((bits shr 16) and 0xFF)
+                out.write((bits shr 8) and 0xFF); out.write(bits and 0xFF)
+            }
+            is Double -> {
+                // encode as float32 для экономии
+                val bits = java.lang.Float.floatToIntBits(v.toFloat())
+                out.write(0xCA)
+                out.write((bits shr 24) and 0xFF); out.write((bits shr 16) and 0xFF)
+                out.write((bits shr 8) and 0xFF); out.write(bits and 0xFF)
+            }
+            is String -> writeStr(out, v)
+            is ByteArray -> {
+                // Вложенный msgpack — пишем raw bytes напрямую
+                out.write(v)
+            }
+            is Map<*, *> -> {
+                @Suppress("UNCHECKED_CAST")
+                writeMap(out, v as Map<String, Any?>)
+            }
+            else -> writeStr(out, v.toString())
+        }
+    }
+
+    // ── Отправка событий ─────────────────────────────────────────────────────
 
     override suspend fun sendToken(token: String) {
         if (!isConnected.get()) return
-        ws?.send(JSONObject().put("event", "text").put("text", token).toString())
+        val bytes = msgpackMap("event" to "text", "text" to token)
+        ws?.send(bytes.toByteString())
     }
 
     override suspend fun flushStreaming() {
         if (!isConnected.get()) return
-        ws?.send(JSONObject().put("event", "flush").toString())
+        val bytes = msgpackMap("event" to "flush")
+        ws?.send(bytes.toByteString())
     }
 
     override suspend fun stopStreaming() {
         isStopped.set(true)
-        
-        // Если не подключены - сразу закрываем канал
         if (!isConnected.get()) {
             _audioChannel.close()
-            ws?.close(1000, "stopped")
             return
         }
-        
-        // Отправляем stop в WS
-        ws?.send(JSONObject().put("event", "stop").toString())
-        
-        // Закрываем WS соединение (это должно вызвать onClosed -> _audioChannel.close())
+        val bytes = msgpackMap("event" to "stop")
+        ws?.send(bytes.toByteString())
         ws?.close(1000, "stopped")
     }
 
@@ -385,17 +344,6 @@ class FishAudioTTS : TextToSpeechEngine {
         const val WS_ENDPOINT = "wss://api.fish.audio/v1/tts/live"
         const val MODEL = "s2.1-pro-free"
         const val REFERENCE_ID = "096d410e860346a7a73762d557a290d7"
-        const val SAMPLE_RATE = 48_000
-        const val OPUS_BITRATE = 32_000
-
-        val CODE_BLOCK = Regex("```[\\s\\S]*?```")
-        val INLINE_CODE = Regex("`([^`]*)`")
-        val MARKDOWN_LINK = Regex("\\[([^\\]]+)]\\([^)]+\\)")
-        val URL = Regex("https?://\\S+")
-        val EMPHASIS = Regex("[*_#>~|]")
-        val LIST_BULLET = Regex("(?m)^\\s*[-•–]\\s+")
-        val EMOJI = Regex("[\\p{So}\\p{Cn}\\uFE0F]")
-        val MULTISPACE = Regex("\\s{2,}")
-        const val MAX_CHARS = 1200
+        const val SAMPLE_RATE = 24_000  // Fish Audio PCM: 24kHz, 16-bit LE mono
     }
 }
