@@ -112,7 +112,6 @@ class AudioPlayer(private val context: Context) {
     private fun buildSink(): DefaultAudioSink {
         val sink = DefaultAudioSink.Builder(context)
             .setEnableFloatOutput(false)
-            .setEnableAudioOutputPlaybackParameters(false)
             .build()
 
         sink.setAudioAttributes(
