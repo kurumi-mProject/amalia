@@ -1,7 +1,10 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <color name="splash_background">#0B0B0F</color>
-    <color name="amalia_deep_navy">#0B0B0F</color>
-    <color name="amalia_surface">#15151C</color>
-    <color name="amalia_accent">#6D5FE0</color>
+    <!-- Splash и фон окна: совпадают с GlassBgBase из Color.kt,
+         чтобы при запуске не было вспышки другого оттенка. -->
+    <color name="splash_background">#07070B</color>
+    <color name="amalia_bg_base">#07070B</color>
+    <color name="amalia_surface">#101017</color>
+    <color name="amalia_accent">#6E63F2</color>
+    <color name="amalia_accent_soft">#9A90FF</color>
 </resources>

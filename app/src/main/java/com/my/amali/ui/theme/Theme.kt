@@ -1,13 +1,14 @@
 package com.my.amali.ui.theme
 
 import android.app.Activity
-import android.os.Build
 import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.darkColorScheme
 import androidx.compose.material3.lightColorScheme
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.SideEffect
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalView
 import androidx.core.view.WindowCompat
 
@@ -34,7 +35,7 @@ enum class BioTimeOfDay(val hourRange: IntRange) {
 
     companion object {
         fun fromHour(hour: Int): BioTimeOfDay =
-            values().firstOrNull { hour in it.hourRange } ?: NIGHT
+            entries.firstOrNull { hour in it.hourRange } ?: NIGHT
     }
 }
 
@@ -42,74 +43,78 @@ enum class BioTimeOfDay(val hourRange: IntRange) {
 //  COLOR SCHEMES
 // ════════════════════════════════════════════════════════════
 
-// --- Glass Dark ---
 private val GlassDarkScheme = darkColorScheme(
     primary = GlassAccentDim,
-    onPrimary = GlassTextPrimary,
-    primaryContainer = GlassAccentDim.copy(alpha = 0.14f),
+    onPrimary = Color(0xFFFFFFFF),
+    primaryContainer = GlassAccentGlow,
     onPrimaryContainer = GlassTextPrimary,
+    inversePrimary = GlassAccentSoft,
     secondary = GlassAccentSoft,
-    onSecondary = GlassTextPrimary,
-    secondaryContainer = GlassAccentSoft.copy(alpha = 0.10f),
+    onSecondary = GlassBgBase,
+    secondaryContainer = GlassBgSurfaceHigh,
     onSecondaryContainer = GlassTextPrimary,
-    tertiary = GlassAccentGlow,
-    onTertiary = GlassTextPrimary,
+    tertiary = GlassAccentMist,
+    onTertiary = GlassBgBase,
     background = GlassBgBase,
     onBackground = GlassTextPrimary,
     surface = GlassBgSurface,
     onSurface = GlassTextPrimary,
     surfaceVariant = GlassBgSurfaceHigh,
     onSurfaceVariant = GlassTextSecondary,
+    surfaceTint = GlassAccentDim,
     surfaceContainerHighest = GlassBgSurfaceHigh,
-    surfaceContainerHigh = GlassBgSurfaceHigh,
+    surfaceContainerHigh = GlassBgGlass,
     surfaceContainer = GlassBgSurface,
     surfaceContainerLow = GlassBgBase,
     surfaceContainerLowest = GlassBgBase,
     outline = GlassBgStroke,
-    outlineVariant = GlassBgStroke.copy(alpha = 0.5f),
+    outlineVariant = GlassBgStroke.copy(alpha = 0.55f),
+    scrim = Color(0x00000000),
     error = GlassStateError,
-    onError = GlassTextPrimary,
+    onError = GlassBgBase,
+    errorContainer = GlassStateError.copy(alpha = 0.16f),
+    onErrorContainer = GlassStateError,
 )
 
-// --- Biophilic Light (день) ---
 private val BioLightScheme = lightColorScheme(
     primary = BioAccentPrimary,
-    onPrimary = BioTextPrimary,
-    primaryContainer = BioAccentPrimary.copy(alpha = 0.12f),
+    onPrimary = Color(0xFFFFFFFF),
+    primaryContainer = BioAccentPrimary.copy(alpha = 0.16f),
     onPrimaryContainer = BioTextPrimary,
     secondary = BioAccentSecondary,
     onSecondary = BioTextPrimary,
-    secondaryContainer = BioAccentSecondary.copy(alpha = 0.10f),
+    secondaryContainer = BioBgSurfaceHigh,
     onSecondaryContainer = BioTextPrimary,
     tertiary = BioAccentTertiary,
-    onTertiary = BioTextPrimary,
+    onTertiary = Color(0xFFFFFFFF),
     background = BioBgBase,
     onBackground = BioTextPrimary,
     surface = BioBgSurface,
     onSurface = BioTextPrimary,
     surfaceVariant = BioBgSurfaceHigh,
     onSurfaceVariant = BioTextSecondary,
+    surfaceTint = BioAccentPrimary,
     surfaceContainerHighest = BioBgSurfaceHigh,
-    surfaceContainerHigh = BioBgSurfaceHigh,
+    surfaceContainerHigh = BioBgGlass,
     surfaceContainer = BioBgSurface,
     surfaceContainerLow = BioBgBase,
     surfaceContainerLowest = BioBgBase,
     outline = BioBgStroke,
-    outlineVariant = BioBgStroke.copy(alpha = 0.5f),
+    outlineVariant = BioBgStroke.copy(alpha = 0.55f),
     error = BioStateError,
+    onError = Color(0xFFFFFFFF),
 )
 
-// --- Biophilic Dark (вечер/ночь) ---
 private val BioDarkScheme = darkColorScheme(
-    primary = BioAccentPrimary,
-    onPrimary = BioDarkTextPrimary,
-    primaryContainer = BioAccentPrimary.copy(alpha = 0.14f),
+    primary = BioAccentSecondary,
+    onPrimary = BioDarkBgBase,
+    primaryContainer = BioAccentSecondary.copy(alpha = 0.18f),
     onPrimaryContainer = BioDarkTextPrimary,
-    secondary = BioAccentSecondary,
+    secondary = BioAccentPrimary,
     onSecondary = BioDarkTextPrimary,
-    secondaryContainer = BioAccentSecondary.copy(alpha = 0.10f),
+    secondaryContainer = BioDarkBgSurfaceHigh,
     onSecondaryContainer = BioDarkTextPrimary,
-    tertiary = BioAccentTertiary,
+    tertiary = BioTerracotta,
     onTertiary = BioDarkTextPrimary,
     background = BioDarkBgBase,
     onBackground = BioDarkTextPrimary,
@@ -117,31 +122,16 @@ private val BioDarkScheme = darkColorScheme(
     onSurface = BioDarkTextPrimary,
     surfaceVariant = BioDarkBgSurfaceHigh,
     onSurfaceVariant = BioDarkTextSecondary,
+    surfaceTint = BioAccentSecondary,
     surfaceContainerHighest = BioDarkBgSurfaceHigh,
-    surfaceContainerHigh = BioDarkBgSurfaceHigh,
+    surfaceContainerHigh = BioDarkBgGlass,
     surfaceContainer = BioDarkBgSurface,
     surfaceContainerLow = BioDarkBgBase,
     surfaceContainerLowest = BioDarkBgBase,
     outline = BioDarkBgStroke,
-    outlineVariant = BioDarkBgStroke.copy(alpha = 0.5f),
+    outlineVariant = BioDarkBgStroke.copy(alpha = 0.55f),
     error = BioStateError,
-)
-
-// --- Fallback Light ---
-private val AmaliaLightScheme = lightColorScheme(
-    primary = GlassAccentDim,
-    onPrimary = LightSurface,
-    primaryContainer = GlassAccentDim.copy(alpha = 0.12f),
-    onPrimaryContainer = LightTextPrimary,
-    secondary = GlassAccentSoft,
-    onSecondary = LightSurface,
-    background = LightBg,
-    onBackground = LightTextPrimary,
-    surface = LightSurface,
-    onSurface = LightTextPrimary,
-    surfaceVariant = LightBg,
-    onSurfaceVariant = LightTextSecondary,
-    outline = GlassBgStroke,
+    onError = BioDarkBgBase,
 )
 
 // ════════════════════════════════════════════════════════════
@@ -162,21 +152,48 @@ fun AmaliaTheme(
         DarkModePreference.ALWAYS_LIGHT -> false
     }
 
-    // Bio-time: если включено, переопределяем тёмность по времени суток
     val bioTime = if (useBioTime && visualTheme == AmaliaVisualTheme.BIOPHILIC) {
         val hour = java.util.Calendar.getInstance().get(java.util.Calendar.HOUR_OF_DAY)
         BioTimeOfDay.fromHour(hour)
-    } else null
+    } else {
+        null
+    }
 
-    val effectiveDark = bioTime?.let {
-        it == BioTimeOfDay.EVENING || it == BioTimeOfDay.NIGHT
-    } ?: isDark
+    val effectiveDark = when (visualTheme) {
+        AmaliaVisualTheme.LIQUID_GLASS -> true
+        AmaliaVisualTheme.BIOPHILIC -> bioTime?.let {
+            it == BioTimeOfDay.EVENING || it == BioTimeOfDay.NIGHT
+        } ?: isDark
+    }
 
     val colorScheme = when (visualTheme) {
         AmaliaVisualTheme.LIQUID_GLASS -> GlassDarkScheme
-        AmaliaVisualTheme.BIOPHILIC -> {
-            if (effectiveDark) BioDarkScheme else BioLightScheme
-        }
+        AmaliaVisualTheme.BIOPHILIC -> if (effectiveDark) BioDarkScheme else BioLightScheme
+    }
+
+    // Стекло тёмной темы — дымчатое и контурное; светлой — молочное и мягкое.
+    val glassStyle = when {
+        visualTheme == AmaliaVisualTheme.LIQUID_GLASS -> GlassStyle(
+            fill = 0.52f,
+            border = 0.13f,
+            highlight = 0.11f,
+            glow = 0.16f,
+            light = false,
+        )
+        effectiveDark -> GlassStyle(
+            fill = 0.60f,
+            border = 0.11f,
+            highlight = 0.08f,
+            glow = 0.14f,
+            light = false,
+        )
+        else -> GlassStyle(
+            fill = 0.74f,
+            border = 0.55f,
+            highlight = 0.55f,
+            glow = 0.10f,
+            light = true,
+        )
     }
 
     val typography = when (visualTheme) {
@@ -193,8 +210,7 @@ fun AmaliaTheme(
     if (!view.isInEditMode) {
         SideEffect {
             val window = (view.context as Activity).window
-            window.statusBarColor = android.graphics.Color.TRANSPARENT
-            window.navigationBarColor = android.graphics.Color.TRANSPARENT
+            WindowCompat.setDecorFitsSystemWindows(window, false)
             WindowCompat.getInsetsController(window, view).apply {
                 isAppearanceLightStatusBars = !effectiveDark
                 isAppearanceLightNavigationBars = !effectiveDark
@@ -202,18 +218,21 @@ fun AmaliaTheme(
         }
     }
 
-    MaterialTheme(
-        colorScheme = colorScheme,
-        typography = typography,
-        shapes = shapes,
-        content = content,
-    )
+    CompositionLocalProvider(LocalGlassStyle provides glassStyle) {
+        MaterialTheme(
+            colorScheme = colorScheme,
+            typography = typography,
+            shapes = shapes,
+            content = content,
+        )
+    }
 }
 
 // ════════════════════════════════════════════════════════════
-//  УТИЛИТЫ: получить текущую палитру градиента для фона
+//  УТИЛИТЫ
 // ════════════════════════════════════════════════════════════
 
+/** Палитра живого фона под текущие настройки. */
 fun currentGradientPalette(
     visualTheme: AmaliaVisualTheme,
     darkModePref: DarkModePreference = DarkModePreference.SYSTEM,
@@ -231,9 +250,8 @@ fun currentGradientPalette(
         }
     }
 
-    val systemDark = darkModePref == DarkModePreference.ALWAYS_DARK ||
-            (darkModePref == DarkModePreference.SYSTEM &&
-                    android.content.res.Configuration.UI_MODE_NIGHT_YES ==
-                    android.content.res.Configuration.UI_MODE_NIGHT_YES)
-    return if (systemDark) BioGradientNight else BioGradientDay
+    return when (darkModePref) {
+        DarkModePreference.ALWAYS_DARK -> BioGradientNight
+        else -> BioGradientDay
+    }
 }

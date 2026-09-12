@@ -3,17 +3,18 @@ package com.my.amali.core.navigation
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
+import androidx.compose.animation.scaleIn
+import androidx.compose.animation.scaleOut
 import androidx.compose.animation.slideInHorizontally
 import androidx.compose.animation.slideOutHorizontally
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.Scaffold
-import androidx.compose.material3.Surface
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.luminance
 import androidx.navigation.NavHostController
 import androidx.navigation.NavType
 import androidx.navigation.compose.NavHost
@@ -21,7 +22,6 @@ import androidx.navigation.compose.composable
 import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
 import androidx.navigation.navArgument
-import com.my.amali.ui.theme.AmaliaVisualTheme
 import com.my.amali.ui.assistant.AssistantScreen
 import com.my.amali.ui.history.ConversationDetailScreen
 import com.my.amali.ui.history.ConversationListScreen
@@ -39,12 +39,12 @@ import com.my.amali.ui.settings.VoiceSettings
 /**
  * Корневой NavHost Амалии.
  *
- * Структура: онбординг как стартовая точка при первом запуске, затем
- * Scaffold с нижней навигацией и три вкладки. Детальные экраны (разговор,
- * разрешения, подсекции настроек) открываются поверх без нижнего бара.
+ * Вместо Material-Scaffold используется Box: нижняя навигация —
+ * плавающая стеклянная панель, которая лежит ПОВЕРХ контента, поэтому
+ * фон-аурора виден на всю высоту экрана и интерфейс читается как
+ * единое стекло, а не как набор прямоугольных блоков.
  *
  * @param startOnOnboarding true при первом запуске — стартуем с онбординга.
- * @param navController контроллер навигации.
  */
 @Composable
 fun AmaliaNavHost(
@@ -55,23 +55,11 @@ fun AmaliaNavHost(
     val backStackEntry by navController.currentBackStackEntryAsState()
     val currentRoute = backStackEntry?.destination?.route
 
-    Scaffold(
-        bottomBar = {
-            // На онбординге нижний бар никогда не показывается.
-            if (currentRoute != Destinations.Onboarding.route) {
-                BottomNavBar(
-                    navController = navController,
-                    currentRoute = currentRoute,
-                    visualTheme = if (MaterialTheme.colorScheme.surface.luminance() > 0.5f) {
-                        AmaliaVisualTheme.BIOPHILIC
-                    } else {
-                        AmaliaVisualTheme.LIQUID_GLASS
-                    },
-                )
-            }
-        },
-        modifier = modifier,
-    ) { innerPadding ->
+    Box(
+        modifier = modifier
+            .fillMaxSize()
+            .background(MaterialTheme.colorScheme.background),
+    ) {
         NavHost(
             navController = navController,
             startDestination = if (startOnOnboarding) {
@@ -81,12 +69,16 @@ fun AmaliaNavHost(
             },
             modifier = Modifier.fillMaxSize(),
             enterTransition = {
-                fadeIn(tween(220)) + slideInHorizontally(tween(260)) { it / 12 }
+                fadeIn(tween(240)) + slideInHorizontally(tween(280)) { it / 14 }
             },
-            exitTransition = { fadeOut(tween(160)) },
-            popEnterTransition = { fadeIn(tween(200)) },
+            exitTransition = {
+                fadeOut(tween(160)) + scaleOut(tween(200), targetScale = 0.99f)
+            },
+            popEnterTransition = {
+                fadeIn(tween(220)) + scaleIn(tween(240), initialScale = 0.995f)
+            },
             popExitTransition = {
-                fadeOut(tween(160)) + slideOutHorizontally(tween(220)) { it / 12 }
+                fadeOut(tween(150)) + slideOutHorizontally(tween(220)) { it / 14 }
             },
         ) {
             composable(Destinations.Onboarding.route) {
@@ -100,25 +92,23 @@ fun AmaliaNavHost(
             }
 
             composable(Destinations.Assistant.route) {
-                Box(Modifier.fillMaxSize()) {
-                    AssistantScreen(
-                        onNavigateToHistory = {
-                            navController.navigate(Destinations.History.route) {
-                                popUpTo(Destinations.Assistant.route) { saveState = true }
-                                launchSingleTop = true
-                                restoreState = true
-                            }
-                        },
-                        onNavigateToSettings = {
-                            navController.navigate(Destinations.Settings.route) {
-                                popUpTo(Destinations.Assistant.route) { saveState = true }
-                                launchSingleTop = true
-                                restoreState = true
-                            }
-                        },
-                        modifier = Modifier.fillMaxSize(),
-                    )
-                }
+                AssistantScreen(
+                    onNavigateToHistory = {
+                        navController.navigate(Destinations.History.route) {
+                            popUpTo(Destinations.Assistant.route) { saveState = true }
+                            launchSingleTop = true
+                            restoreState = true
+                        }
+                    },
+                    onNavigateToSettings = {
+                        navController.navigate(Destinations.Settings.route) {
+                            popUpTo(Destinations.Assistant.route) { saveState = true }
+                            launchSingleTop = true
+                            restoreState = true
+                        }
+                    },
+                    modifier = Modifier.fillMaxSize(),
+                )
             }
 
             composable(Destinations.History.route) {
@@ -131,13 +121,13 @@ fun AmaliaNavHost(
 
             composable(Destinations.Settings.route) {
                 SettingsScreen(
-                    onOpenAppearance = { navController.navigate(Destinations.Settings.route + "/appearance") },
-                    onOpenLanguage = { navController.navigate(Destinations.Settings.route + "/language") },
-                    onOpenVoice = { navController.navigate(Destinations.Settings.route + "/voice") },
-                    onOpenDevice = { navController.navigate(Destinations.Settings.route + "/device") },
-                    onOpenPrivacy = { navController.navigate(Destinations.Settings.route + "/privacy") },
-                    onOpenNotifications = { navController.navigate(Destinations.Settings.route + "/notifications") },
-                    onOpenAbout = { navController.navigate(Destinations.Settings.route + "/about") },
+                    onOpenAppearance = { navController.navigate("${Destinations.Settings.route}/appearance") },
+                    onOpenLanguage = { navController.navigate("${Destinations.Settings.route}/language") },
+                    onOpenVoice = { navController.navigate("${Destinations.Settings.route}/voice") },
+                    onOpenDevice = { navController.navigate("${Destinations.Settings.route}/device") },
+                    onOpenPrivacy = { navController.navigate("${Destinations.Settings.route}/privacy") },
+                    onOpenNotifications = { navController.navigate("${Destinations.Settings.route}/notifications") },
+                    onOpenAbout = { navController.navigate("${Destinations.Settings.route}/about") },
                     onOpenPermissions = { navController.navigate(Destinations.Permissions.route) },
                 )
             }
@@ -186,5 +176,18 @@ fun AmaliaNavHost(
                 AboutSettings(onBack = { navController.popBackStack() })
             }
         }
+
+        // Плавающая навигация поверх контента — только на вкладочных экранах.
+        BottomNavBar(
+            navController = navController,
+            currentRoute = currentRoute,
+            modifier = Modifier.align(Alignment.BottomCenter),
+        )
     }
 }
+
+/**
+ * Нижний отступ контента на вкладочных экранах, чтобы последний
+ * элемент списка не уезжал под плавающую навигацию.
+ */
+val BottomBarContentInset = 96

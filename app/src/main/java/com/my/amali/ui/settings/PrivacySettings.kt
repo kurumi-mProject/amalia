@@ -1,5 +1,6 @@
 package com.my.amali.ui.settings
 
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
@@ -8,17 +9,10 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.ArrowBack
-import androidx.compose.material.icons.automirrored.filled.ArrowBack
-import androidx.compose.material3.AlertDialog
-import androidx.compose.material3.CenterAlignedTopAppBar
-import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
+import androidx.compose.material.icons.rounded.DeleteSweep
+import androidx.compose.material.icons.rounded.Security
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -31,16 +25,22 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.my.amali.R
 import com.my.amali.domain.entity.UserSettings
-import com.my.amali.ui.components.GlassCard
+import com.my.amali.ui.components.AmaliaScreen
+import com.my.amali.ui.components.GlassDialog
+import com.my.amali.ui.components.GlassDivider
+import com.my.amali.ui.components.GlassGroup
+import com.my.amali.ui.components.SectionTitle
 import com.my.amali.ui.components.SettingsActionRow
-import com.my.amali.ui.components.SettingsHeader
 import com.my.amali.ui.components.SettingsValueRow
+import com.my.amali.ui.theme.Spacing
 
 /**
- * Экран «Приватность»: срок хранения истории, полная очистка истории,
- * переход на экран разрешений.
+ * Экран «Приватность и разрешения»: срок хранения истории,
+ * необратимая очистка с подтверждением, переход к разрешениям.
+ *
+ * Деструктивное действие визуально отделено от остальных и требует
+ * подтверждения в стеклянном диалоге — случайно удалить историю нельзя.
  */
-@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun PrivacySettings(
     onBack: () -> Unit,
@@ -51,96 +51,87 @@ fun PrivacySettings(
     val settings by vm.settings.collectAsStateWithLifecycle()
     var showClearDialog by remember { mutableStateOf(false) }
 
-    Scaffold(
-        topBar = {
-            CenterAlignedTopAppBar(
-                title = { Text(stringResource(R.string.settings_privacy)) },
-                navigationIcon = {
-                    IconButton(onClick = onBack) {
-                        Icon(
-                            Icons.AutoMirrored.Filled.ArrowBack,
-                            contentDescription = stringResource(R.string.common_back),
-                        )
-                    }
-                },
-                colors = androidx.compose.material3.TopAppBarDefaults.centerAlignedTopAppBarColors(
-                    containerColor = MaterialTheme.colorScheme.background.copy(alpha = 0f),
-                ),
-            )
-        },
-        containerColor = MaterialTheme.colorScheme.background,
+    AmaliaScreen(
+        title = stringResource(R.string.settings_privacy),
+        subtitle = stringResource(R.string.settings_privacy_desc),
+        onBack = onBack,
+        backLabel = stringResource(R.string.common_back),
         modifier = modifier,
     ) { padding ->
         Column(
             modifier = Modifier
                 .fillMaxSize()
-                .padding(padding)
                 .verticalScroll(rememberScrollState())
-                .padding(horizontal = 20.dp),
+                .padding(padding),
         ) {
-            SettingsHeader(title = stringResource(R.string.privacy_data_retention))
+            SectionTitle(stringResource(R.string.privacy_data_retention))
 
-            UserSettings.RETENTION_OPTIONS.forEachIndexed { index, days ->
-                val title = when (days) {
-                    7 -> stringResource(R.string.privacy_retention_7)
-                    30 -> stringResource(R.string.privacy_retention_30)
-                    90 -> stringResource(R.string.privacy_retention_90)
-                    else -> stringResource(R.string.privacy_retention_forever)
-                }
-                SettingsValueRow(
-                    title = title,
-                    subtitle = null,
-                    selected = settings.dataRetentionDays == days,
-                    onClick = { vm.setDataRetentionDays(days) },
-                )
-                if (index < UserSettings.RETENTION_OPTIONS.size - 1) {
-                    Spacer(Modifier.height(8.dp))
+            Text(
+                text = stringResource(R.string.privacy_data_retention_desc),
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.padding(
+                    start = Spacing.xxs,
+                    bottom = Spacing.xs,
+                ),
+            )
+
+            Column(verticalArrangement = Arrangement.spacedBy(Spacing.xs)) {
+                UserSettings.RETENTION_OPTIONS.forEach { days ->
+                    SettingsValueRow(
+                        title = retentionTitle(days),
+                        subtitle = null,
+                        selected = settings.dataRetentionDays == days,
+                        onClick = { vm.setDataRetentionDays(days) },
+                    )
                 }
             }
 
-            SettingsHeader(title = stringResource(R.string.privacy_clear_history))
+            SectionTitle(stringResource(R.string.privacy_permissions))
 
-            SettingsActionRow(
-                title = stringResource(R.string.privacy_clear),
-                subtitle = stringResource(R.string.privacy_clear_history_confirm_desc),
-                onClick = { showClearDialog = true },
-            )
+            GlassGroup {
+                SettingsActionRow(
+                    icon = Icons.Rounded.Security,
+                    title = stringResource(R.string.privacy_permissions),
+                    subtitle = stringResource(R.string.permission_rationale_title),
+                    onClick = onOpenPermissions,
+                )
+                GlassDivider()
+                SettingsActionRow(
+                    icon = Icons.Rounded.DeleteSweep,
+                    title = stringResource(R.string.privacy_clear_history),
+                    subtitle = stringResource(R.string.privacy_clear_history_confirm_desc),
+                    onClick = { showClearDialog = true },
+                )
+            }
 
-            Spacer(Modifier.height(8.dp))
-
-            SettingsActionRow(
-                title = stringResource(R.string.privacy_permissions),
-                subtitle = stringResource(R.string.settings_privacy_desc),
-                onClick = onOpenPermissions,
-            )
-
-            Spacer(Modifier.height(24.dp))
+            Spacer(Modifier.height(96.dp))
         }
     }
 
     if (showClearDialog) {
-        AlertDialog(
-            onDismissRequest = { showClearDialog = false },
-            title = { Text(stringResource(R.string.privacy_clear_history_confirm)) },
-            text = { Text(stringResource(R.string.privacy_clear_history_confirm_desc)) },
-            confirmButton = {
-                TextButton(
-                    onClick = {
-                        showClearDialog = false
-                        vm.clearHistory()
-                    },
-                ) {
-                    Text(
-                        stringResource(R.string.privacy_clear),
-                        color = MaterialTheme.colorScheme.error,
-                    )
-                }
+        GlassDialog(
+            title = stringResource(R.string.privacy_clear_history_confirm),
+            message = stringResource(R.string.privacy_clear_history_confirm_desc),
+            confirmLabel = stringResource(R.string.privacy_clear),
+            dismissLabel = stringResource(R.string.privacy_cancel),
+            destructive = true,
+            onConfirm = {
+                showClearDialog = false
+                vm.clearHistory()
             },
-            dismissButton = {
-                TextButton(onClick = { showClearDialog = false }) {
-                    Text(stringResource(R.string.privacy_cancel))
-                }
-            },
+            onDismiss = { showClearDialog = false },
         )
     }
 }
+
+/** Человекочитаемая подпись срока хранения. */
+@Composable
+private fun retentionTitle(days: Int): String = stringResource(
+    when (days) {
+        7 -> R.string.privacy_retention_7
+        30 -> R.string.privacy_retention_30
+        90 -> R.string.privacy_retention_90
+        else -> R.string.privacy_retention_forever
+    },
+)

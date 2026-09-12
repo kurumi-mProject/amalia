@@ -1,29 +1,21 @@
 package com.my.amali.ui.settings
 
-import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.ArrowBack
-import androidx.compose.material.icons.automirrored.filled.ArrowBack
-import androidx.compose.material3.CenterAlignedTopAppBar
-import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
+import androidx.compose.material.icons.rounded.Bluetooth
+import androidx.compose.material.icons.rounded.BrightnessMedium
+import androidx.compose.material.icons.rounded.LocationOn
+import androidx.compose.material.icons.rounded.OpenInNew
+import androidx.compose.material.icons.rounded.VolumeUp
+import androidx.compose.material.icons.rounded.Wifi
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.Scaffold
-import androidx.compose.material3.Slider
-import androidx.compose.material3.SliderDefaults
-import androidx.compose.material3.Switch
-import androidx.compose.material3.SwitchDefaults
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -32,28 +24,38 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
-import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
-import androidx.lifecycle.viewmodel.compose.viewModel
 import com.my.amali.R
 import com.my.amali.core.di.ServiceLocator
 import com.my.amali.data.model.DeviceFeature
+import com.my.amali.ui.components.AmaliaScreen
 import com.my.amali.ui.components.GlassCard
-import com.my.amali.ui.components.SettingsHeader
+import com.my.amali.ui.components.GlassDivider
+import com.my.amali.ui.components.GlassGroup
+import com.my.amali.ui.components.GlassSlider
+import com.my.amali.ui.components.SecondaryButton
+import com.my.amali.ui.components.SectionTitle
+import com.my.amali.ui.components.SettingsStatusRow
 import com.my.amali.ui.components.SettingsToggleRow
+import com.my.amali.ui.theme.Radius
+import com.my.amali.ui.theme.Spacing
 import kotlinx.coroutines.launch
 
 /**
- * Экран «Управление устройством»: Wi-Fi, Bluetooth, яркость, громкость.
+ * Экран «Управление устройством»: Wi-Fi, Bluetooth, яркость, громкость,
+ * локация.
  *
- * Состояние фич читается напрямую из системы через [SystemControllerHub].
- * На Android 13+ Wi-Fi/BT переключаются переходом в системные настройки
- * (политика платформы), на более старых — напрямую. Яркость требует
- * системного WRITE_SETTINGS — при отсутствии открывается системный экран.
+ * Дизайн-решение: переключатели собраны в одну стеклянную группу
+ * (это системные тумблеры — им не нужны отдельные карточки), а
+ * регуляторы вынесены в отдельные карточки-слайдеры, потому что
+ * требуют точного жеста и визуального пространства.
+ *
+ * На Android 13+ прямое переключение Wi-Fi/BT запрещено политикой
+ * платформы, поэтому в этом случае тумблер ведёт в системные настройки —
+ * и подпись строки честно об этом сообщает.
  */
-@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun DeviceControlSettings(
     onBack: () -> Unit,
@@ -69,237 +71,162 @@ fun DeviceControlSettings(
         volumeMax = hub.mediaVolumeMax()
     }
 
-    Scaffold(
-        topBar = {
-            CenterAlignedTopAppBar(
-                title = { Text(stringResource(R.string.settings_device)) },
-                navigationIcon = {
-                    IconButton(onClick = onBack) {
-                        Icon(
-                            Icons.AutoMirrored.Filled.ArrowBack,
-                            contentDescription = stringResource(R.string.common_back),
-                        )
-                    }
-                },
-                colors = androidx.compose.material3.TopAppBarDefaults.centerAlignedTopAppBarColors(
-                    containerColor = MaterialTheme.colorScheme.background.copy(alpha = 0f),
-                ),
-            )
-        },
-        containerColor = MaterialTheme.colorScheme.background,
+    val wifiDirect = remember { hub.isDirectToggleSupported(DeviceFeature.WIFI) }
+    val btDirect = remember { hub.isDirectToggleSupported(DeviceFeature.BLUETOOTH) }
+    val systemHint = stringResource(R.string.permission_open_settings)
+
+    AmaliaScreen(
+        title = stringResource(R.string.settings_device),
+        subtitle = stringResource(R.string.settings_device_desc),
+        onBack = onBack,
+        backLabel = stringResource(R.string.common_back),
         modifier = modifier,
     ) { padding ->
         Column(
             modifier = Modifier
                 .fillMaxSize()
-                .padding(padding)
                 .verticalScroll(rememberScrollState())
-                .padding(horizontal = 20.dp),
+                .padding(padding),
         ) {
-            // Wi-Fi
-            SettingsHeader(title = stringResource(R.string.device_wifi))
-            DeviceToggleCard(
-                title = stringResource(R.string.device_wifi),
-                enabled = status.wifiEnabled,
-                directToggle = hub.isDirectToggleSupported(DeviceFeature.WIFI),
-                onToggle = { requested ->
-                    scope.launch {
-                        if (hub.isDirectToggleSupported(DeviceFeature.WIFI)) {
-                            hub.setWifiEnabled(requested)
-                            status = hub.refresh()
-                        } else {
-                            openWifiSettings()
-                        }
-                    }
-                },
-            )
+            SectionTitle(stringResource(R.string.settings_device))
 
-            // Bluetooth
-            SettingsHeader(title = stringResource(R.string.device_bluetooth))
-            DeviceToggleCard(
-                title = stringResource(R.string.device_bluetooth),
-                enabled = status.bluetoothEnabled,
-                directToggle = hub.isDirectToggleSupported(DeviceFeature.BLUETOOTH),
-                onToggle = { requested ->
-                    scope.launch {
-                        if (hub.isDirectToggleSupported(DeviceFeature.BLUETOOTH)) {
-                            hub.setBluetoothEnabled(requested)
-                            status = hub.refresh()
-                        } else {
-                            openBluetoothSettings()
-                        }
-                    }
-                },
-            )
-
-            // Яркость
-            SettingsHeader(title = stringResource(R.string.device_brightness))
-            GlassCard {
-                Text(
-                    text = stringResource(R.string.device_brightness),
-                    style = MaterialTheme.typography.titleSmall,
-                    color = MaterialTheme.colorScheme.onSurface,
-                )
-                Spacer(Modifier.height(8.dp))
-                Slider(
-                    value = status.brightnessFraction,
-                    onValueChange = { fraction ->
-                        status = status.withBrightness((fraction * 255).toInt())
-                    },
-                    onValueChangeFinished = {
-                        scope.launch {
-                            val ok = hub.setBrightness(status.brightnessLevel)
-                            if (!ok) hub.openBrightnessSettingsScreen()
-                            status = hub.refresh()
-                        }
-                    },
-                    colors = SliderDefaults.colors(
-                        thumbColor = MaterialTheme.colorScheme.primary,
-                        activeTrackColor = MaterialTheme.colorScheme.primary,
-                    ),
-                )
-                Text(
-                    text = "${status.brightnessLevel}/255",
-                    style = MaterialTheme.typography.labelMedium,
-                    color = MaterialTheme.colorScheme.primary,
-                )
-            }
-
-            // Громкость
-            SettingsHeader(title = stringResource(R.string.device_volume))
-            GlassCard {
-                Text(
-                    text = stringResource(R.string.device_volume),
-                    style = MaterialTheme.typography.titleSmall,
-                    color = MaterialTheme.colorScheme.onSurface,
-                )
-                Spacer(Modifier.height(8.dp))
-                Slider(
-                    value = status.volumeFraction,
-                    onValueChange = { fraction ->
-                        status = status.withVolume((fraction * volumeMax).toInt())
-                    },
-                    onValueChangeFinished = {
-                        scope.launch {
-                            hub.setVolume(status.volumeLevel)
-                            status = hub.refresh()
-                        }
-                    },
-                    colors = SliderDefaults.colors(
-                        thumbColor = MaterialTheme.colorScheme.primary,
-                        activeTrackColor = MaterialTheme.colorScheme.primary,
-                    ),
-                )
-                Text(
-                    text = "${status.volumeLevel}/$volumeMax",
-                    style = MaterialTheme.typography.labelMedium,
-                    color = MaterialTheme.colorScheme.primary,
-                )
-            }
-
-            // Локация — только переход в системные настройки.
-            SettingsHeader(title = stringResource(R.string.device_location))
-            GlassCard {
-                Row(
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    modifier = Modifier.fillMaxWidth(),
-                ) {
-                    Column {
-                        Text(
-                            text = stringResource(R.string.device_location),
-                            style = MaterialTheme.typography.titleSmall,
-                            color = MaterialTheme.colorScheme.onSurface,
+            GlassGroup {
+                SettingsToggleRow(
+                    icon = Icons.Rounded.Wifi,
+                    title = stringResource(R.string.device_wifi),
+                    subtitle = if (wifiDirect) {
+                        stringResource(
+                            if (status.wifiEnabled) R.string.device_status_on
+                            else R.string.device_status_off,
                         )
-                        Text(
-                            text = stringResource(
-                                if (status.locationEnabled) R.string.device_status_on
-                                else R.string.device_status_off
-                            ),
-                            style = MaterialTheme.typography.bodySmall,
-                            color = if (status.locationEnabled) {
-                                MaterialTheme.colorScheme.primary
-                            } else {
-                                MaterialTheme.colorScheme.onSurface.copy(alpha = 0.55f)
-                            },
-                        )
-                    }
-                    androidx.compose.material3.FilledTonalButton(
-                        onClick = { hub.openLocationSettings() },
-                        shape = RoundedCornerShape(12.dp),
-                    ) {
-                        Text(stringResource(R.string.permission_open_settings))
-                    }
-                }
-            }
-
-            Spacer(Modifier.height(24.dp))
-        }
-    }
-}
-
-/** Переключатель Wi-Fi/BT в едином стиле glass-карточки. */
-@Composable
-private fun DeviceToggleCard(
-    title: String,
-    enabled: Boolean,
-    directToggle: Boolean,
-    onToggle: (Boolean) -> Unit,
-) {
-    GlassCard {
-        Row(
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.SpaceBetween,
-            modifier = Modifier.fillMaxWidth(),
-        ) {
-            Column(Modifier.weight(1f)) {
-                Text(
-                    text = title,
-                    style = MaterialTheme.typography.titleSmall,
-                    color = MaterialTheme.colorScheme.onSurface,
-                )
-                Text(
-                    text = stringResource(
-                        if (enabled) R.string.device_status_on else R.string.device_status_off
-                    ),
-                    style = MaterialTheme.typography.bodySmall,
-                    color = if (enabled) {
-                        MaterialTheme.colorScheme.primary
                     } else {
-                        MaterialTheme.colorScheme.onSurface.copy(alpha = 0.55f)
+                        systemHint
+                    },
+                    checked = status.wifiEnabled,
+                    onCheckedChange = { requested ->
+                        scope.launch {
+                            if (wifiDirect) {
+                                hub.setWifiEnabled(requested)
+                                status = hub.refresh()
+                            } else {
+                                openSystemSettings(android.provider.Settings.ACTION_WIFI_SETTINGS)
+                            }
+                        }
                     },
                 )
+                GlassDivider()
+                SettingsToggleRow(
+                    icon = Icons.Rounded.Bluetooth,
+                    title = stringResource(R.string.device_bluetooth),
+                    subtitle = if (btDirect) {
+                        stringResource(
+                            if (status.bluetoothEnabled) R.string.device_status_on
+                            else R.string.device_status_off,
+                        )
+                    } else {
+                        systemHint
+                    },
+                    checked = status.bluetoothEnabled,
+                    onCheckedChange = { requested ->
+                        scope.launch {
+                            if (btDirect) {
+                                hub.setBluetoothEnabled(requested)
+                                status = hub.refresh()
+                            } else {
+                                openSystemSettings(
+                                    android.provider.Settings.ACTION_BLUETOOTH_SETTINGS,
+                                )
+                            }
+                        }
+                    },
+                )
+                GlassDivider()
+                SettingsStatusRow(
+                    icon = Icons.Rounded.LocationOn,
+                    title = stringResource(R.string.device_location),
+                    status = stringResource(
+                        if (status.locationEnabled) R.string.device_status_on
+                        else R.string.device_status_off,
+                    ),
+                    active = status.locationEnabled,
+                    onClick = { hub.openLocationSettings() },
+                )
             }
-            Switch(
-                checked = enabled,
-                onCheckedChange = onToggle,
-                enabled = true,
-                colors = SwitchDefaults.colors(
-                    checkedTrackColor = MaterialTheme.colorScheme.primary,
-                    checkedThumbColor = MaterialTheme.colorScheme.onPrimary,
-                ),
+
+            SectionTitle(stringResource(R.string.device_brightness))
+
+            GlassSlider(
+                label = stringResource(R.string.device_brightness),
+                valueText = "${(status.brightnessFraction * 100).toInt()}%",
+                value = status.brightnessFraction,
+                onValueChange = { fraction ->
+                    status = status.withBrightness((fraction * 255).toInt())
+                },
+                onValueChangeFinished = {
+                    scope.launch {
+                        val applied = hub.setBrightness(status.brightnessLevel)
+                        if (!applied) hub.openBrightnessSettingsScreen()
+                        status = hub.refresh()
+                    }
+                },
             )
+
+            Spacer(Modifier.height(Spacing.listGap))
+
+            GlassSlider(
+                label = stringResource(R.string.device_volume),
+                valueText = "${status.volumeLevel}/$volumeMax",
+                value = status.volumeFraction,
+                onValueChange = { fraction ->
+                    status = status.withVolume((fraction * volumeMax).toInt())
+                },
+                onValueChangeFinished = {
+                    scope.launch {
+                        hub.setVolume(status.volumeLevel)
+                        status = hub.refresh()
+                    }
+                },
+            )
+
+            SectionTitle(stringResource(R.string.settings_privacy))
+
+            GlassCard(cornerRadius = Radius.md) {
+                Text(
+                    text = stringResource(R.string.permission_bluetooth_rationale),
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+                Spacer(Modifier.height(Spacing.md))
+                SecondaryButton(
+                    text = stringResource(R.string.permission_open_settings),
+                    icon = Icons.Rounded.OpenInNew,
+                    onClick = {
+                        openSystemSettings(
+                            android.provider.Settings.ACTION_APPLICATION_DETAILS_SETTINGS,
+                            withPackage = true,
+                        )
+                    },
+                    modifier = Modifier.fillMaxWidth(),
+                )
+            }
+
+            Spacer(Modifier.height(96.dp))
         }
     }
 }
 
-private fun openWifiSettings() {
-    // Переход в системные настройки Wi-Fi (Android 13+).
-    try {
+/**
+ * Открывает системный экран настроек по [action].
+ * При [withPackage] добавляет URI пакета — нужно для экрана «О приложении».
+ */
+private fun openSystemSettings(action: String, withPackage: Boolean = false) {
+    runCatching {
         val context = ServiceLocator.appContextValue
-        val intent = android.content.Intent(android.provider.Settings.ACTION_WIFI_SETTINGS)
+        val intent = android.content.Intent(action)
             .addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK)
+        if (withPackage) {
+            intent.data = android.net.Uri.fromParts("package", context.packageName, null)
+        }
         context.startActivity(intent)
-    } catch (_: Exception) {
-    }
-}
-
-private fun openBluetoothSettings() {
-    try {
-        val context = ServiceLocator.appContextValue
-        val intent = android.content.Intent(android.provider.Settings.ACTION_BLUETOOTH_SETTINGS)
-            .addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK)
-        context.startActivity(intent)
-    } catch (_: Exception) {
     }
 }

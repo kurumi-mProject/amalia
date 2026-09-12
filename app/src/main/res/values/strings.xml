@@ -90,6 +90,8 @@
     <string name="appearance_bio_time_desc">Автоматически менять палитру: днём — светлые, вечером — тёплые, ночью — глубокие тона</string>
     <string name="appearance_glass_intensity">Интенсивность стекла</string>
     <string name="appearance_glass_blur">Сила размытия</string>
+    <string name="appearance_glass_always_dark">Liquid Glass — всегда тёмная тема: так стекло и свечение работают правильно.</string>
+    <string name="appearance_preview">Предпросмотр</string>
 
     <!-- === Язык === -->
     <string name="language_follow_system">Системный язык</string>
@@ -176,6 +178,11 @@
     <string name="history_yesterday">Вчера</string>
     <string name="history_this_week">На этой неделе</string>
     <string name="history_older">Ранее</string>
+    <string name="history_search">Поиск по разговорам</string>
+    <string name="history_messages">сообщений</string>
+    <string name="history_no_results">Ничего не найдено</string>
+    <string name="history_no_results_desc">Попробуй другой запрос или очисти поиск</string>
+    <string name="history_delete_confirm">Удалить разговор?</string>
 
     <!-- === О приложении === -->
     <string name="about_version">Версия</string>

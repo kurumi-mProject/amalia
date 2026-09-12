@@ -1,13 +1,25 @@
 package com.my.amali.ui.components
 
+import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.core.LinearEasing
-import androidx.compose.animation.core.RepeatMode
+import androidx.compose.animation.core.Spring
 import androidx.compose.animation.core.animateFloat
+import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.infiniteRepeatable
 import androidx.compose.animation.core.rememberInfiniteTransition
+import androidx.compose.animation.core.spring
 import androidx.compose.animation.core.tween
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.scaleIn
+import androidx.compose.animation.scaleOut
+import androidx.compose.animation.togetherWith
+import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.interaction.MutableInteractionSource
+import androidx.compose.foundation.interaction.collectIsPressedAsState
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.size
@@ -15,34 +27,42 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Mic
 import androidx.compose.material.icons.filled.Stop
-import androidx.compose.material.icons.filled.Mic
-import androidx.compose.material.icons.filled.Stop
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.Surface
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.scale
+import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Brush
-import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.StrokeCap
+import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.role
-import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.dp
-import com.my.amali.domain.entity.VoiceState
+import com.my.amali.ui.theme.accentGlow
 
 /**
- * MicButton — центральная кнопка микрофона Амалии.
+ * MicButton — главный CTA приложения: стеклянная капля с микрофоном.
  *
- * 76dp круглая кнопка с фирменным градиентом. В активном состоянии
- * ([isActive]) вокруг кнопки расходятся пульсирующие кольца, иконка
- * меняется на Stop. Полная семантика TalkBack через [stateLabel].
+ * Конструкция (снизу вверх):
+ *  1. живое свечение акцента под кнопкой — усиливается в активном режиме;
+ *  2. два расходящихся кольца-пульса (только когда идёт разговор);
+ *  3. тонкое вращающееся кольцо-«орбита» — показывает, что система живая;
+ *  4. стеклянное тело: радиальный градиент + верхний блик + контур;
+ *  5. иконка Mic/Stop с плавной подменой.
  *
- * @param isActive идёт ли сейчас запись/разговор.
- * @param stateLabel человекочитаемое состояние для TalkBack
- *   (например, stringResource(R.string.assistant_listening)).
+ * Тач-зона 88dp — заметно больше минимума 48dp, попадать большим пальцем
+ * легко даже одной рукой.
+ *
+ * @param isActive идёт запись/разговор.
+ * @param stateLabel человекочитаемое состояние для TalkBack.
+ * @param level уровень звука 0..1 — слегка «раздувает» кнопку в такт голосу.
  */
 @Composable
 fun MicButton(
@@ -51,89 +71,181 @@ fun MicButton(
     onClick: () -> Unit,
     modifier: Modifier = Modifier,
     enabled: Boolean = true,
+    level: Float = 0f,
 ) {
+    val interaction = remember { MutableInteractionSource() }
+    val pressed by interaction.collectIsPressedAsState()
+
     val pulse = rememberInfiniteTransition(label = "micPulse")
-    val ringProgress by pulse.animateFloat(
+    val ring by pulse.animateFloat(
         initialValue = 0f,
         targetValue = 1f,
+        animationSpec = infiniteRepeatable(tween(2_200, easing = LinearEasing)),
+        label = "ring",
+    )
+    val orbit by pulse.animateFloat(
+        initialValue = 0f,
+        targetValue = 360f,
+        animationSpec = infiniteRepeatable(tween(7_000, easing = LinearEasing)),
+        label = "orbit",
+    )
+    val breath by pulse.animateFloat(
+        initialValue = 0.985f,
+        targetValue = 1.02f,
         animationSpec = infiniteRepeatable(
-            animation = tween(1_600, easing = LinearEasing),
-            repeatMode = RepeatMode.Restart,
+            tween(5_000, easing = LinearEasing),
+            repeatMode = androidx.compose.animation.core.RepeatMode.Reverse,
         ),
-        label = "ringProgress",
+        label = "breath",
+    )
+
+    val scale by animateFloatAsState(
+        targetValue = when {
+            pressed -> 0.94f
+            isActive -> 1.03f + level.coerceIn(0f, 1f) * 0.05f
+            else -> breath
+        },
+        animationSpec = spring(
+            dampingRatio = Spring.DampingRatioLowBouncy,
+            stiffness = Spring.StiffnessMediumLow,
+        ),
+        label = "micScale",
+    )
+    val glowAlpha by animateFloatAsState(
+        targetValue = if (isActive) 0.42f else 0.22f,
+        animationSpec = tween(420),
+        label = "micGlow",
     )
 
     val primary = MaterialTheme.colorScheme.primary
-    val tertiary = MaterialTheme.colorScheme.tertiary
-    val onPrimary = MaterialTheme.colorScheme.onPrimary
-    val outline = MaterialTheme.colorScheme.outline.copy(alpha = 0.35f)
+    val accentSoft = MaterialTheme.colorScheme.secondary
+    val cool = MaterialTheme.colorScheme.tertiary
+    val onAccent = MaterialTheme.colorScheme.onPrimary
 
     Box(
-        modifier = modifier.size(76.dp),
+        modifier = modifier
+            .size(88.dp)
+            .semantics {
+                role = Role.Button
+                contentDescription = stateLabel
+            },
         contentAlignment = Alignment.Center,
     ) {
+        // 1. Свечение под кнопкой.
+        Box(
+            modifier = Modifier
+                .size(88.dp)
+                .accentGlow(color = primary, alpha = glowAlpha, spread = 2.1f),
+        )
+
+        // 2. Пульсирующие кольца в активном состоянии.
         if (isActive) {
-            // Два расходящихся кольца со сдвигом по фазе.
-            Ring(
-                progress = ringProgress,
-                color = primary,
-            )
-            Ring(
-                progress = (ringProgress + 0.5f) % 1f,
-                color = tertiary,
+            PulseRing(progress = ring, color = accentSoft)
+            PulseRing(progress = (ring + 0.5f) % 1f, color = cool)
+        }
+
+        // 3. Орбита: тонкая дуга, медленно вращается.
+        Canvas(modifier = Modifier.size(84.dp)) {
+            val stroke = 1.4f
+            drawArc(
+                brush = Brush.sweepGradient(
+                    listOf(
+                        Color.Transparent,
+                        primary.copy(alpha = if (isActive) 0.85f else 0.35f),
+                        Color.Transparent,
+                        Color.Transparent,
+                    ),
+                ),
+                startAngle = orbit,
+                sweepAngle = 110f,
+                useCenter = false,
+                style = Stroke(width = stroke * 2f, cap = StrokeCap.Round),
             )
         }
-        Surface(
-            onClick = onClick,
-            enabled = enabled,
-            shape = CircleShape,
-            color = androidx.compose.ui.graphics.Color.Transparent,
-            shadowElevation = if (enabled) 6.dp else 0.dp,
+
+        // 4–5. Стеклянное тело и иконка.
+        Box(
             modifier = Modifier
-                .size(76.dp)
-                .semantics {
-                    role = Role.Button
-                    contentDescription = stateLabel
-                },
+                .size(72.dp)
+                .scale(scale)
+                .background(
+                    brush = Brush.radialGradient(
+                        colors = if (isActive) {
+                            listOf(accentSoft, primary, primary.copy(alpha = 0.92f))
+                        } else {
+                            listOf(
+                                primary.copy(alpha = 0.96f),
+                                primary.copy(alpha = 0.80f),
+                                primary.copy(alpha = 0.62f),
+                            )
+                        },
+                        center = Offset(28f, 20f),
+                        radius = 150f,
+                    ),
+                    shape = CircleShape,
+                )
+                .border(
+                    width = 1.dp,
+                    brush = Brush.verticalGradient(
+                        listOf(
+                            Color.White.copy(alpha = 0.42f),
+                            Color.White.copy(alpha = 0.05f),
+                        ),
+                    ),
+                    shape = CircleShape,
+                )
+                .clickable(
+                    enabled = enabled,
+                    interactionSource = interaction,
+                    indication = null,
+                    onClick = onClick,
+                ),
+            contentAlignment = Alignment.Center,
         ) {
+            // Верхний стеклянный блик внутри капли.
             Box(
                 modifier = Modifier
                     .fillMaxSize()
                     .background(
-                        Brush.linearGradient(
-                            listOf(primary, tertiary),
+                        brush = Brush.verticalGradient(
+                            colorStops = arrayOf(
+                                0f to Color.White.copy(alpha = 0.22f),
+                                0.45f to Color.Transparent,
+                                1f to Color.Black.copy(alpha = 0.10f),
+                            ),
                         ),
-                    )
-                    .border(1.dp, outline, CircleShape),
-                contentAlignment = Alignment.Center,
-            ) {
+                        shape = CircleShape,
+                    ),
+            )
+            AnimatedContent(
+                targetState = isActive,
+                transitionSpec = {
+                    (fadeIn(tween(160)) + scaleIn(initialScale = 0.7f)) togetherWith
+                        (fadeOut(tween(120)) + scaleOut(targetScale = 0.7f))
+                },
+                label = "micIcon",
+            ) { active ->
                 Icon(
-                    imageVector = if (isActive) Icons.Filled.Stop else Icons.Filled.Mic,
+                    imageVector = if (active) Icons.Filled.Stop else Icons.Filled.Mic,
                     contentDescription = null,
-                    tint = onPrimary,
-                    modifier = Modifier.size(30.dp),
+                    tint = onAccent,
+                    modifier = Modifier.size(if (active) 26.dp else 30.dp),
                 )
             }
         }
     }
 }
 
+/** Одно расходящееся кольцо-пульс. */
 @Composable
-private fun Ring(
-    progress: Float,
-    color: androidx.compose.ui.graphics.Color,
-) {
+private fun PulseRing(progress: Float, color: Color) {
     Box(
         modifier = Modifier
-            .size(76.dp)
-            .graphicsLayer {
-                scaleX = 1f + progress * 0.7f
-                scaleY = 1f + progress * 0.7f
-                alpha = (1f - progress) * 0.45f
-            }
+            .size(72.dp)
+            .scale(1f + progress * 0.55f)
             .border(
-                width = 2.dp,
-                color = color,
+                width = (1.5f - progress).coerceAtLeast(0.6f).dp,
+                color = color.copy(alpha = (1f - progress) * 0.38f),
                 shape = CircleShape,
             ),
     )

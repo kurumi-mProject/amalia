@@ -1,6 +1,13 @@
 package com.my.amali.ui.components
 
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.core.tween
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -9,32 +16,34 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.CheckCircle
-import androidx.compose.material.icons.filled.CheckCircle
+import androidx.compose.material.icons.rounded.Check
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.dp
+import com.my.amali.ui.theme.Radius
+import com.my.amali.ui.theme.Spacing
+import com.my.amali.ui.theme.glassSurface
 
 /**
- * PermissionCard — карточка запроса разрешения с понятным обоснованием.
+ * PermissionCard — карточка разрешения с честным объяснением «зачем».
  *
- * Используется на экране разрешений и в онбординге. Никогда не выглядит
- * как «системный попап»: мягкая карточка с иконкой, объяснением «зачем»
- * и двумя действиями (Разрешить / Не сейчас).
+ * Выданное разрешение показывается зелёной галочкой и приглушённой
+ * карточкой (дело сделано — внимание не нужно). Невыданное — активной
+ * стеклянной карточкой с главной кнопкой. Состояние передаётся
+ * иконкой и текстом, а не только цветом.
  *
- * @param icon иконка фичи (микрофон, локация, контакты…).
- * @param title название разрешения.
- * @param rationale человеческое объяснение, зачем оно нужно.
- * @param granted разрешение уже выдано — карточка показывает галочку.
+ * @param granted разрешение уже выдано.
  */
 @Composable
 fun PermissionCard(
@@ -49,85 +58,96 @@ fun PermissionCard(
     dismissLabel: String? = null,
     onDismiss: (() -> Unit)? = null,
 ) {
-    Surface(
-        shape = RoundedCornerShape(20.dp),
-        color = if (granted) {
-            MaterialTheme.colorScheme.primary.copy(alpha = 0.10f)
-        } else {
-            MaterialTheme.colorScheme.surface.copy(alpha = 0.7f)
-        },
-        border = androidx.compose.foundation.BorderStroke(
-            1.dp,
-            if (granted) {
-                MaterialTheme.colorScheme.primary.copy(alpha = 0.45f)
-            } else {
-                MaterialTheme.colorScheme.outline.copy(alpha = 0.25f)
+    val accent = if (granted) {
+        MaterialTheme.colorScheme.primary
+    } else {
+        MaterialTheme.colorScheme.secondary
+    }
+
+    Column(
+        modifier = modifier
+            .fillMaxWidth()
+            .glassSurface(
+                shape = RoundedCornerShape(Radius.md),
+                tint = accent,
+                fillAlpha = if (granted) 0.42f else null,
+            )
+            .padding(Spacing.md)
+            .semantics {
+                contentDescription = "$title. ${if (granted) grantedLabel else rationale}"
             },
-        ),
-        modifier = modifier.fillMaxWidth(),
     ) {
-        Column(
-            modifier = Modifier.padding(18.dp),
-            verticalArrangement = Arrangement.spacedBy(10.dp),
-        ) {
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Surface(
-                    shape = RoundedCornerShape(14.dp),
-                    color = MaterialTheme.colorScheme.primary.copy(alpha = 0.14f),
-                ) {
-                    Icon(
-                        imageVector = icon,
-                        contentDescription = null,
-                        tint = MaterialTheme.colorScheme.primary,
-                        modifier = Modifier
-                            .padding(10.dp)
-                            .size(22.dp),
-                    )
-                }
-                Spacer(Modifier.width(12.dp))
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Box(
+                modifier = Modifier
+                    .size(42.dp)
+                    .clip(RoundedCornerShape(Radius.xs))
+                    .background(accent.copy(alpha = 0.14f)),
+                contentAlignment = Alignment.Center,
+            ) {
+                Icon(
+                    imageVector = icon,
+                    contentDescription = null,
+                    tint = accent,
+                    modifier = Modifier.size(21.dp),
+                )
+            }
+            Spacer(Modifier.width(Spacing.sm))
+            Column(Modifier.weight(1f)) {
                 Text(
                     text = title,
-                    style = MaterialTheme.typography.titleSmall,
+                    style = MaterialTheme.typography.bodyLarge,
                     color = MaterialTheme.colorScheme.onSurface,
-                    modifier = Modifier.weight(1f),
                 )
                 if (granted) {
-                    Icon(
-                        imageVector = Icons.Filled.CheckCircle,
-                        contentDescription = grantedLabel,
-                        tint = MaterialTheme.colorScheme.primary,
-                        modifier = Modifier.size(22.dp),
+                    Text(
+                        text = grantedLabel,
+                        style = MaterialTheme.typography.labelMedium,
+                        color = MaterialTheme.colorScheme.primary,
                     )
                 }
             }
+            AnimatedVisibility(
+                visible = granted,
+                enter = fadeIn(tween(200)),
+                exit = fadeOut(tween(140)),
+            ) {
+                Box(
+                    modifier = Modifier
+                        .size(26.dp)
+                        .clip(CircleShape)
+                        .background(MaterialTheme.colorScheme.primary),
+                    contentAlignment = Alignment.Center,
+                ) {
+                    Icon(
+                        imageVector = Icons.Rounded.Check,
+                        contentDescription = null,
+                        tint = MaterialTheme.colorScheme.onPrimary,
+                        modifier = Modifier.size(16.dp),
+                    )
+                }
+            }
+        }
+
+        if (!granted) {
+            Spacer(Modifier.height(Spacing.sm))
             Text(
                 text = rationale,
                 style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f),
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
-            if (!granted) {
-                Row(
-                    horizontalArrangement = Arrangement.spacedBy(10.dp),
-                    verticalAlignment = Alignment.CenterVertically,
-                ) {
-                    androidx.compose.material3.Button(
-                        onClick = onGrant,
-                        shape = RoundedCornerShape(12.dp),
-                        colors = androidx.compose.material3.ButtonDefaults.buttonColors(
-                            containerColor = MaterialTheme.colorScheme.primary,
-                            contentColor = MaterialTheme.colorScheme.onPrimary,
-                        ),
-                    ) {
-                        Text(grantLabel)
-                    }
-                    if (dismissLabel != null && onDismiss != null) {
-                        TextButton(onClick = onDismiss) {
-                            Text(
-                                dismissLabel,
-                                color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f),
-                            )
-                        }
-                    }
+            Spacer(Modifier.height(Spacing.md))
+            Row(
+                horizontalArrangement = Arrangement.spacedBy(Spacing.xs),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                PrimaryButton(
+                    text = grantLabel,
+                    onClick = onGrant,
+                    modifier = Modifier.weight(1f),
+                )
+                if (dismissLabel != null && onDismiss != null) {
+                    GhostButton(text = dismissLabel, onClick = onDismiss)
                 }
             }
         }

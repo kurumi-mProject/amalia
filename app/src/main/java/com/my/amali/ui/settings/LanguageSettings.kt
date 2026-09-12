@@ -1,22 +1,14 @@
 package com.my.amali.ui.settings
 
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.verticalScroll
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.ArrowBack
-import androidx.compose.material.icons.automirrored.filled.ArrowBack
-import androidx.compose.material3.CenterAlignedTopAppBar
-import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.items
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
@@ -27,15 +19,18 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.my.amali.R
 import com.my.amali.domain.entity.AppLanguage
-import com.my.amali.ui.components.SettingsHeader
+import com.my.amali.ui.components.AmaliaScreen
 import com.my.amali.ui.components.SettingsValueRow
+import com.my.amali.ui.theme.Spacing
 
 /**
- * Экран «Язык»: выбор языка интерфейса и речи.
- * Первый пункт — «Как в системе» (auto-detect), далее 9 языков
- * с нативными названиями и RTL-поддержкой для арабского.
+ * Экран «Язык»: системный язык + девять локалей.
+ *
+ * Список на LazyColumn — он длинный, и ленивая отрисовка здесь
+ * оправдана. Каждая строка показывает нативное название крупно
+ * и английское — мелко, чтобы язык можно было найти, даже если
+ * интерфейс сейчас на незнакомом языке.
  */
-@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun LanguageSettings(
     onBack: () -> Unit,
@@ -44,55 +39,33 @@ fun LanguageSettings(
     val vm: SettingsViewModel = viewModel()
     val settings by vm.settings.collectAsStateWithLifecycle()
 
-    Scaffold(
-        topBar = {
-            CenterAlignedTopAppBar(
-                title = { Text(stringResource(R.string.settings_language)) },
-                navigationIcon = {
-                    IconButton(onClick = onBack) {
-                        Icon(
-                            Icons.AutoMirrored.Filled.ArrowBack,
-                            contentDescription = stringResource(R.string.common_back),
-                        )
-                    }
-                },
-                colors = androidx.compose.material3.TopAppBarDefaults.centerAlignedTopAppBarColors(
-                    containerColor = MaterialTheme.colorScheme.background.copy(alpha = 0f),
-                ),
-            )
-        },
-        containerColor = MaterialTheme.colorScheme.background,
+    AmaliaScreen(
+        title = stringResource(R.string.settings_language),
+        subtitle = stringResource(R.string.settings_language_desc),
+        onBack = onBack,
+        backLabel = stringResource(R.string.common_back),
         modifier = modifier,
     ) { padding ->
-        Column(
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(padding)
-                .verticalScroll(rememberScrollState())
-                .padding(horizontal = 20.dp),
+        LazyColumn(
+            modifier = Modifier.fillMaxSize(),
+            contentPadding = padding,
+            verticalArrangement = Arrangement.spacedBy(Spacing.xs),
         ) {
-            SettingsHeader(title = stringResource(R.string.settings_language))
-
-            AppLanguage.entries.forEachIndexed { index, language ->
-                val title = when (language) {
-                    AppLanguage.SYSTEM -> stringResource(R.string.language_follow_system)
-                    else -> language.nativeName
-                }
-                val subtitle = when (language) {
-                    AppLanguage.SYSTEM -> null
-                    else -> language.displayName
-                }
+            items(AppLanguage.entries.toList(), key = { it.name }) { language ->
                 SettingsValueRow(
-                    title = title,
-                    subtitle = subtitle,
+                    title = if (language.isSystem) {
+                        stringResource(R.string.language_follow_system)
+                    } else {
+                        language.nativeName
+                    },
+                    subtitle = if (language.isSystem) null else language.displayName,
                     selected = settings.selectedLanguage == language,
                     onClick = { vm.setLanguage(language) },
                 )
-                if (index < AppLanguage.entries.size - 1) {
-                    Spacer(Modifier.height(8.dp))
-                }
             }
-            Spacer(Modifier.height(24.dp))
+            item {
+                Spacer(Modifier.height(96.dp))
+            }
         }
     }
 }

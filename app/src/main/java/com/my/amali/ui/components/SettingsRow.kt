@@ -1,6 +1,20 @@
 package com.my.amali.ui.components
 
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.core.Spring
+import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.spring
+import androidx.compose.animation.core.tween
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.scaleIn
+import androidx.compose.animation.scaleOut
+import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.interaction.MutableInteractionSource
+import androidx.compose.foundation.interaction.collectIsPressedAsState
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -12,35 +26,40 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
-import androidx.compose.material.icons.filled.CheckCircle
-import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
-import androidx.compose.material.icons.filled.CheckCircle
+import androidx.compose.material.icons.automirrored.rounded.KeyboardArrowRight
+import androidx.compose.material.icons.rounded.Check
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.Surface
 import androidx.compose.material3.Switch
 import androidx.compose.material3.SwitchDefaults
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.scale
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.role
+import androidx.compose.ui.semantics.selected
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import com.my.amali.ui.theme.Radius
+import com.my.amali.ui.theme.Spacing
+import com.my.amali.ui.theme.glassSurface
 
 /**
- * SettingsRow — универсальная строка настроек Амалии.
+ * Строки настроек Амалии.
  *
- * Четыре варианта:
- * - [SettingsToggleRow] — переключатель;
- * - [SettingsActionRow] — переход на другой экран (стрелка);
- * - [SettingsValueRow] — отображение значения с возможностью нажатия;
- * - [SettingsHeader] — заголовок группы.
- *
- * Все строки имеют тач-зону ≥ 48dp и корректную семантику TalkBack.
+ * Ключевое решение дизайна: строки НЕ являются отдельными карточками.
+ * Они живут внутри одного стеклянного блока [GlassGroup] и разделяются
+ * тонкой линией — так список читается как единая панель, а не как
+ * набор «плиток». Каждая строка ≥ 56dp, что превышает минимум 48dp.
  */
 
 /** Заголовок группы настроек. */
@@ -49,65 +68,70 @@ fun SettingsHeader(
     title: String,
     modifier: Modifier = Modifier,
 ) {
-    Text(
-        text = title,
-        style = MaterialTheme.typography.titleSmall,
-        color = MaterialTheme.colorScheme.primary,
-        modifier = modifier.padding(start = 4.dp, top = 18.dp, bottom = 8.dp),
-    )
+    SectionTitle(text = title, modifier = modifier)
 }
 
-/** Базовый layout строки: иконка + заголовок + подпись + [trailing]. */
+/** Цветная стеклянная плашка под иконку строки. */
 @Composable
-private fun BaseRow(
+private fun RowIcon(icon: ImageVector, tint: Color) {
+    Box(
+        modifier = Modifier
+            .size(36.dp)
+            .clip(RoundedCornerShape(Radius.xs))
+            .background(tint.copy(alpha = 0.14f)),
+        contentAlignment = Alignment.Center,
+    ) {
+        Icon(
+            imageVector = icon,
+            contentDescription = null,
+            tint = tint,
+            modifier = Modifier.size(19.dp),
+        )
+    }
+}
+
+/** Базовый layout строки: иконка + текст + trailing. */
+@Composable
+private fun RowBody(
     icon: ImageVector?,
     title: String,
     subtitle: String?,
     modifier: Modifier = Modifier,
+    titleColor: Color = MaterialTheme.colorScheme.onSurface,
     trailing: @Composable () -> Unit,
 ) {
-    Surface(
-        shape = RoundedCornerShape(18.dp),
-        color = MaterialTheme.colorScheme.surface.copy(alpha = 0.55f),
-        tonalElevation = 0.dp,
+    Row(
         modifier = modifier
             .fillMaxWidth()
-            .heightIn(min = 56.dp),
-    ) {        Row(
-            modifier = Modifier.padding(horizontal = 16.dp, vertical = 12.dp),
-            verticalAlignment = Alignment.CenterVertically,
-        ) {
-            if (icon != null) {
-                Icon(
-                    imageVector = icon,
-                    contentDescription = null,
-                    tint = MaterialTheme.colorScheme.primary,
-                    modifier = Modifier.size(22.dp),
-                )
-                Spacer(Modifier.width(14.dp))
-            }
-            Column(Modifier.weight(1f)) {
+            .heightIn(min = 60.dp)
+            .padding(horizontal = Spacing.md, vertical = Spacing.sm),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        if (icon != null) {
+            RowIcon(icon = icon, tint = MaterialTheme.colorScheme.primary)
+            Spacer(Modifier.width(Spacing.sm))
+        }
+        Column(Modifier.weight(1f)) {
+            Text(
+                text = title,
+                style = MaterialTheme.typography.bodyLarge,
+                color = titleColor,
+                maxLines = 2,
+                overflow = TextOverflow.Ellipsis,
+            )
+            if (!subtitle.isNullOrBlank()) {
+                Spacer(Modifier.height(2.dp))
                 Text(
-                    text = title,
-                    style = MaterialTheme.typography.bodyLarge,
-                    color = MaterialTheme.colorScheme.onSurface,
-                    maxLines = 1,
+                    text = subtitle,
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    maxLines = 2,
                     overflow = TextOverflow.Ellipsis,
                 )
-                if (!subtitle.isNullOrBlank()) {
-                    Spacer(Modifier.height(2.dp))
-                    Text(
-                        text = subtitle,
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f),
-                        maxLines = 2,
-                        overflow = TextOverflow.Ellipsis,
-                    )
-                }
             }
-            Spacer(Modifier.width(12.dp))
-            trailing()
         }
+        Spacer(Modifier.width(Spacing.sm))
+        trailing()
     }
 }
 
@@ -122,23 +146,31 @@ fun SettingsToggleRow(
     icon: ImageVector? = null,
     enabled: Boolean = true,
 ) {
-    BaseRow(
+    val alpha = if (enabled) 1f else 0.45f
+    RowBody(
         icon = icon,
         title = title,
         subtitle = subtitle,
-        modifier = modifier,
+        titleColor = MaterialTheme.colorScheme.onSurface.copy(alpha = alpha),
+        modifier = modifier
+            .clickable(enabled = enabled) { onCheckedChange(!checked) }
+            .semantics {
+                role = Role.Switch
+                contentDescription = title
+            },
     ) {
         Switch(
             checked = checked,
             onCheckedChange = onCheckedChange,
             enabled = enabled,
             colors = SwitchDefaults.colors(
-                checkedTrackColor = MaterialTheme.colorScheme.primary,
                 checkedThumbColor = MaterialTheme.colorScheme.onPrimary,
+                checkedTrackColor = MaterialTheme.colorScheme.primary,
+                checkedBorderColor = Color.Transparent,
+                uncheckedThumbColor = MaterialTheme.colorScheme.onSurfaceVariant,
+                uncheckedTrackColor = MaterialTheme.colorScheme.surfaceVariant,
+                uncheckedBorderColor = MaterialTheme.colorScheme.outline,
             ),
-            modifier = Modifier.semantics {
-                contentDescription = title
-            },
         )
     }
 }
@@ -153,59 +185,56 @@ fun SettingsActionRow(
     icon: ImageVector? = null,
     value: String? = null,
 ) {
-    Surface(
-        onClick = onClick,
-        shape = RoundedCornerShape(18.dp),
-        color = MaterialTheme.colorScheme.surface.copy(alpha = 0.55f),
-        modifier = modifier.fillMaxWidth(),
+    val interaction = remember { MutableInteractionSource() }
+    val pressed by interaction.collectIsPressedAsState()
+    val scale by animateFloatAsState(
+        targetValue = if (pressed) 0.985f else 1f,
+        animationSpec = spring(stiffness = Spring.StiffnessMediumLow),
+        label = "rowPress",
+    )
+
+    RowBody(
+        icon = icon,
+        title = title,
+        subtitle = subtitle,
+        modifier = modifier
+            .scale(scale)
+            .clickable(
+                interactionSource = interaction,
+                indication = null,
+                onClick = onClick,
+            )
+            .semantics {
+                role = Role.Button
+                contentDescription = title
+            },
     ) {
         Row(
-            modifier = Modifier.padding(horizontal = 16.dp, vertical = 14.dp),
             verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(Spacing.xxs),
         ) {
-            if (icon != null) {
-                Icon(
-                    imageVector = icon,
-                    contentDescription = null,
-                    tint = MaterialTheme.colorScheme.primary,
-                    modifier = Modifier.size(22.dp),
-                )
-                Spacer(Modifier.width(14.dp))
-            }
-            Column(Modifier.weight(1f)) {
-                Text(
-                    text = title,
-                    style = MaterialTheme.typography.bodyLarge,
-                    color = MaterialTheme.colorScheme.onSurface,
-                )
-                if (!subtitle.isNullOrBlank()) {
-                    Spacer(Modifier.height(2.dp))
-                    Text(
-                        text = subtitle,
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f),
-                    )
-                }
-            }
             if (value != null) {
                 Text(
                     text = value,
-                    style = MaterialTheme.typography.bodyMedium,
+                    style = MaterialTheme.typography.labelLarge,
                     color = MaterialTheme.colorScheme.primary,
                 )
-                Spacer(Modifier.width(8.dp))
             }
             Icon(
-                imageVector = Icons.AutoMirrored.Filled.KeyboardArrowRight,
+                imageVector = Icons.AutoMirrored.Rounded.KeyboardArrowRight,
                 contentDescription = null,
-                tint = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.4f),
+                tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f),
                 modifier = Modifier.size(20.dp),
             )
         }
     }
 }
 
-/** Строка с выбранным значением (например, радиокнопка в списке языков). */
+/**
+ * Строка выбора значения. Выбранный вариант получает акцентный контур
+ * и галочку, а не только цвет: состояние читается без опоры на цвет,
+ * что важно для доступности.
+ */
 @Composable
 fun SettingsValueRow(
     title: String,
@@ -213,52 +242,128 @@ fun SettingsValueRow(
     selected: Boolean,
     onClick: () -> Unit,
     modifier: Modifier = Modifier,
+    icon: ImageVector? = null,
 ) {
-    Surface(
-        onClick = onClick,
-        shape = RoundedCornerShape(18.dp),
-        color = if (selected) {
-            MaterialTheme.colorScheme.primary.copy(alpha = 0.12f)
-        } else {
-            MaterialTheme.colorScheme.surface.copy(alpha = 0.55f)
-        },
-        border = if (selected) {
-            androidx.compose.foundation.BorderStroke(
-                1.dp,
-                MaterialTheme.colorScheme.primary.copy(alpha = 0.5f),
+    val interaction = remember { MutableInteractionSource() }
+    val pressed by interaction.collectIsPressedAsState()
+    val scale by animateFloatAsState(
+        targetValue = if (pressed) 0.985f else 1f,
+        animationSpec = spring(stiffness = Spring.StiffnessMediumLow),
+        label = "valuePress",
+    )
+
+    Box(
+        modifier = modifier
+            .fillMaxWidth()
+            .scale(scale)
+            .glassSurface(
+                shape = RoundedCornerShape(Radius.md),
+                elevated = selected,
+                fillAlpha = if (selected) 0.80f else null,
             )
-        } else {
-            null
-        },
-        modifier = modifier.fillMaxWidth(),
+            .clickable(
+                interactionSource = interaction,
+                indication = null,
+                onClick = onClick,
+            )
+            .semantics {
+                role = Role.RadioButton
+                this.selected = selected
+                contentDescription = title
+            },
     ) {
-        Row(
-            modifier = Modifier.padding(horizontal = 16.dp, vertical = 13.dp),
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.SpaceBetween,
+        RowBody(
+            icon = icon,
+            title = title,
+            subtitle = subtitle,
         ) {
-            Column(Modifier.weight(1f)) {
-                Text(
-                    text = title,
-                    style = MaterialTheme.typography.bodyLarge,
-                    color = MaterialTheme.colorScheme.onSurface,
-                )
-                if (!subtitle.isNullOrBlank()) {
-                    Text(
-                        text = subtitle,
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f),
+            Box(
+                modifier = Modifier.size(24.dp),
+                contentAlignment = Alignment.Center,
+            ) {
+                AnimatedVisibility(
+                    visible = selected,
+                    enter = fadeIn(tween(160)) + scaleIn(initialScale = 0.6f),
+                    exit = fadeOut(tween(120)) + scaleOut(targetScale = 0.6f),
+                ) {
+                    Box(
+                        modifier = Modifier
+                            .size(24.dp)
+                            .clip(RoundedCornerShape(Radius.chip))
+                            .background(MaterialTheme.colorScheme.primary),
+                        contentAlignment = Alignment.Center,
+                    ) {
+                        Icon(
+                            imageVector = Icons.Rounded.Check,
+                            contentDescription = null,
+                            tint = MaterialTheme.colorScheme.onPrimary,
+                            modifier = Modifier.size(15.dp),
+                        )
+                    }
+                }
+                if (!selected) {
+                    Box(
+                        modifier = Modifier
+                            .size(20.dp)
+                            .clip(RoundedCornerShape(Radius.chip))
+                            .background(MaterialTheme.colorScheme.onSurface.copy(alpha = 0.08f)),
                     )
                 }
             }
-            if (selected) {
-                Icon(
-                    imageVector = Icons.Filled.CheckCircle,
-                    contentDescription = null,
-                    tint = MaterialTheme.colorScheme.primary,
-                    modifier = Modifier.size(20.dp),
-                )
-            }
+        }
+    }
+}
+
+/**
+ * Строка-статус: показывает состояние системного параметра
+ * (Wi-Fi, Bluetooth и т.д.) точкой-индикатором и текстом.
+ */
+@Composable
+fun SettingsStatusRow(
+    title: String,
+    status: String,
+    active: Boolean,
+    modifier: Modifier = Modifier,
+    icon: ImageVector? = null,
+    onClick: (() -> Unit)? = null,
+) {
+    val accent = if (active) {
+        MaterialTheme.colorScheme.primary
+    } else {
+        MaterialTheme.colorScheme.onSurfaceVariant
+    }
+    RowBody(
+        icon = icon,
+        title = title,
+        subtitle = null,
+        modifier = modifier.then(
+            if (onClick != null) {
+                Modifier
+                    .clickable(onClick = onClick)
+                    .semantics {
+                        role = Role.Button
+                        contentDescription = "$title: $status"
+                    }
+            } else {
+                Modifier.semantics { contentDescription = "$title: $status" }
+            },
+        ),
+    ) {
+        Row(
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(Spacing.xs),
+        ) {
+            Box(
+                modifier = Modifier
+                    .size(8.dp)
+                    .clip(RoundedCornerShape(Radius.chip))
+                    .background(accent.copy(alpha = if (active) 1f else 0.4f)),
+            )
+            Text(
+                text = status,
+                style = MaterialTheme.typography.labelLarge,
+                color = accent,
+            )
         }
     }
 }

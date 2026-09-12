@@ -5,41 +5,31 @@ import androidx.compose.material3.Shapes
 import androidx.compose.ui.unit.dp
 
 // ════════════════════════════════════════════════════════════
-//  Скругления — единая система радиусов
-//  Принцип: мягкие, не резкие, одинаковая сетка
+//  Скругления — одна шкала на всё приложение (см. Radius)
 // ════════════════════════════════════════════════════════════
 
 val AmaliaShapes = Shapes(
-    // Extra small — чипы, теги, маленькие элементы
-    extraSmall = RoundedCornerShape(8.dp),
-
-    // Small — текстовые поля, маленькие кнопки
-    small = RoundedCornerShape(12.dp),
-
-    // Medium — карточки, диалоги (основной радиус)
-    medium = RoundedCornerShape(20.dp),
-
-    // Large — крупные карточки, панели
-    large = RoundedCornerShape(28.dp),
-
-    // Extra large — полноэкранные листы, hero-блоки
-    extraLarge = RoundedCornerShape(36.dp),
+    extraSmall = RoundedCornerShape(Radius.xs),
+    small = RoundedCornerShape(Radius.sm),
+    medium = RoundedCornerShape(Radius.md),
+    large = RoundedCornerShape(Radius.lg),
+    extraLarge = RoundedCornerShape(Radius.xl),
 )
 
-// Glass-специфичные скругления (чуть больше для "жидкого" ощущения)
+/** Liquid Glass: чуть более «жидкие» формы. */
 val GlassShapes = Shapes(
-    extraSmall = RoundedCornerShape(10.dp),
-    small = RoundedCornerShape(14.dp),
-    medium = RoundedCornerShape(22.dp),
-    large = RoundedCornerShape(30.dp),
-    extraLarge = RoundedCornerShape(38.dp),
-)
-
-// Биофильные скругления (ещё мягче, более органичные)
-val BioShapes = Shapes(
     extraSmall = RoundedCornerShape(12.dp),
     small = RoundedCornerShape(16.dp),
-    medium = RoundedCornerShape(24.dp),
+    medium = RoundedCornerShape(22.dp),
+    large = RoundedCornerShape(28.dp),
+    extraLarge = RoundedCornerShape(34.dp),
+)
+
+/** Биофильная тема: мягче и органичнее. */
+val BioShapes = Shapes(
+    extraSmall = RoundedCornerShape(14.dp),
+    small = RoundedCornerShape(18.dp),
+    medium = RoundedCornerShape(26.dp),
     large = RoundedCornerShape(32.dp),
     extraLarge = RoundedCornerShape(40.dp),
 )
