@@ -20,9 +20,9 @@ import kotlinx.coroutines.flow.map
  * owned by the caller.
  */
 class AIOrchestrator(
-    private val sttEngine: SpeechToTextEngine,
-    private val llmEngine: LanguageModel,
-    private val ttsEngine: TextToSpeechEngine
+    internal val sttEngine: SpeechToTextEngine,
+    internal val llmEngine: LanguageModel,
+    internal val ttsEngine: TextToSpeechEngine
 ) {
     /** True after a successful [processTextCommand] run, cleared on errors. */
     var lastError: String? = null
