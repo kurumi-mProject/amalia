@@ -7,7 +7,6 @@ import kotlinx.coroutines.flow.FlowCollector
 import kotlinx.coroutines.flow.catch
 import kotlinx.coroutines.flow.channelFlow
 import kotlinx.coroutines.flow.flow
-import kotlinx.coroutines.launch
 
 /**
  * Оркестратор конвейера STT → LLM → TTS.
@@ -141,70 +140,48 @@ class AIOrchestrator(
     ) = kotlinx.coroutines.coroutineScope {
         emit(AiResponse.Thinking(true))
 
-        var thinkingClosed = false
-        var speakingOpened = false
-
-        // Сначала startStreaming — он ждёт onOpen (CountDownLatch).
-        // Только после этого подписываемся на streamingAudio, иначе
-        // audioJob захватит старый канал до пересоздания в startStreaming.
-        ttsEngine.startStreaming(options)
-
-        // Теперь канал уже актуальный — подписываемся
-        val audioJob = launch {
-            ttsEngine.streamingAudio.collect { chunk ->
-                if (!speakingOpened) {
-                    speakingOpened = true
-                    emit(AiResponse.Speaking(true))
-                }
-                emit(AiResponse.Audio(chunk))
-            }
-        }
-
+        // ── Фаза 1: LLM генерирует полный ответ ──────────────────────────
         val answer = StringBuilder()
-
         try {
             llmEngine.generateResponse(commandText, history, options).collect { delta ->
                 answer.append(delta)
                 emit(AiResponse.ReplyDelta(delta, answer.toString()))
-
                 // Первый токен — закрываем Thinking
-                if (!thinkingClosed) {
-                    thinkingClosed = true
+                if (answer.length == delta.length) {
                     emit(AiResponse.Thinking(false))
                 }
-
-                // Стримим токен напрямую в Fish Audio WS
-                // isConnected уже true (startStreaming подождал onOpen)
-                ttsEngine.sendToken(delta)
             }
-
-            // LLM закончил — флашим и стопаем WS
-            ttsEngine.flushStreaming()
-            ttsEngine.stopStreaming()
-
-            // Ждём пока всё аудио придёт (с таймаутом 5 сек)
-            kotlinx.coroutines.withTimeoutOrNull(5000) {
-                audioJob.join()
-            } ?: run {
-                audioJob.cancel()
-            }
-
         } catch (e: CancellationException) {
-            ttsEngine.stopStreaming()
-            audioJob.cancel()
+            emit(AiResponse.Thinking(false))
             throw e
         } catch (e: Throwable) {
-            ttsEngine.stopStreaming()
-            audioJob.cancel()
-            if (!thinkingClosed) emit(AiResponse.Thinking(false))
-            if (speakingOpened) emit(AiResponse.Speaking(false))
+            emit(AiResponse.Thinking(false))
             throw e
         }
 
-        if (!thinkingClosed) emit(AiResponse.Thinking(false))
-        if (speakingOpened) emit(AiResponse.Speaking(false))
+        if (answer.isBlank()) {
+            emit(AiResponse.Thinking(false))
+            throw EngineException("Модель не дала ответа. Попробуй переспросить.")
+        }
+        emit(AiResponse.Thinking(false))
 
-        val responseText = answer.toString().trim().ifEmpty { FALLBACK_ANSWER }
+        // ── Фаза 2: TTS синтезирует и стримит аудио ──────────────────────
+        val responseText = answer.toString().trim()
+        emit(AiResponse.Speaking(true))
+
+        try {
+            ttsEngine.speak(responseText, options).collect { chunk ->
+                emit(AiResponse.Audio(chunk))
+            }
+        } catch (e: CancellationException) {
+            emit(AiResponse.Speaking(false))
+            throw e
+        } catch (e: Throwable) {
+            emit(AiResponse.Speaking(false))
+            throw e
+        }
+
+        emit(AiResponse.Speaking(false))
         lastError = null
         emit(AiResponse.Finished(responseText))
     }
