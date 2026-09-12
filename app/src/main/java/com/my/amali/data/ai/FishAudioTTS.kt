@@ -58,7 +58,7 @@ class FishAudioTTS : TextToSpeechEngine {
             .put("text", speakable)
             .put("reference_id", REFERENCE_ID)
             .put("format", "pcm")
-            .put("sample_rate", SAMPLE_RATE)
+            .put("sample_rate", SAMPLE_RATE)   // 48 кГц = нативная частота Android HAL
             .put("latency", "balanced")
             .put("chunk_length", 120)
             .put("normalize", true)
@@ -149,7 +149,14 @@ class FishAudioTTS : TextToSpeechEngine {
         const val MODEL = "s2.1-pro-free"
         const val REFERENCE_ID = "096d410e860346a7a73762d557a290d7"
 
-        /** 24 кГц — достаточная для голоса частота с вдвое меньшим трафиком. */
+        /**
+         * 48 000 Гц — нативная частота Android Audio HAL на большинстве устройств.
+         * Fish Audio поддерживает: 8k, 16k, 24k, 32k, 44.1k.
+         * НО: 44100 → Android resamples до 48000 при воспроизведении →
+         * software resampling маленьких чанков = треск/артефакты.
+         * 24000 — ближайшая поддерживаемая, делится на 48000 (ratio 2:1) →
+         * integer resampling, нет артефактов. Размер трафика вдвое меньше 48k.
+         */
         const val SAMPLE_RATE = 24_000
 
         /** ~85 мс звука на чанк при 24 кГц 16-bit mono. */
