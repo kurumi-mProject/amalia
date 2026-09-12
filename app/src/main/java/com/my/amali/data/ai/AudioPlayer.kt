@@ -1,12 +1,12 @@
 package com.my.amali.data.ai
 
-import android.media.AudioAttributes
+import android.content.Context
+import android.media.AudioTrack
 import androidx.media3.common.AudioAttributes as Media3AudioAttributes
 import androidx.media3.common.C
 import androidx.media3.common.Format
 import androidx.media3.common.MimeTypes
 import androidx.media3.common.util.UnstableApi
-import androidx.media3.exoplayer.audio.AudioSink
 import androidx.media3.exoplayer.audio.DefaultAudioSink
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.Flow
@@ -19,23 +19,16 @@ import java.nio.ByteOrder
  *
  * ## Почему Media3 DefaultAudioSink, а не AudioTrack напрямую
  *
- * [DefaultAudioSink] — это production-grade обёртка над AudioTrack которую
- * Google использует в YouTube, Google TV и всех Media3/ExoPlayer приложениях.
- * Она решает именно те проблемы которые давали у нас треск:
- *
- * 1. **Автоматический ресемплинг** — внутренний AudioProcessorChain корректно
- *    конвертирует любой sample rate (24кГц → 48кГц HAL) без артефактов.
- * 2. **Non-blocking write** — не блокирует поток если буфер AudioTrack заполнен,
- *    а ждёт и повторяет — нет пропуска сэмплов.
- * 3. **Правильный lifecycle** — configure → play → handleBuffer → ... → flush/reset,
- *    без edge-cases при создании/пересоздании дорожки.
- * 4. **Обработка discontinuity** — при смене sample rate не даёт щелчков.
+ * [DefaultAudioSink] — production-grade обёртка над AudioTrack от Google (YouTube, TV).
+ * Решает проблемы которые давали треск:
+ * 1. Корректный resampling через AudioProcessorChain без артефактов
+ * 2. Non-blocking write — не теряет сэмплы при полном буфере
+ * 3. Правильная инициализация буферов и lifecycle
  */
 @OptIn(UnstableApi::class)
-class AudioPlayer {
+class AudioPlayer(private val context: Context) {
 
     @Volatile private var sink: DefaultAudioSink? = null
-    @Volatile private var isPlaying = false
 
     suspend fun play(
         chunks: Flow<AudioChunk>,
@@ -45,7 +38,6 @@ class AudioPlayer {
         sink = audioSink
 
         var configuredSampleRate = -1
-        // Перенос хвостового байта нечётного чанка.
         var leftover: Byte? = null
 
         try {
@@ -54,22 +46,19 @@ class AudioPlayer {
 
                 // Конфигурируем sink при первом чанке или смене sample rate.
                 if (chunk.sampleRate != configuredSampleRate) {
-                    if (configuredSampleRate != -1) {
-                        audioSink.flush()
-                    }
+                    if (configuredSampleRate != -1) audioSink.flush()
                     configuredSampleRate = chunk.sampleRate
                     leftover = null
 
                     val format = Format.Builder()
                         .setSampleMimeType(MimeTypes.AUDIO_RAW)
-                        .setEncoding(C.ENCODING_PCM_16BIT)
+                        .setPcmEncoding(C.ENCODING_PCM_16BIT)
                         .setSampleRate(chunk.sampleRate)
                         .setChannelCount(1)
                         .build()
 
                     audioSink.configure(format, /* specifiedBufferSize= */ 0, /* outputChannels= */ null)
                     audioSink.play()
-                    isPlaying = true
                 }
 
                 // Выравниваем по 2 байта (PCM-16).
@@ -87,11 +76,10 @@ class AudioPlayer {
 
                 onLevel(chunk.level())
 
-                // DefaultAudioSink.handleBuffer принимает ByteBuffer.
                 val buffer = ByteBuffer.wrap(rawData, 0, evenSize)
                     .order(ByteOrder.LITTLE_ENDIAN)
 
-                // Non-blocking loop: если буфер занят — ждём и повторяем.
+                // Non-blocking loop: DefaultAudioSink буферизует данные сам.
                 while (buffer.hasRemaining()) {
                     val accepted = audioSink.handleBuffer(
                         buffer,
@@ -99,17 +87,16 @@ class AudioPlayer {
                         /* encodedAccessUnitCount= */ 1,
                     )
                     if (!accepted) {
+                        // Буфер занят — ждём чтобы не спинлупить
                         audioSink.handleDiscontinuity()
                     }
                 }
             }
 
-            // Дожидаемся окончания воспроизведения буфера.
             audioSink.playToEndOfStream()
 
         } finally {
             onLevel(0f)
-            isPlaying = false
             sink = null
             runCatching { audioSink.reset() }
         }
@@ -119,20 +106,22 @@ class AudioPlayer {
         val s = sink ?: return
         runCatching { s.flush() }
         runCatching { s.reset() }
-        isPlaying = false
         sink = null
     }
 
     private fun buildSink(): DefaultAudioSink {
-        val attrs = Media3AudioAttributes.Builder()
-            .setUsage(C.USAGE_VOICE_COMMUNICATION)
-            .setContentType(C.AUDIO_CONTENT_TYPE_SPEECH)
+        val sink = DefaultAudioSink.Builder(context)
+            .setEnableFloatOutput(false)
+            .setEnableAudioOutputPlaybackParameters(false)
             .build()
 
-        return DefaultAudioSink.Builder(/* context= */ null)
-            .setAudioAttributes(attrs)
-            .setEnableFloatOutput(false)
-            .setEnableAudioTrackPlaybackParams(true) // аппаратный ресемплинг если доступен
-            .build()
+        sink.setAudioAttributes(
+            Media3AudioAttributes.Builder()
+                .setUsage(C.USAGE_VOICE_COMMUNICATION)
+                .setContentType(C.AUDIO_CONTENT_TYPE_SPEECH)
+                .build()
+        )
+
+        return sink
     }
 }

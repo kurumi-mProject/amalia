@@ -87,7 +87,7 @@ class AssistantViewModel(
     private val settings: StateFlow<UserSettings> = settingsRepo.settings
         .stateIn(viewModelScope, SharingStarted.Eagerly, UserSettings.DEFAULT)
 
-    private val player = AudioPlayer()
+    private val player = AudioPlayer(ServiceLocator.appContextValue)
 
     private var conversationJob: Job? = null
 
