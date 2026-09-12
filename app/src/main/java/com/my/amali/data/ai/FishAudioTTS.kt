@@ -14,6 +14,7 @@ import okhttp3.WebSocket
 import okhttp3.WebSocketListener
 import okio.ByteString
 import okio.ByteString.Companion.toByteString
+import java.util.concurrent.CountDownLatch
 import java.util.concurrent.TimeUnit
 import java.util.concurrent.atomic.AtomicBoolean
 
@@ -41,7 +42,11 @@ class FishAudioTTS : TextToSpeechEngine {
     private val isConnected = AtomicBoolean(false)
     private val isStopped = AtomicBoolean(false)
 
-    @Volatile private var _audioChannel = Channel<AudioChunk>(capacity = Channel.UNLIMITED)
+    // Пересоздаётся в startStreaming — доступ только из корутины владельца
+    private var _audioChannel = Channel<AudioChunk>(capacity = Channel.UNLIMITED)
+
+    // Latch сбрасывается в startStreaming, отпускается в onOpen/onFailure
+    private var connectLatch = CountDownLatch(0)
 
     override suspend fun initialize() {}
 
@@ -58,8 +63,14 @@ class FishAudioTTS : TextToSpeechEngine {
         get() = _audioChannel.receiveAsFlow()
 
     override suspend fun startStreaming(options: EngineOptions) = withContext(Dispatchers.IO) {
+        // Пересоздаём канал для новой сессии
         _audioChannel = Channel(capacity = Channel.UNLIMITED)
         isStopped.set(false)
+        isConnected.set(false)
+
+        // Latch на 1: отпустится в onOpen или onFailure
+        val latch = CountDownLatch(1)
+        connectLatch = latch
 
         val request = Request.Builder()
             .url(WS_ENDPOINT)
@@ -89,6 +100,8 @@ class FishAudioTTS : TextToSpeechEngine {
                     )
                 )
                 webSocket.send(startMsg.toByteString())
+                // Соединение готово — отпускаем ожидающую корутину
+                latch.countDown()
             }
 
             override fun onMessage(webSocket: WebSocket, bytes: ByteString) {
@@ -101,6 +114,7 @@ class FishAudioTTS : TextToSpeechEngine {
 
             override fun onFailure(webSocket: WebSocket, t: Throwable, response: Response?) {
                 isConnected.set(false)
+                latch.countDown() // не блокируем корутину при ошибке подключения
                 _audioChannel.close(EngineException("Fish Audio WS: ${t.message}"))
             }
 
@@ -109,6 +123,13 @@ class FishAudioTTS : TextToSpeechEngine {
                 _audioChannel.close()
             }
         })
+
+        // Ждём установки соединения (таймаут = connectTimeout клиента = 12 сек)
+        val connected = latch.await(12, TimeUnit.SECONDS)
+        if (!connected) {
+            ws?.cancel()
+            _audioChannel.close(EngineException("Fish Audio: таймаут подключения (12 сек)"))
+        }
     }
 
     // ── Msgpack парсер ───────────────────────────────────────────────────────
@@ -332,12 +353,16 @@ class FishAudioTTS : TextToSpeechEngine {
     override suspend fun stopStreaming() {
         isStopped.set(true)
         if (!isConnected.get()) {
+            // Нет соединения — закрываем канал явно, иначе audioJob завис навсегда
             _audioChannel.close()
             return
         }
         val bytes = msgpackMap("event" to "stop")
         ws?.send(bytes.toByteString())
         ws?.close(1000, "stopped")
+        // onClosed закроет _audioChannel; если не придёт — закрываем сами
+        // (защита от разрыва соединения без onClosed)
+        isConnected.set(false)
     }
 
     private companion object {

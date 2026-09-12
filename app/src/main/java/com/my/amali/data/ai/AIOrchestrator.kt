@@ -144,10 +144,12 @@ class AIOrchestrator(
         var thinkingClosed = false
         var speakingOpened = false
 
-        // Запускаем WS сессию
+        // Сначала startStreaming — он ждёт onOpen (CountDownLatch).
+        // Только после этого подписываемся на streamingAudio, иначе
+        // audioJob захватит старый канал до пересоздания в startStreaming.
         ttsEngine.startStreaming(options)
 
-        // Корутина читает аудио из WS и эмитит
+        // Теперь канал уже актуальный — подписываемся
         val audioJob = launch {
             ttsEngine.streamingAudio.collect { chunk ->
                 if (!speakingOpened) {
@@ -172,6 +174,7 @@ class AIOrchestrator(
                 }
 
                 // Стримим токен напрямую в Fish Audio WS
+                // isConnected уже true (startStreaming подождал onOpen)
                 ttsEngine.sendToken(delta)
             }
 
