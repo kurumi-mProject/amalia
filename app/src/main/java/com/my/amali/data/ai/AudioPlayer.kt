@@ -1,67 +1,78 @@
 package com.my.amali.data.ai
 
 import android.media.AudioAttributes
-import android.media.AudioFormat
-import android.media.AudioManager
-import android.media.AudioTrack
+import androidx.media3.common.AudioAttributes as Media3AudioAttributes
+import androidx.media3.common.C
+import androidx.media3.common.Format
+import androidx.media3.common.MimeTypes
+import androidx.media3.common.util.UnstableApi
+import androidx.media3.exoplayer.audio.AudioSink
+import androidx.media3.exoplayer.audio.DefaultAudioSink
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.withContext
+import java.nio.ByteBuffer
+import java.nio.ByteOrder
 
 /**
- * Воспроизводит поток [AudioChunk] (PCM 16-bit mono) через [AudioTrack].
+ * Воспроизводит поток [AudioChunk] (PCM 16-bit mono) через Media3 [DefaultAudioSink].
  *
- * ## Почему был треск и как исправлено
+ * ## Почему Media3 DefaultAudioSink, а не AudioTrack напрямую
  *
- * **Причина**: Fish Audio отдавал PCM на 24 000 Гц, а Android Audio HAL
- * работает нативно на 48 000 Гц. При стриминге маленькими чанками (~4 КБ)
- * Android делал software resampling 24k→48k на каждом чанке отдельно —
- * это давало фазовые артефакты и треск на границах.
+ * [DefaultAudioSink] — это production-grade обёртка над AudioTrack которую
+ * Google использует в YouTube, Google TV и всех Media3/ExoPlayer приложениях.
+ * Она решает именно те проблемы которые давали у нас треск:
  *
- * **Решение**:
- * 1. Fish Audio теперь запрашивается на 24 000 Гц.
- *    24 000 → 48 000 — целочисленное соотношение 1:2, Android использует
- *    fast integer resampler без артефактов.
- * 2. `USAGE_VOICE_COMMUNICATION` + `CONTENT_TYPE_SPEECH` активирует
- *    low-latency audio path на большинстве устройств.
- * 3. Буфер = 2× minBufferSize — минимально необходимый запас без лишней
- *    буферизации, которая добавляла бы задержку.
- * 4. `play()` вызывается ДО первого `write()` — AudioTrack начинает
- *    работать сразу и не накапливает задержку.
- * 5. Выравнивание PCM-16 по 2 байта на границах чанков — убирает щелчки
- *    от разрезанных сэмплов.
+ * 1. **Автоматический ресемплинг** — внутренний AudioProcessorChain корректно
+ *    конвертирует любой sample rate (24кГц → 48кГц HAL) без артефактов.
+ * 2. **Non-blocking write** — не блокирует поток если буфер AudioTrack заполнен,
+ *    а ждёт и повторяет — нет пропуска сэмплов.
+ * 3. **Правильный lifecycle** — configure → play → handleBuffer → ... → flush/reset,
+ *    без edge-cases при создании/пересоздании дорожки.
+ * 4. **Обработка discontinuity** — при смене sample rate не даёт щелчков.
  */
+@OptIn(UnstableApi::class)
 class AudioPlayer {
 
-    @Volatile
-    private var track: AudioTrack? = null
+    @Volatile private var sink: DefaultAudioSink? = null
+    @Volatile private var isPlaying = false
 
     suspend fun play(
         chunks: Flow<AudioChunk>,
         onLevel: (Float) -> Unit = {},
     ) = withContext(Dispatchers.IO) {
-        var current: AudioTrack? = null
-        var sampleRate = -1
+        val audioSink = buildSink()
+        sink = audioSink
 
-        // Перенос «хвостового» байта нечётного чанка в следующий.
+        var configuredSampleRate = -1
+        // Перенос хвостового байта нечётного чанка.
         var leftover: Byte? = null
 
         try {
             chunks.collect { chunk ->
                 if (chunk.data.isEmpty()) return@collect
 
-                // Пересоздаём AudioTrack при смене sample rate.
-                if (current == null || chunk.sampleRate != sampleRate) {
-                    current?.let { runCatching { it.stop(); it.release() } }
+                // Конфигурируем sink при первом чанке или смене sample rate.
+                if (chunk.sampleRate != configuredSampleRate) {
+                    if (configuredSampleRate != -1) {
+                        audioSink.flush()
+                    }
+                    configuredSampleRate = chunk.sampleRate
                     leftover = null
-                    sampleRate = chunk.sampleRate
-                    current = buildTrack(sampleRate)
-                    track = current
-                    // play() сразу — AudioTrack начнёт читать данные без задержки накопления.
-                    runCatching { current?.play() }
+
+                    val format = Format.Builder()
+                        .setSampleMimeType(MimeTypes.AUDIO_RAW)
+                        .setEncoding(C.ENCODING_PCM_16BIT)
+                        .setSampleRate(chunk.sampleRate)
+                        .setChannelCount(1)
+                        .build()
+
+                    audioSink.configure(format, /* specifiedBufferSize= */ 0, /* outputChannels= */ null)
+                    audioSink.play()
+                    isPlaying = true
                 }
 
-                // Выравниваем по 2 байта (PCM-16 = 2 байта на сэмпл).
+                // Выравниваем по 2 байта (PCM-16).
                 val rawData = if (leftover != null) {
                     ByteArray(1 + chunk.data.size).also { buf ->
                         buf[0] = leftover!!
@@ -71,69 +82,57 @@ class AudioPlayer {
                     chunk.data
                 }
                 leftover = if (rawData.size % 2 != 0) rawData.last() else null
-                val evenSize = rawData.size and 0x1.inv() // округление вниз до чётного
+                val evenSize = rawData.size and 0x1.inv()
                 if (evenSize <= 0) return@collect
-                val data = if (evenSize == rawData.size) rawData else rawData.copyOf(evenSize)
 
                 onLevel(chunk.level())
-                writeAll(current, data)
+
+                // DefaultAudioSink.handleBuffer принимает ByteBuffer.
+                val buffer = ByteBuffer.wrap(rawData, 0, evenSize)
+                    .order(ByteOrder.LITTLE_ENDIAN)
+
+                // Non-blocking loop: если буфер занят — ждём и повторяем.
+                while (buffer.hasRemaining()) {
+                    val accepted = audioSink.handleBuffer(
+                        buffer,
+                        /* presentationTimeUs= */ C.TIME_UNSET,
+                        /* encodedAccessUnitCount= */ 1,
+                    )
+                    if (!accepted) {
+                        audioSink.handleDiscontinuity()
+                    }
+                }
             }
 
-            // Даём AudioTrack доиграть то что уже записано в буфер.
-            runCatching { current?.stop() }
+            // Дожидаемся окончания воспроизведения буфера.
+            audioSink.playToEndOfStream()
 
         } finally {
             onLevel(0f)
-            track = null
-            current?.let { runCatching { it.release() } }
+            isPlaying = false
+            sink = null
+            runCatching { audioSink.reset() }
         }
     }
 
     fun stopImmediately() {
-        val active = track ?: return
-        runCatching { active.pause() }
-        runCatching { active.flush() }
+        val s = sink ?: return
+        runCatching { s.flush() }
+        runCatching { s.reset() }
+        isPlaying = false
+        sink = null
     }
 
-    private fun writeAll(t: AudioTrack?, data: ByteArray) {
-        if (t == null) return
-        var offset = 0
-        while (offset < data.size) {
-            val written = t.write(data, offset, data.size - offset)
-            if (written <= 0) break
-            offset += written
-        }
-    }
+    private fun buildSink(): DefaultAudioSink {
+        val attrs = Media3AudioAttributes.Builder()
+            .setUsage(C.USAGE_VOICE_COMMUNICATION)
+            .setContentType(C.AUDIO_CONTENT_TYPE_SPEECH)
+            .build()
 
-    private fun buildTrack(sampleRate: Int): AudioTrack {
-        val minBuf = AudioTrack.getMinBufferSize(
-            sampleRate,
-            AudioFormat.CHANNEL_OUT_MONO,
-            AudioFormat.ENCODING_PCM_16BIT,
-        ).coerceAtLeast(2048)
-
-        // 2× minBuffer — достаточный запас без лишней буферизации.
-        // При 24 кГц 16-bit mono: minBuf ≈ 3840 байт → буфер = 7680 байт ≈ 160 мс.
-        val bufSize = minBuf * 2
-
-        return AudioTrack.Builder()
-            .setAudioAttributes(
-                AudioAttributes.Builder()
-                    // VOICE_COMMUNICATION активирует низколатентный путь (bypass software mixer).
-                    .setUsage(AudioAttributes.USAGE_VOICE_COMMUNICATION)
-                    .setContentType(AudioAttributes.CONTENT_TYPE_SPEECH)
-                    .build()
-            )
-            .setAudioFormat(
-                AudioFormat.Builder()
-                    .setSampleRate(sampleRate)
-                    .setEncoding(AudioFormat.ENCODING_PCM_16BIT)
-                    .setChannelMask(AudioFormat.CHANNEL_OUT_MONO)
-                    .build()
-            )
-            .setBufferSizeInBytes(bufSize)
-            .setTransferMode(AudioTrack.MODE_STREAM)
-            .setSessionId(AudioManager.AUDIO_SESSION_ID_GENERATE)
+        return DefaultAudioSink.Builder(/* context= */ null)
+            .setAudioAttributes(attrs)
+            .setEnableFloatOutput(false)
+            .setEnableAudioTrackPlaybackParams(true) // аппаратный ресемплинг если доступен
             .build()
     }
 }

@@ -132,6 +132,10 @@ dependencies {
     // ===== Networking =====
     implementation("com.squareup.okhttp3:okhttp:4.12.0")
 
+    // ===== Media3 (production-grade audio playback, used in YouTube/Google TV) =====
+    implementation("androidx.media3:media3-exoplayer:1.6.1")
+    implementation("androidx.media3:media3-common:1.6.1")
+
     // ===== Desugaring =====
     coreLibraryDesugaring("com.android.tools:desugar_jdk_libs:2.1.4")
 }
