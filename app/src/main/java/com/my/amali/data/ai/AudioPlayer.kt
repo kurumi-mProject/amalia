@@ -37,6 +37,9 @@ class AudioPlayer {
         chunks: Flow<AudioChunk>,
         onLevel: (Float) -> Unit = {},
     ) = withContext(Dispatchers.IO) {
+        // Поднимаем приоритет треда до URGENT_AUDIO — ОС не будет прерывать нас.
+        android.os.Process.setThreadPriority(android.os.Process.THREAD_PRIORITY_URGENT_AUDIO)
+
         var current: AudioTrack? = null
         var sampleRate = -1
         var minBufSize = 0
@@ -149,9 +152,10 @@ class AudioPlayer {
     }
 
     private fun buildTrack(sampleRate: Int, minBufSize: Int): AudioTrack {
-        // 4× минимума — комфортный запас без большой задержки.
-        // При 24кГц 16-bit mono: обычно minBufSize ≈ 4800 байт → буфер ≈ 19 200 байт ≈ 400мс.
-        val bufSize = minBufSize * 4
+        // Минимальный буфер для low-latency path.
+        // При 24кГц: minBufSize обычно ~4800 байт ≈ 100мс.
+        // 2× минимума даёт запас против underrun при сетевом джиттере.
+        val bufSize = minBufSize * 2
 
         return AudioTrack.Builder()
             .setAudioAttributes(
@@ -169,6 +173,7 @@ class AudioPlayer {
             )
             .setBufferSizeInBytes(bufSize)
             .setTransferMode(AudioTrack.MODE_STREAM)
+            .setPerformanceMode(AudioTrack.PERFORMANCE_MODE_LOW_LATENCY)
             .setSessionId(AudioManager.AUDIO_SESSION_ID_GENERATE)
             .build()
     }
