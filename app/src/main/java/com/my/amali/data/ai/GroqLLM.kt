@@ -1,117 +1,179 @@
 package com.my.amali.data.ai
 
+import com.my.amali.BuildConfig
 import com.my.amali.data.model.ChatMessage
 import com.my.amali.data.model.MessageRole
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.flow
-import kotlinx.coroutines.withContext
+import kotlinx.coroutines.flow.flowOn
 import okhttp3.MediaType.Companion.toMediaType
 import okhttp3.OkHttpClient
 import okhttp3.Request
 import okhttp3.RequestBody.Companion.toRequestBody
 import org.json.JSONArray
 import org.json.JSONObject
+import java.io.IOException
+import java.net.UnknownHostException
 import java.util.concurrent.TimeUnit
 
 /**
- * Real LLM engine backed by Groq's OpenAI-compatible chat completions endpoint,
- * using SSE (Server-Sent Events) streaming so tokens are emitted as they arrive.
+ * LLM-движок на Groq (OpenAI-совместимый /chat/completions) со SSE-стримингом,
+ * поэтому ответ появляется на экране и уходит в синтез по мере генерации.
  *
- * Model: openai/gpt-oss-20b — fast MoE reasoning model running on Groq LPUs.
+ * Модель: `openai/gpt-oss-20b` — MoE-модель на LPU Groq, отвечает за ~100 мс.
  *
- * Response tokens are emitted one by one via [generateResponse], allowing the
- * UI to show the assistant answer being "typed out" in real time.
+ * ## Важные детали реализации
+ * - `reasoning_format=hidden` + `reasoning_effort=low`: без этого модель
+ *   отдаёт поле `reasoning` (цепочку размышлений) отдельными дельтами, а
+ *   `content` приходит с большой задержкой — ассистент «молчал» несколько секунд.
+ * - Эмит идёт из билдера `flow {}` с переключением контекста через
+ *   [flowOn], а НЕ через `withContext` внутри `flow {}`: второй вариант
+ *   нарушает инвариант Flow и падает с `IllegalStateException`.
+ * - Сеть и HTTP-ошибки превращаются в [EngineException] с текстом,
+ *   который можно показать пользователю.
  */
 class GroqLLM : LanguageModel {
 
     private val client = OkHttpClient.Builder()
-        .connectTimeout(15, TimeUnit.SECONDS)
+        .connectTimeout(12, TimeUnit.SECONDS)
         .readTimeout(60, TimeUnit.SECONDS)
+        .callTimeout(90, TimeUnit.SECONDS)
+        .retryOnConnectionFailure(true)
         .build()
 
     override suspend fun initialize() { /* stateless */ }
-    override suspend fun close() {}
 
-    override fun generateResponse(prompt: String, history: List<ChatMessage>): Flow<String> = flow {
-        // ── Build messages array ──────────────────────────────────────────────
+    override suspend fun close() {
+        client.dispatcher.executorService.shutdown()
+        client.connectionPool.evictAll()
+    }
+
+    override fun generateResponse(
+        prompt: String,
+        history: List<ChatMessage>,
+        options: EngineOptions,
+    ): Flow<String> = flow {
+        if (API_KEY.isBlank()) {
+            throw EngineException("Не задан ключ Groq API. Добавь GROQ_API_KEY в сборку.")
+        }
+        val cleanPrompt = prompt.trim()
+        if (cleanPrompt.isEmpty()) return@flow
+
         val messages = JSONArray().apply {
-            put(JSONObject().apply {
-                put("role", "system")
-                put("content", SYSTEM_PROMPT)
-            })
-            // Keep last 10 turns to avoid blowing up the context budget.
-            history.takeLast(10).forEach { msg ->
-                put(JSONObject().apply {
-                    put("role", if (msg.role == MessageRole.USER) "user" else "assistant")
-                    put("content", msg.content)
-                })
-            }
-            put(JSONObject().apply {
-                put("role", "user")
-                put("content", prompt)
-            })
+            put(
+                JSONObject()
+                    .put("role", "system")
+                    .put("content", systemPrompt(options))
+            )
+            history
+                .filter { it.role != MessageRole.SYSTEM && it.content.isNotBlank() }
+                .takeLast(MAX_HISTORY_MESSAGES)
+                .forEach { msg ->
+                    put(
+                        JSONObject()
+                            .put("role", if (msg.role == MessageRole.USER) "user" else "assistant")
+                            .put("content", msg.content)
+                    )
+                }
+            put(JSONObject().put("role", "user").put("content", cleanPrompt))
         }
 
-        val bodyJson = JSONObject().apply {
-            put("model", MODEL)
-            put("messages", messages)
-            put("stream", true)
-            put("max_tokens", 512)
-            put("temperature", 0.7)
-        }
+        val bodyJson = JSONObject()
+            .put("model", MODEL)
+            .put("messages", messages)
+            .put("stream", true)
+            .put("max_tokens", 400)
+            .put("temperature", 0.6)
+            .put("top_p", 0.9)
+            // Прячем цепочку рассуждений: нам нужен только разговорный ответ.
+            .put("reasoning_format", "hidden")
+            .put("reasoning_effort", "low")
 
         val request = Request.Builder()
-            .url("https://api.groq.com/openai/v1/chat/completions")
-            .post(bodyJson.toString().toRequestBody("application/json".toMediaType()))
+            .url(ENDPOINT)
+            .post(bodyJson.toString().toRequestBody(JSON_MEDIA_TYPE))
             .header("Authorization", "Bearer $API_KEY")
-            .header("Content-Type", "application/json")
+            .header("Accept", "text/event-stream")
             .build()
 
-        // ── Read SSE stream on IO dispatcher ─────────────────────────────────
-        withContext(Dispatchers.IO) {
-            client.newCall(request).execute().use { response ->
-                if (!response.isSuccessful) {
-                    val errBody = response.body?.string() ?: "(no body)"
-                    throw RuntimeException("Groq error ${response.code}: $errBody")
+        val response = try {
+            client.newCall(request).execute()
+        } catch (e: UnknownHostException) {
+            throw EngineException("Нет интернета — не могу подумать над ответом.", e)
+        } catch (e: IOException) {
+            throw EngineException("Groq недоступен: ${e.message ?: "ошибка сети"}", e)
+        }
+
+        response.use { resp ->
+            if (!resp.isSuccessful) {
+                throw EngineException(humanError(resp.code, resp.body?.string()))
+            }
+            val source = resp.body?.source()
+                ?: throw EngineException("Groq вернул пустой ответ.")
+
+            var emittedAnything = false
+            while (true) {
+                val line = source.readUtf8Line() ?: break
+                if (line.isEmpty() || !line.startsWith(SSE_PREFIX)) continue
+
+                val data = line.removePrefix(SSE_PREFIX).trim()
+                if (data == SSE_DONE) break
+
+                val delta = runCatching {
+                    val choice = JSONObject(data)
+                        .optJSONArray("choices")
+                        ?.optJSONObject(0)
+                    val error = JSONObject(data).optJSONObject("error")?.optString("message")
+                    if (!error.isNullOrBlank()) throw EngineException("Groq: $error")
+                    choice?.optJSONObject("delta")?.optString("content").orEmpty()
+                }.getOrElse { throwable ->
+                    if (throwable is EngineException) throw throwable
+                    ""
                 }
 
-                val source = response.body?.source()
-                    ?: throw RuntimeException("Groq: empty response body")
-
-                while (!source.exhausted()) {
-                    val line = source.readUtf8Line() ?: break
-
-                    // SSE lines look like: "data: {...}" or "data: [DONE]"
-                    if (!line.startsWith("data: ")) continue
-
-                    val data = line.removePrefix("data: ").trim()
-                    if (data == "[DONE]") break
-
-                    try {
-                        val delta = JSONObject(data)
-                            .optJSONArray("choices")
-                            ?.optJSONObject(0)
-                            ?.optJSONObject("delta")
-                            ?.optString("content", "")
-                            .orEmpty()
-
-                        if (delta.isNotEmpty()) emit(delta)
-                    } catch (_: Exception) { /* partial/malformed SSE chunk — skip */ }
+                if (delta.isNotEmpty()) {
+                    emittedAnything = true
+                    emit(delta)
                 }
             }
+
+            if (!emittedAnything) {
+                throw EngineException("Модель не дала ответа. Попробуй переспросить.")
+            }
+        }
+    }.flowOn(Dispatchers.IO)
+
+    /** Персона ассистента: коротко, устно, на языке пользователя, без markdown. */
+    private fun systemPrompt(options: EngineOptions): String =
+        "Ты Амалия — голосовой ассистент на Android. " +
+            "Отвечай на ${options.languageName} языке, живой разговорной речью. " +
+            "Твой ответ будет озвучен синтезатором речи, поэтому: " +
+            "без markdown, без списков, без нумерации, без emoji, без ссылок и кода. " +
+            "Максимум 2–3 коротких предложения, если пользователь явно не просит подробностей. " +
+            "Числа, даты и сокращения пиши словами так, как их произносят вслух. " +
+            "Если вопрос непонятен — коротко переспроси."
+
+    private fun humanError(code: Int, body: String?): String = when (code) {
+        401, 403 -> "Ключ Groq API отклонён. Проверь GROQ_API_KEY."
+        404 -> "Модель $MODEL недоступна для этого ключа."
+        429 -> "Groq: слишком много запросов, подожди пару секунд."
+        in 500..599 -> "Groq временно недоступен (код $code)."
+        else -> {
+            val detail = runCatching {
+                JSONObject(body.orEmpty()).optJSONObject("error")?.optString("message")
+            }.getOrNull()
+            if (detail.isNullOrBlank()) "Ошибка Groq $code." else "Groq: $detail"
         }
     }
 
     private companion object {
-        val API_KEY: String get() = com.my.amali.BuildConfig.GROQ_API_KEY
-        const val MODEL   = "openai/gpt-oss-20b"
-
-        /** Persona for the assistant — short, speech-optimised replies in Russian. */
-        const val SYSTEM_PROMPT =
-            "Ты Амалия — голосовой ассистент на Android. " +
-            "Отвечай коротко, по делу, на русском языке. " +
-            "Без markdown, без списков, без заголовков — только живая разговорная речь. " +
-            "Максимум 2–3 предложения на ответ, если пользователь не просит большего."
+        val API_KEY: String get() = BuildConfig.GROQ_API_KEY
+        const val MODEL = "openai/gpt-oss-20b"
+        const val ENDPOINT = "https://api.groq.com/openai/v1/chat/completions"
+        const val SSE_PREFIX = "data: "
+        const val SSE_DONE = "[DONE]"
+        const val MAX_HISTORY_MESSAGES = 12
+        val JSON_MEDIA_TYPE = "application/json; charset=utf-8".toMediaType()
     }
 }

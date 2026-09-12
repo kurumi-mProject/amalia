@@ -1,44 +1,40 @@
 package com.my.amali.data.ai
 
 /**
- * Streamed events emitted by [AIOrchestrator] while a single voice or text
- * command is being processed. Consumers use these to drive the assistant's
- * UI state machine (orb animation, captions, bubbles).
+ * События, которые [AIOrchestrator] стримит во время обработки одной команды.
+ * По ним UI ведёт свою машину состояний (волна, подписи, карточки диалога).
+ *
+ * Типичная последовательность:
+ * `Level`* → `PartialTranscript`* → `Transcript` → `Thinking(true)` →
+ * `ReplyDelta`* → `Thinking(false)` → `Speaking(true)` → `Audio`* →
+ * `Speaking(false)` → `Finished`.
  */
-sealed class AiResponse {
+sealed interface AiResponse {
 
-    /**
-     * A transient textual update: the recognized user input or a partial
-     * assistant answer still being generated.
-     */
-    data class Interim(val text: String) : AiResponse()
+    /** Мгновенная громкость микрофона 0..1 — только на этапе слушания. */
+    data class Level(val level: Float) : AiResponse
 
-    /**
-     * Signals a transition in/out of the thinking phase
-     * (the language model is preparing an answer).
-     */
-    data class Thinking(val isThinking: Boolean) : AiResponse()
+    /** Неточная гипотеза распознавания: показывается как живые субтитры. */
+    data class PartialTranscript(val text: String) : AiResponse
 
-    /**
-     * Signals a transition in/out of the speaking phase
-     * (audio response is being synthesized and played).
-     */
-    data class Speaking(val isSpeaking: Boolean) : AiResponse()
+    /** Итоговый распознанный текст пользователя. */
+    data class Transcript(val text: String) : AiResponse
 
-    /**
-     * Raw synthesized audio ready for playback.
-     */
-    data class Audio(val chunk: AudioChunk) : AiResponse()
+    /** Вход/выход из фазы размышления модели. */
+    data class Thinking(val isThinking: Boolean) : AiResponse
 
-    /**
-     * The final, complete assistant response text. Always the last
-     * successful event of a processing flow.
-     */
-    data class Finished(val responseText: String) : AiResponse()
+    /** Очередной фрагмент ответа модели (дописывается к предыдущим). */
+    data class ReplyDelta(val delta: String, val fullText: String) : AiResponse
 
-    /**
-     * Processing failed; [message] describes the reason and is safe
-     * to display to the user.
-     */
-    data class Error(val message: String) : AiResponse()
+    /** Вход/выход из фазы озвучки. */
+    data class Speaking(val isSpeaking: Boolean) : AiResponse
+
+    /** Готовый к воспроизведению фрагмент синтезированного звука. */
+    data class Audio(val chunk: AudioChunk) : AiResponse
+
+    /** Полный текст ответа: последнее успешное событие обработки. */
+    data class Finished(val responseText: String) : AiResponse
+
+    /** Обработка не удалась; [message] можно показать пользователю. */
+    data class Error(val message: String) : AiResponse
 }

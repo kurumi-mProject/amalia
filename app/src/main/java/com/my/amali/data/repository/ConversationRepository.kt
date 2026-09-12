@@ -54,18 +54,21 @@ class ConversationRepository(
     /** Текущее число разговоров (для бейджей на главном экране). */
     suspend fun count(): Int = conversationsList().size
 
+    /**
+     * Снимок текущей истории.
+     *
+     * Используется [Flow.first], а не `collect`: DataStore-поток бесконечен,
+     * поэтому `collect` с `return@collect` не завершался и вызов висел вечно
+     * (из-за этого счётчик разговоров в шапке всегда оставался нулевым).
+     */
     private suspend fun conversationsList(): List<Conversation> {
-        var snapshot: List<Conversation> = emptyList()
-        dataStore.data.collect {
-            val raw = it[Keys.CONVERSATIONS] ?: ""
-            snapshot = if (raw.isEmpty()) {
-                emptyList()
-            } else {
-                runCatching { json.decodeFromString(serializer, raw) }.getOrDefault(emptyList())
-            }
-            return@collect
+        val raw = kotlinx.coroutines.flow.first(dataStore.data)[Keys.CONVERSATIONS] ?: ""
+        val parsed = if (raw.isEmpty()) {
+            emptyList()
+        } else {
+            runCatching { json.decodeFromString(serializer, raw) }.getOrDefault(emptyList())
         }
-        return snapshot.sortedByDescending { conversation -> conversation.updatedAt }
+        return parsed.sortedByDescending { conversation -> conversation.updatedAt }
     }
 
     // ── Запись ───────────────────────────────────────────────────────────

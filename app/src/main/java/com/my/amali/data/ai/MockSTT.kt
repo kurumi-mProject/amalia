@@ -1,17 +1,19 @@
 package com.my.amali.data.ai
 
-import com.my.amali.data.model.ChatMessage
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.flow
+import kotlin.math.abs
+import kotlin.math.sin
 
 /**
- * Заглушка STT-движка с реалистичным поведением: «слушает», эмитит
- * промежуточные транскрипты и завершается финальной фразой.
- *
- * ТОЧКА ПОДКЛЮЧЕНИЯ РЕАЛЬНОГО STT: реализуйте [SpeechToTextEngine]
- * (например, Vosk / Whisper / SpeechRecognizer) и подставьте в
- * [com.my.amali.core.di.ServiceLocator.aiOrchestrator].
+ * Оффлайн-заглушка STT: имитирует уровень микрофона, промежуточные
+ * гипотезы и финальный текст. Используется в превью, тестах и на
+ * устройствах без сети, чтобы UI можно было проверить целиком.
  */
-class MockSpeechToTextEngine : SpeechToTextEngine {
+class MockSpeechToTextEngine(
+    private val scriptedPhrase: String = DEFAULT_PHRASE,
+) : SpeechToTextEngine {
 
     private var initialized = false
 
@@ -23,22 +25,37 @@ class MockSpeechToTextEngine : SpeechToTextEngine {
         initialized = false
     }
 
-    override fun transcribe(audioLevel: Float): Flow<String> = kotlinx.coroutines.flow.flow {
+    override fun transcribe(options: EngineOptions): Flow<SttEvent> = flow {
         if (!initialized) initialize()
-        // Имитируем распознавание: пауза «слушания», затем промежуточные результаты.
-        kotlinx.coroutines.delay(LISTEN_PAUSE_MS)
-        emit(INTERIM_1)
-        kotlinx.coroutines.delay(INTERIM_STEP_MS)
-        emit(INTERIM_2)
-        kotlinx.coroutines.delay(INTERIM_STEP_MS)
-        emit(FINAL_TRANSCRIPT)
+
+        val words = scriptedPhrase.split(' ').filter { it.isNotBlank() }
+        val spoken = StringBuilder()
+
+        repeat(WARMUP_TICKS) { tick ->
+            emit(SttEvent.Level(levelAt(tick)))
+            delay(TICK_MS)
+        }
+
+        words.forEachIndexed { index, word ->
+            if (spoken.isNotEmpty()) spoken.append(' ')
+            spoken.append(word)
+            emit(SttEvent.Level(levelAt(WARMUP_TICKS + index)))
+            emit(SttEvent.Partial(spoken.toString()))
+            delay(WORD_MS)
+        }
+
+        emit(SttEvent.Final(spoken.toString()))
+        emit(SttEvent.Level(0f))
     }
 
+    /** Плавно «дышащий» уровень, чтобы волна выглядела живой. */
+    private fun levelAt(tick: Int): Float =
+        (0.25f + 0.6f * abs(sin(tick * 0.6)).toFloat()).coerceIn(0f, 1f)
+
     private companion object {
-        const val LISTEN_PAUSE_MS = 600L
-        const val INTERIM_STEP_MS = 350L
-        const val INTERIM_1 = "Слушаю…"
-        const val INTERIM_2 = "Распознаю речь…"
-        const val FINAL_TRANSCRIPT = "Привет, Амалия"
+        const val DEFAULT_PHRASE = "Привет, Амалия, как погода сегодня"
+        const val TICK_MS = 90L
+        const val WORD_MS = 220L
+        const val WARMUP_TICKS = 4
     }
 }

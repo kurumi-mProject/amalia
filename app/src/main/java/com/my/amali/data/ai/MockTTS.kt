@@ -13,8 +13,8 @@ import kotlin.math.sin
  * duration is proportional to the word length. Playback pacing is simulated
  * with delays matching each chunk's duration.
  *
- * A synthetic header tag (e.g. "[ru] word word") lets the orchestrator tests
- * verify the text that would have been spoken.
+ * Скорость воспроизведения учитывает [EngineOptions.speechRate], поэтому
+ * настройка «скорость речи» проверяется и на заглушке.
  */
 class MockTextToSpeechEngine : TextToSpeechEngine {
 
@@ -28,19 +28,17 @@ class MockTextToSpeechEngine : TextToSpeechEngine {
         initialized = false
     }
 
-    override fun speak(text: String): Flow<AudioChunk> = flow {
+    override fun speak(text: String, options: EngineOptions): Flow<AudioChunk> = flow {
         if (!initialized) initialize()
 
         val cleanText = text.trim()
         if (cleanText.isEmpty()) return@flow
 
-        // Chunk 0: a short metadata payload carrying the language tag of the text.
-        emit(AudioChunk(data = TEXT_LANGUAGE_TAG.toByteArray(Charsets.UTF_8), sampleRate = SAMPLE_RATE))
-
+        val rate = options.speechRate.coerceIn(0.5f, 2f)
         val words = cleanText.split(Regex("\\s+")).filter { it.isNotBlank() }
         var phase = 0.0
         for (word in words) {
-            val durationMs = durationFor(word)
+            val durationMs = (durationFor(word) / rate).toInt().coerceAtLeast(60)
             val chunk = synthesizeChunk(word, durationMs, phase)
             phase += durationMs / 1000.0
 
@@ -100,7 +98,5 @@ class MockTextToSpeechEngine : TextToSpeechEngine {
         /** Pause after the last word, in ms. */
         const val TRAILING_SILENCE_MS = 120L
 
-        /** Marker embedded as the first chunk's payload. */
-        const val TEXT_LANGUAGE_TAG = "[tts-mock]"
     }
 }

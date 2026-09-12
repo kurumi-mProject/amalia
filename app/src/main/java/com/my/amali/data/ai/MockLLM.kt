@@ -32,7 +32,11 @@ class MockLanguageModel : LanguageModel {
         initialized = false
     }
 
-    override fun generateResponse(prompt: String, history: List<ChatMessage>): Flow<String> = flow {
+    override fun generateResponse(
+        prompt: String,
+        history: List<ChatMessage>,
+        options: EngineOptions,
+    ): Flow<String> = flow {
         if (!initialized) initialize()
 
         val normalized = prompt.trim().lowercase()
