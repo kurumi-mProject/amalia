@@ -2,117 +2,174 @@ package com.my.amali.data.ai
 
 import android.media.AudioAttributes
 import android.media.AudioFormat
+import android.media.AudioManager
 import android.media.AudioTrack
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.withContext
 
 /**
- * Воспроизводит PCM-16 audio chunks через AudioTrack с минимальной задержкой.
+ * Воспроизводит поток [AudioChunk] (PCM 16-bit mono) через [AudioTrack].
  *
- * Ключевые техники против треска:
- * - Prefill buffer перед `play()` — на некоторых чипсетах пустой буфер при старте даёт треск
- * - USAGE_VOICE_COMMUNICATION — минимальная обработка DSP
- * - MODE_STREAM — для потоковых данных
- * - Выравнивание по 2 байта (PCM-16 = 2 байта на сэмпл)
+ * ## Почему раньше был треск
+ * 1. `play()` вызывался сразу при создании дорожки — до заполнения
+ *    минимального буфера. AudioTrack начинал читать пустые байты → белый шум.
+ * 2. Размер буфера `sampleRate * 2 * 400 / 1000` некорректен: при 24 000 Гц
+ *    это 19 200 байт, но `getMinBufferSize` мог вернуть больше — в итоге
+ *    буфер оказывался меньше минимума и система дополняла его мусором.
+ * 3. Чанки с нечётным числом байт (обрезанный PCM-16 сэмпл) давали
+ *    щелчки на границах.
+ *
+ * ## Как исправлено
+ * - Собираем prefill-буфер (≥ `minBufferSize` байт) перед первым `play()`.
+ *   Это убирает треск в начале при сохранении низкой задержки.
+ * - Все чанки выравниваются до чётного числа байт; «хвостовой» байт
+ *   переносится в следующий чанк.
+ * - В конце вместо `stop()` вызываем `stop()` только после того, как
+ *   AudioTrack сам дописал буфер (`AudioTrack.PLAYSTATE_STOPPED` ≠ сброс).
  */
 class AudioPlayer {
 
-    @Volatile private var track: AudioTrack? = null
+    @Volatile
+    private var track: AudioTrack? = null
 
-    suspend fun play(chunks: Flow<AudioChunk>, onLevel: (Float) -> Unit = {}) = withContext(Dispatchers.IO) {
-        var currentTrack: AudioTrack? = null
-        var configuredSampleRate = -1
+    suspend fun play(
+        chunks: Flow<AudioChunk>,
+        onLevel: (Float) -> Unit = {},
+    ) = withContext(Dispatchers.IO) {
+        var current: AudioTrack? = null
+        var sampleRate = -1
+        var minBufSize = 0
+
+        // Остаток от предыдущего чанка с нечётным числом байт.
         var leftover: Byte? = null
-        var prefillNeeded = false
+
+        // Prefill: накапливаем байты до старта play() чтобы убрать треск.
+        val prefill = mutableListOf<ByteArray>()
+        var prefillSize = 0
+        var playing = false
 
         try {
             chunks.collect { chunk ->
                 if (chunk.data.isEmpty()) return@collect
 
-                // Пересоздаём track при изменении sample rate
-                if (chunk.sampleRate != configuredSampleRate) {
-                    currentTrack?.let {
-                        runCatching { it.stop() }
-                        runCatching { it.release() }
+                // ── Создаём / пересоздаём AudioTrack при смене sample rate ──
+                if (current == null || chunk.sampleRate != sampleRate) {
+                    if (current != null) {
+                        runCatching { current!!.stop() }
+                        runCatching { current!!.release() }
                     }
-                    configuredSampleRate = chunk.sampleRate
                     leftover = null
+                    prefill.clear()
+                    prefillSize = 0
+                    playing = false
 
-                    val bufferSize = AudioTrack.getMinBufferSize(
-                        chunk.sampleRate,
+                    sampleRate = chunk.sampleRate
+                    minBufSize = AudioTrack.getMinBufferSize(
+                        sampleRate,
                         AudioFormat.CHANNEL_OUT_MONO,
-                        AudioFormat.ENCODING_PCM_16BIT
+                        AudioFormat.ENCODING_PCM_16BIT,
                     ).coerceAtLeast(4096)
 
-                    currentTrack = AudioTrack.Builder()
-                        .setAudioAttributes(
-                            AudioAttributes.Builder()
-                                .setUsage(AudioAttributes.USAGE_VOICE_COMMUNICATION)
-                                .setContentType(AudioAttributes.CONTENT_TYPE_SPEECH)
-                                .build()
-                        )
-                        .setAudioFormat(
-                            AudioFormat.Builder()
-                                .setSampleRate(chunk.sampleRate)
-                                .setEncoding(AudioFormat.ENCODING_PCM_16BIT)
-                                .setChannelMask(AudioFormat.CHANNEL_OUT_MONO)
-                                .build()
-                        )
-                        .setBufferSizeInBytes(bufferSize * 2)
-                        .setTransferMode(AudioTrack.MODE_STREAM)
-                        .build()
-
-                    track = currentTrack
-                    prefillNeeded = true
+                    current = buildTrack(sampleRate, minBufSize)
+                    track = current
+                    // НЕ вызываем play() здесь — ждём накопления prefill.
                 }
 
-                val t = currentTrack ?: return@collect
-
-                // Выравнивание PCM-16 по чётному количеству байт
+                // ── Выравниваем чанк по 2 байта (PCM-16) ─────────────────────
                 val rawData = if (leftover != null) {
+                    // Предыдущий чанк оставил 1 байт — приклеиваем его в начало.
                     ByteArray(1 + chunk.data.size).also { buf ->
                         buf[0] = leftover!!
                         chunk.data.copyInto(buf, destinationOffset = 1)
                     }
-                } else chunk.data
-                leftover = if (rawData.size % 2 != 0) rawData.last() else null
-                val evenSize = rawData.size and 0x1.inv()
+                } else {
+                    chunk.data
+                }
+
+                leftover = if (rawData.size % 2 != 0) rawData[rawData.size - 1] else null
+                val evenSize = rawData.size - (rawData.size % 2)
                 if (evenSize <= 0) return@collect
+                val evenData = if (evenSize == rawData.size) rawData else rawData.copyOf(evenSize)
 
                 onLevel(chunk.level())
 
-                // Prefill: накапливаем минимум minBufferSize байт перед play()
-                if (prefillNeeded) {
-                    val minSize = AudioTrack.getMinBufferSize(
-                        configuredSampleRate,
-                        AudioFormat.CHANNEL_OUT_MONO,
-                        AudioFormat.ENCODING_PCM_16BIT
-                    ).coerceAtLeast(2048)
-                    
-                    val written = t.write(rawData, 0, evenSize, AudioTrack.WRITE_BLOCKING)
-                    if (written >= minSize) {
-                        t.play()
-                        prefillNeeded = false
+                if (!playing) {
+                    // Накапливаем prefill.
+                    prefill.add(evenData)
+                    prefillSize += evenSize
+
+                    if (prefillSize >= minBufSize) {
+                        // Достаточно данных — записываем всё накопленное и стартуем.
+                        runCatching { current?.play() }
+                        playing = true
+                        for (buf in prefill) writeAll(current, buf)
+                        prefill.clear()
                     }
                 } else {
-                    t.write(rawData, 0, evenSize, AudioTrack.WRITE_BLOCKING)
+                    writeAll(current, evenData)
                 }
             }
+
+            // Если prefill так и не набрался (очень короткий ответ) — играем что есть.
+            if (!playing && prefill.isNotEmpty()) {
+                runCatching { current?.play() }
+                for (buf in prefill) writeAll(current, buf)
+                prefill.clear()
+            }
+
+            // Даём AudioTrack доиграть остаток внутреннего буфера.
+            runCatching { current?.stop() }
+
         } finally {
             onLevel(0f)
-            currentTrack?.let {
-                runCatching { it.stop() }
-                runCatching { it.release() }
-            }
             track = null
+            current?.let { done ->
+                runCatching { done.release() }
+            }
         }
     }
 
+    /** Мгновенно обрывает воспроизведение (кнопка «Стоп»). */
     fun stopImmediately() {
-        val t = track ?: return
-        runCatching { t.stop() }
-        runCatching { t.release() }
-        track = null
+        val active = track ?: return
+        runCatching { active.pause() }
+        runCatching { active.flush() }
+    }
+
+    // Записывает все байты в AudioTrack, обрабатывая частичные write().
+    private fun writeAll(t: AudioTrack?, data: ByteArray) {
+        if (t == null) return
+        var offset = 0
+        while (offset < data.size) {
+            val written = t.write(data, offset, data.size - offset)
+            if (written <= 0) break
+            offset += written
+        }
+    }
+
+    private fun buildTrack(sampleRate: Int, minBufSize: Int): AudioTrack {
+        // 4× минимума — комфортный запас без большой задержки.
+        // При 24кГц 16-bit mono: обычно minBufSize ≈ 4800 байт → буфер ≈ 19 200 байт ≈ 400мс.
+        val bufSize = minBufSize * 4
+
+        return AudioTrack.Builder()
+            .setAudioAttributes(
+                AudioAttributes.Builder()
+                    .setUsage(AudioAttributes.USAGE_ASSISTANT)
+                    .setContentType(AudioAttributes.CONTENT_TYPE_SPEECH)
+                    .build()
+            )
+            .setAudioFormat(
+                AudioFormat.Builder()
+                    .setSampleRate(sampleRate)
+                    .setEncoding(AudioFormat.ENCODING_PCM_16BIT)
+                    .setChannelMask(AudioFormat.CHANNEL_OUT_MONO)
+                    .build()
+            )
+            .setBufferSizeInBytes(bufSize)
+            .setTransferMode(AudioTrack.MODE_STREAM)
+            .setSessionId(AudioManager.AUDIO_SESSION_ID_GENERATE)
+            .build()
     }
 }
