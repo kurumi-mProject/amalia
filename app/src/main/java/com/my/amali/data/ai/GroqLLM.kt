@@ -166,7 +166,7 @@ class GroqLLM : LanguageModel {
             }
 
             // Эмитим распарсенные tool calls как финализированные события
-            streamState.finalize { call ->
+            for (call in streamState.finalizeToList()) {
                 send(LLMEvent.ToolCallDetected(call))
             }
             send(LLMEvent.Completed(finalReason))
@@ -410,6 +410,12 @@ class GroqLLM : LanguageModel {
                         emit(buildCall(id, name, slot.arguments.toString()))
                     }
                 }
+        }
+
+        fun finalizeToList(): List<ToolCall> {
+            val result = mutableListOf<ToolCall>()
+            finalize { result += it }
+            return result
         }
 
         private fun buildCall(id: String, name: String, argumentsJson: String): ToolCall {
