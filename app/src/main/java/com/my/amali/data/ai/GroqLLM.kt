@@ -86,9 +86,8 @@ class GroqLLM : LanguageModel {
             .put("max_tokens", 400)
             .put("temperature", 0.9)
             .put("top_p", 0.95)
-            // Qwen3.8: отключаем reasoning — для голосового ответа не нужно,
-            // только добавляет задержку.
-            .put("reasoning_effort", "none")
+            // gpt-oss-120b требует low/medium/high, none не поддерживается
+            .put("reasoning_effort", "low")
 
         val request = Request.Builder()
             .url(ENDPOINT)
@@ -218,7 +217,7 @@ USER: ты боишься смерти?
 
     private companion object {
         val API_KEY: String get() = BuildConfig.GROQ_API_KEY
-        const val MODEL = "qwen/qwen3.8-27b"
+        const val MODEL = "openai/gpt-oss-120b"
         const val ENDPOINT = "https://api.groq.com/openai/v1/chat/completions"
         const val SSE_PREFIX = "data: "
         const val SSE_DONE = "[DONE]"
