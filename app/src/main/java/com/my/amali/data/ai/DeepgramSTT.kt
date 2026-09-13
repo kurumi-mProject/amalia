@@ -132,8 +132,7 @@ class DeepgramSTT(private val context: Context) : SpeechToTextEngine {
         val sessionStart = System.currentTimeMillis()
         val socketReady = AtomicBoolean(false)
 
-        val url = buildDeepgramUrl(options.languageCode)
-        val request = Request.Builder()
+        val url = buildDeepgramUrl(options.languageCode)        val request = Request.Builder()
             .url(url)
             .header("Authorization", "Token $API_KEY")
             .build()
@@ -313,7 +312,7 @@ class DeepgramSTT(private val context: Context) : SpeechToTextEngine {
         append("&encoding=linear16")
         append("&channels=1")
         append("&sample_rate=").append(SAMPLE_RATE)
-        append("&endpointing=700")
+        append("&endpointing=300")
         append("&vad_events=true")
     }
 
@@ -322,7 +321,7 @@ class DeepgramSTT(private val context: Context) : SpeechToTextEngine {
         const val READ_CHUNK_BYTES = 3_200 // 100 мс при 16 кГц 16-bit mono
 
         /** Тишина после распознанной фразы, после которой сессия закрывается. */
-        const val SILENCE_AFTER_SPEECH_MS = 900L
+        const val SILENCE_AFTER_SPEECH_MS = 400L
 
         /** Если человек так и не заговорил — закрываем микрофон. */
         const val NO_SPEECH_TIMEOUT_MS = 6_000L
