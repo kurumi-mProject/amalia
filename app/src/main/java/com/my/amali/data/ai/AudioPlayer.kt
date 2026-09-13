@@ -36,6 +36,9 @@ class AudioPlayer {
     // PCM-16 mono: кадр = 2 байта
     private val FRAME = 2
 
+    // Тишина в конце чтобы AudioTrack не обрезал последние слова
+    private val TAIL_SILENCE_MS = 700
+
     suspend fun play(
         chunks: Flow<AudioChunk>,
         onLevel: (Float) -> Unit = {},
@@ -181,6 +184,14 @@ class AudioPlayer {
 
                         if (chunk === END_OF_STREAM) break
                         feed(chunk.data)
+                    }
+
+                    // Добавляем ~700мс тишины в конце — иначе AudioTrack обрезает
+                    // последние слова до того как буфер успевает доиграть.
+                    if (current != null && sampleRate > 0) {
+                        val silenceSamples = (sampleRate * TAIL_SILENCE_MS) / 1000
+                        val silence = ByteArray(silenceSamples * 2) // 16-bit = 2 байта/сэмпл
+                        writeAll(silence, 0, silence.size)
                     }
 
                     current?.stop()
