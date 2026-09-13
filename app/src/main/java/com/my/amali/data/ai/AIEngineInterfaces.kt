@@ -1,9 +1,11 @@
 package com.my.amali.data.ai
 
 import com.my.amali.data.model.ChatMessage
+import com.my.amali.data.model.DeviceStatus
 import com.my.amali.domain.entity.AppLanguage
 import com.my.amali.domain.entity.UserSettings
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.emptyFlow
 import java.util.Locale
 
 /**
@@ -15,11 +17,14 @@ import java.util.Locale
  *   то есть [AppLanguage.SYSTEM] заменён на язык устройства.
  * @property speechRate множитель скорости синтеза, [0.5, 2.0].
  * @property speechPitch множитель высоты голоса, [0.5, 2.0].
+ * @property deviceStatus текущее состояние устройства — передаётся в системный промпт
+ *   чтобы Амалия знала какие разрешения выданы/не выданы.
  */
 data class EngineOptions(
     val languageCode: String = "ru",
     val speechRate: Float = 1.0f,
     val speechPitch: Float = 1.0f,
+    val deviceStatus: DeviceStatus = DeviceStatus.Offline,
 ) {
     /** Человекочитаемое имя языка для системного промпта LLM. */
     val languageName: String
@@ -134,22 +139,126 @@ interface TextToSpeechEngine {
     val streamingAudio: Flow<AudioChunk> get() = kotlinx.coroutines.flow.emptyFlow()
 }
 
+// ─────────────────────────────────────────────────────────────────────
+//  Tool-aware LLM события
+// ─────────────────────────────────────────────────────────────────────
+
 /**
- * Контракт языковой модели: запрос + история → поток текстовых дельт.
+ * Причина завершения LLM-вызова.
+ *
+ * OpenAI/Groq возвращают `finish_reason`:
+ * — [Stop] — модель закончила естественно (ответ на пользователя);
+ * — [ToolCalls] — модель хочет вызвать инструменты, нужен второй раунд;
+ * — [Length] — упёрлись в лимит токенов (можно продолжить, но не обязательно);
+ * — [ContentFilter] — контент отфильтрован по политике;
+ * — [Error] — внутренняя ошибка движка.
+ */
+enum class FinishReason {
+    STOP,
+    TOOL_CALLS,
+    LENGTH,
+    CONTENT_FILTER,
+    ERROR;
+
+    companion object {
+        fun fromWireName(name: String?): FinishReason = when (name) {
+            "stop" -> STOP
+            "tool_calls" -> TOOL_CALLS
+            "length" -> LENGTH
+            "content_filter" -> CONTENT_FILTER
+            "error" -> ERROR
+            else -> STOP
+        }
+    }
+}
+
+/**
+ * Событие движка языковой модели при работе с инструментами.
+ *
+ * Последовательность для одного вызова LLM:
+ * 1. Серия [ContentDelta] — естественный текст по токенам.
+ * 2. Возможно — серия [ToolCallDetected] (по одному на каждый вызов).
+ *    Большинство моделей стримят их параллельно с `ContentDelta`,
+ *    поэтому UI должен выводить только delta-текст, а уведомления
+ *    показывать после полного сбора аргументов.
+ * 3. Один [Completed] с [FinishReason] — поток LLM завершён.
+ *
+ * [Completed] НЕ означает конец всей беседы — оркестратор выполняет
+ * вызовы, добавляет их результаты в историю и ещё раз зовёт LLM.
+ */
+sealed interface LLMEvent {
+
+    /** Очередной кусок естественного текста от модели. */
+    data class ContentDelta(val text: String) : LLMEvent
+
+    /**
+     * LLM завершил аргументацию вызова и хочет его исполнить.
+     * Каждый такой ивент содержит уже распарсенный [ToolCall] с id.
+     */
+    data class ToolCallDetected(val call: ToolCall) : LLMEvent
+
+    /**
+     * Поток модели закрыт. Если [reason] == [FinishReason.TOOL_CALLS],
+     * оркестратор должен исполнить [ToolCall] и перезапустить LLM
+     * с историей пополненной результатами; иначе — это финальный ответ.
+     */
+    data class Completed(val reason: FinishReason) : LLMEvent
+}
+
+/**
+ * Контракт языковой модели.
+ *
+ * Реализуется двумя способами:
+ * - [generateResponse] — простой текстовый контракт для моделей без
+ *   поддержки tools (или для офлайн-режима Mock);
+ * - [chatWithTools] — полноценный multi-turn цикл с вызовом инструментов.
+ *
+ * Оркестратор предпочитает [chatWithTools]. Если драйвер не умеет в tools
+ * (специальный флаг в реализации), оркестратор падает на [generateResponse]
+ * и парсит команды из свободного текста — для совместимости.
  */
 interface LanguageModel {
     suspend fun initialize()
     suspend fun close()
 
     /**
-     * Генерирует ответ на [prompt] с учётом [history] (старые сообщения первыми),
-     * эмитя текст инкрементально.
+     * Текстовая генерация: простой запрос → поток дельт.
+     *
+     * Используется как fallback, если движок не поддерживает инструменты.
+     * Реализации с поддержкой tools могут реализовать её как тонкую
+     * обёртку над [chatWithTools].
      */
     fun generateResponse(
         prompt: String,
         history: List<ChatMessage>,
         options: EngineOptions = EngineOptions.Default,
     ): Flow<String>
+
+    /**
+     * Полноценный чат с инструментами.
+     *
+     * @param messages полная история диалога, включая результаты tools
+     *   (роль `tool`). Последнее сообщение — реплика пользователя.
+     * @param tools схемы доступных инструментов.
+     * @param options параметры языка/голоса.
+     * @param alreadyExecutedTools имена инструментов, которые оркестратор
+     *   уже выполнил в текущем multi-turn цикле. Реальные движки игнорируют
+     *   поле — у них есть полная история вызовов в сообщениях; mock-LLM
+     *   использует его, чтобы не повторять вызов для уже завершённого action.
+     */
+    fun chatWithTools(
+        messages: List<ChatMessage>,
+        tools: List<ToolDefinition>,
+        options: EngineOptions = EngineOptions.Default,
+        alreadyExecutedTools: Set<String> = emptySet(),
+    ): Flow<LLMEvent> = emptyFlow()
+
+    /**
+     * Сообщает оркестратору, что драйвер умеет в tool calling.
+     * Без этой поддержки оркестратор работает в legacy-режиме через
+     * [generateResponse] и парсинг JSON в ответе LLM.
+     */
+    val supportsTools: Boolean get() = false
 }
 
 /**
@@ -211,14 +320,14 @@ data class AIConfig(
         val Live: AIConfig = AIConfig(
             sttEngineName = "Deepgram nova-2",
             ttsEngineName = "Fish Audio s2.1-pro",
-            llmEngineName = "Groq gpt-oss-20b",
+            llmEngineName = "Groq qwen3.8-27b + tools",
         )
 
         /** Встроенный офлайн-конвейер-заглушка (используется в превью и тестах). */
         val Mock: AIConfig = AIConfig(
             sttEngineName = "MockSpeechToTextEngine",
             ttsEngineName = "MockTextToSpeechEngine",
-            llmEngineName = "MockLanguageModel",
+            llmEngineName = "MockLanguageModel + tools",
         )
     }
 }

@@ -173,12 +173,16 @@ fun AssistantScreen(
                     when (phase) {
                         DialogPhase.Welcome -> WelcomeCard()
                         DialogPhase.Listening -> ListeningCard(text = state.userTranscript)
-                        DialogPhase.Thinking -> ThinkingCard(prompt = state.userTranscript)
+                        DialogPhase.Thinking -> ThinkingCard(
+                            prompt = state.userTranscript,
+                            activeTools = state.activeTools,
+                        )
                         DialogPhase.Reply -> ReplyCard(
                             prompt = state.userTranscript,
                             reply = state.amaliaReply,
                             progress = state.replyProgress,
                             speaking = state.voiceState == VoiceState.Speaking,
+                            toolReports = state.lastToolReports,
                             onRepeat = { vm.startConversation(state.userTranscript) },
                             onCopy = { clipboard.setText(AnnotatedString(state.amaliaReply)) },
                         )
@@ -445,7 +449,10 @@ private fun ListeningCard(text: String) {
 }
 
 @Composable
-private fun ThinkingCard(prompt: String) {
+private fun ThinkingCard(
+    prompt: String,
+    activeTools: List<ToolActivity>,
+) {
     GlassCard(
         modifier = Modifier.padding(horizontal = Spacing.screen),
         cornerRadius = Radius.lg,
@@ -463,7 +470,64 @@ private fun ThinkingCard(prompt: String) {
             color = MaterialTheme.colorScheme.onSurfaceVariant,
         )
         Spacer(Modifier.height(Spacing.xs))
-        TypingDots()
+        if (activeTools.isEmpty()) {
+            TypingDots()
+        } else {
+            ToolActivityStrip(tools = activeTools)
+        }
+    }
+}
+
+/**
+ * Полоса маленьких стеклянных чипов-индикаторов: показывает, какие
+ * инструменты в данный момент работают. Каждый чип дышит — лёгкая пульсация
+ * показывает активный процесс, не отвлекая от главного фокуса экрана.
+ */
+@Composable
+private fun ToolActivityStrip(tools: List<ToolActivity>) {
+    Column(verticalArrangement = Arrangement.spacedBy(Spacing.xxs)) {
+        tools.forEach { tool ->
+            ToolChip(tool = tool)
+        }
+    }
+}
+
+@Composable
+private fun ToolChip(tool: ToolActivity) {
+    val transition = rememberInfiniteTransition(label = "tool-${tool.name}")
+    val breath by transition.animateFloat(
+        initialValue = 0.4f,
+        targetValue = 1f,
+        animationSpec = infiniteRepeatable(
+            tween(820, easing = LinearEasing),
+            repeatMode = RepeatMode.Reverse,
+        ),
+        label = "tool-breath",
+    )
+    Row(
+        modifier = Modifier
+            .heightIn(min = 32.dp)
+            .glassSurface(shape = RoundedCornerShape(Radius.chip))
+            .padding(horizontal = Spacing.sm, vertical = Spacing.xxs)
+            .semantics {
+                role = Role.Button
+                contentDescription = "Инструмент: ${tool.humanLabel}"
+            },
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(Spacing.xxs),
+    ) {
+        // Маленькая пульсирующая точка — признак «работает».
+        Box(
+            modifier = Modifier
+                .size(6.dp)
+                .clip(CircleShape)
+                .background(MaterialTheme.colorScheme.secondary.copy(alpha = breath)),
+        )
+        Text(
+            text = tool.humanLabel,
+            style = MaterialTheme.typography.labelMedium,
+            color = MaterialTheme.colorScheme.onSurface,
+        )
     }
 }
 
@@ -473,6 +537,7 @@ private fun ReplyCard(
     reply: String,
     progress: Float,
     speaking: Boolean,
+    toolReports: List<ToolReport>,
     onRepeat: () -> Unit,
     onCopy: () -> Unit,
 ) {
@@ -515,6 +580,20 @@ private fun ReplyCard(
             )
         }
 
+        // Сводка «что сделала Амалия» — под основным ответом, появляется
+        // только если LLM дёрнула инструменты в этом раунде.
+        AnimatedVisibility(
+            visible = toolReports.isNotEmpty(),
+            enter = fadeIn(tween(220)) + slideInVertically(tween(240)) { it / 4 },
+            exit = fadeOut(tween(160)),
+        ) {
+            Column(modifier = Modifier.padding(top = Spacing.sm)) {
+                toolReports.forEach { report ->
+                    ToolReportRow(report = report)
+                }
+            }
+        }
+
         AnimatedVisibility(
             visible = !speaking && progress >= 1f,
             enter = fadeIn(tween(200)),
@@ -537,6 +616,38 @@ private fun ReplyCard(
                 )
             }
         }
+    }
+}
+
+/**
+ * Одна строка сводки «что сделано» — короткий значок + текст.
+ * Ошибки подсвечены error-цветом, успехи — приглушённым успешным тоном.
+ */
+@Composable
+private fun ToolReportRow(report: ToolReport) {
+    val color = if (report.ok) {
+        MaterialTheme.colorScheme.secondary
+    } else {
+        MaterialTheme.colorScheme.error
+    }
+    val sign = if (report.ok) "✓" else "✕"
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(vertical = 2.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(Spacing.xs),
+    ) {
+        Text(
+            text = sign,
+            style = MaterialTheme.typography.labelMedium,
+            color = color,
+        )
+        Text(
+            text = report.summary,
+            style = MaterialTheme.typography.labelMedium,
+            color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.78f),
+        )
     }
 }
 

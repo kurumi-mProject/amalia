@@ -16,9 +16,17 @@ import com.my.amali.data.ai.GroqLLM
 import com.my.amali.data.ai.MockLanguageModel
 import com.my.amali.data.ai.MockSpeechToTextEngine
 import com.my.amali.data.ai.MockTextToSpeechEngine
+import com.my.amali.data.ai.ToolRegistry
+import com.my.amali.data.ai.functions.AmaliaTools
+import com.my.amali.data.model.ChatMessage
 import com.my.amali.data.repository.ConversationRepository
 import com.my.amali.data.repository.SettingsRepository
+import com.my.amali.domain.entity.AppLanguage
+import com.my.amali.system.DeviceCommandExecutor
 import com.my.amali.system.SystemControllerHub
+import kotlinx.coroutines.flow.first
+import org.json.JSONArray
+import org.json.JSONObject
 
 private val Context.amaliaDataStore: DataStore<Preferences> by preferencesDataStore(name = "amalia_settings")
 
@@ -41,6 +49,20 @@ object ServiceLocator {
             if (initialized) return
             appContext = context.applicationContext
             initialized = true
+        }
+        // Подключаем «мосты» от инструментов к репозиториям. Раньше этого
+        // делать нельзя — репозитории ленивые и зависят от appContext.
+        amaliaTools.searchHistoryProvider = { query ->
+            queryForHistory(query)
+        }
+        amaliaTools.recentConversationsProvider = { limit ->
+            recentConversations(limit)
+        }
+        amaliaTools.clearHistoryProvider = {
+            clearAllConversations()
+        }
+        amaliaTools.settingsChangeProvider = { key, value ->
+            applySettingChange(key, value)
         }
     }
 
@@ -74,9 +96,30 @@ object ServiceLocator {
     val aiConfig: AIConfig
         get() = if (hasLiveKeys) AIConfig.Live else AIConfig.Mock
 
+    /** Хаб системных контроллеров (Wi-Fi, BT, яркость, громкость и т.д.). */
+    val systemControllers: SystemControllerHub by lazy { SystemControllerHub(appContext) }
+
+    /** Исполнитель команд устройства от LLM (используется в legacy-пути). */
+    val deviceCommandExecutor: DeviceCommandExecutor by lazy {
+        DeviceCommandExecutor(appContext, systemControllers)
+    }
+
+    /** Набор инструментов Амалии — конкретные tool definitions и handlers. */
+    private val amaliaTools: AmaliaTools by lazy {
+        AmaliaTools(
+            context = appContext,
+            hub = systemControllers,
+            commandExecutor = deviceCommandExecutor,
+        )
+    }
+
+    /** Реестр инструментов, доступных LLM. Передаётся в [aiOrchestrator]. */
+    val toolRegistry: ToolRegistry by lazy { ToolRegistry.from(amaliaTools.all) }
+
     /**
      * Оркестратор AI-конвейера STT → LLM → TTS.
-     * Реальные движки: Deepgram nova-2, Groq gpt-oss-20b, Fish Audio s2.1-pro.
+     * Реальные движки: Deepgram nova-2, Groq qwen3.8-27b, Fish Audio s2.1-pro.
+     * Поверх LLM — [toolRegistry] с реальным списком инструментов.
      */
     val aiOrchestrator: AIOrchestrator by lazy {
         if (hasLiveKeys) {
@@ -84,21 +127,121 @@ object ServiceLocator {
                 sttEngine = DeepgramSTT(appContext),
                 llmEngine = GroqLLM(),
                 ttsEngine = FishAudioTTS(),
+                registry = toolRegistry,
+                commandExecutor = deviceCommandExecutor,
             )
         } else {
             AIOrchestrator(
                 sttEngine = MockSpeechToTextEngine(),
                 llmEngine = MockLanguageModel(),
                 ttsEngine = MockTextToSpeechEngine(),
+                registry = toolRegistry,
             )
         }
     }
-
-    /** Хаб системных контроллеров (Wi-Fi, BT, яркость, громкость и т.д.). */
-    val systemControllers: SystemControllerHub by lazy { SystemControllerHub(appContext) }
 
     /** Выдан ли прямо сейчас доступ к микрофону. */
     fun hasMicPermission(): Boolean =
         ContextCompat.checkSelfPermission(appContext, Manifest.permission.RECORD_AUDIO) ==
             PackageManager.PERMISSION_GRANTED
+
+    // ── Провайдеры для AmaliaTools ───────────────────────────────────────
+
+    /**
+     * Поиск по истории: возвращает JSON-список заголовков разговоров и
+     * сводку первого подходящего сообщения (≤ 8000 символов на ответ).
+     */
+    private suspend fun queryForHistory(query: String): String {
+        val normalised = query.trim().lowercase()
+        if (normalised.isEmpty()) return "{\"results\":[]}"
+        return try {
+            val all = conversationRepository.conversations.first()
+            val matched = all
+                .filter { conversation ->
+                    conversation.title.lowercase().contains(normalised) ||
+                        conversation.messages.any { it.content.lowercase().contains(normalised) }
+                }
+                .take(8)
+            val arr = JSONArray()
+            matched.forEach { conversation ->
+                val firstUser = conversation.messages
+                    .firstOrNull { it.isFromUser }
+                    ?.content
+                    ?.take(120)
+                    .orEmpty()
+                val lastReply = conversation.messages
+                    .lastOrNull { it.isFromAssistant }
+                    ?.content
+                    ?.take(120)
+                    .orEmpty()
+                arr.put(JSONObject().apply {
+                    put("id", conversation.id)
+                    put("title", conversation.title)
+                    put("first_user_message", firstUser)
+                    put("last_reply", lastReply)
+                    put("message_count", conversation.messages.size)
+                    put("updated_at", conversation.updatedAt)
+                })
+            }
+            JSONObject().put("query", query).put("results", arr).toString()
+        } catch (e: Throwable) {
+            "{\"error\":\"${e.message?.replace("\"", "'") ?: "search failed"}\"}"
+        }
+    }
+
+    private suspend fun recentConversations(limit: Int): String {
+        return try {
+            val all = conversationRepository.conversations.first()
+                .sortedByDescending { it.updatedAt }
+                .take(limit.coerceAtLeast(1))
+            val arr = JSONArray()
+            all.forEach { conversation ->
+                arr.put(JSONObject().apply {
+                    put("id", conversation.id)
+                    put("title", conversation.title)
+                    put("message_count", conversation.messages.size)
+                    put("updated_at", conversation.updatedAt)
+                })
+            }
+            JSONObject().put("count", all.size).put("conversations", arr).toString()
+        } catch (e: Throwable) {
+            "{\"error\":\"${e.message?.replace("\"", "'") ?: "failed"}\"}"
+        }
+    }
+
+    private suspend fun clearAllConversations(): String {
+        return try {
+            val count = conversationRepository.count()
+            conversationRepository.clearAll()
+            JSONObject().put("deleted", count).toString()
+        } catch (e: Throwable) {
+            "{\"error\":\"${e.message?.replace("\"", "'") ?: "failed"}\"}"
+        }
+    }
+
+    private suspend fun applySettingChange(key: String, value: String): String {
+        return when (key) {
+            "language" -> {
+                val language = AppLanguage.fromCode(value)
+                settingsRepository.setLanguage(language)
+                JSONObject()
+                    .put("language_code", language.code)
+                    .put("language_name", language.nativeName)
+                    .toString()
+            }
+            "auto_listen" -> {
+                val on = value.lowercase() in setOf("true", "1", "yes", "on", "вкл")
+                settingsRepository.setAutoListen(on)
+                JSONObject().put("auto_listen", on).toString()
+            }
+            "theme" -> {
+                // Расширение на будущее: темы сохраняются здесь
+                JSONObject().put("theme", value).toString()
+            }
+            else -> JSONObject().put("warning", "unknown_setting_key: $key").toString()
+        }
+    }
+
+    @Suppress("unused")
+    private fun nowId(): String = ChatMessage.newId()
 }

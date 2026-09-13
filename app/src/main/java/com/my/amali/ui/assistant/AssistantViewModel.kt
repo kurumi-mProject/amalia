@@ -17,6 +17,7 @@ import com.my.amali.domain.entity.VoiceState
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.channels.Channel
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
@@ -36,6 +37,10 @@ import kotlinx.coroutines.launch
  * @property replyProgress 0..1 — доля проявленного ответа; 1 = ответ завершён.
  * @property micPermissionRequired true → экран должен запросить RECORD_AUDIO.
  * @property handsFree true → после ответа микрофон включается снова.
+ * @property activeTools список инструментов, выполняющихся прямо сейчас.
+ *   Появляется во время фазы «думаю» и исчезает после возврата результатов.
+ * @property lastToolReports список завершённых инструментов последнего цикла —
+ *   для короткой сводки «что сделала Амалия».
  */
 data class AssistantUiState(
     val voiceState: VoiceState = VoiceState.Idle,
@@ -50,6 +55,8 @@ data class AssistantUiState(
     val suggestions: List<String> = emptyList(),
     val micPermissionRequired: Boolean = false,
     val handsFree: Boolean = false,
+    val activeTools: List<ToolActivity> = emptyList(),
+    val lastToolReports: List<ToolReport> = emptyList(),
 ) {
     /** Идёт активный цикл — кнопка работает как «Стоп». */
     val isBusy: Boolean
@@ -57,6 +64,26 @@ data class AssistantUiState(
             voiceState == VoiceState.Thinking ||
             voiceState == VoiceState.Speaking
 }
+
+/**
+ * Текущий запущенный инструмент — для UI-индикатора во время фазы «думаю».
+ *
+ * @property name имя из реестра (set_wifi, set_brightness…).
+ * @property humanLabel короткая подпись для UI («включаю Wi-Fi»).
+ */
+data class ToolActivity(
+    val name: String,
+    val humanLabel: String,
+)
+
+/**
+ * Результат выполненного инструмента для сводки «что сделано».
+ */
+data class ToolReport(
+    val name: String,
+    val ok: Boolean,
+    val summary: String,
+)
 
 /**
  * ViewModel главного экрана: единственный владелец голосового цикла.
@@ -74,6 +101,8 @@ data class AssistantUiState(
  *     канал оставался открытым и корутина висела навсегда.
  *  5. **Hands-free.** При включённом авто-слушании после ответа микрофон
  *     включается сам — получается настоящий диалог, а не пинг-понг кнопкой.
+ *  6. **Functions AI can call.** `ToolRunning`/`ToolCompleted` события
+ *     проброшены в UI: пользователь видит, что Амалия делает действие.
  */
 class AssistantViewModel(
     private val orchestrator: AIOrchestrator = ServiceLocator.aiOrchestrator,
@@ -189,6 +218,7 @@ class AssistantViewModel(
                 suggestions = DEFAULT_SUGGESTIONS,
                 handsFree = false,
                 micPermissionRequired = false,
+                activeTools = emptyList(),
             )
         }
     }
@@ -259,6 +289,8 @@ class AssistantViewModel(
                 suggestions = ACTIVE_SUGGESTIONS,
                 handsFree = handsFree,
                 micPermissionRequired = false,
+                activeTools = emptyList(),
+                lastToolReports = emptyList(),
             )
         }
 
@@ -325,10 +357,42 @@ class AssistantViewModel(
                             }
                         }
 
+                        is AiResponse.ToolRunning -> _uiState.update { state ->
+                            val label = humanLabelFor(event.toolName, event.arguments)
+                            // Заменяем, если такой же инструмент уже крутится (анти-фликер)
+                            val without = state.activeTools.filter { it.name != event.toolName }
+                            state.copy(
+                                voiceState = VoiceState.Thinking,
+                                activeTools = without + ToolActivity(event.toolName, label),
+                            )
+                        }
+
+                        is AiResponse.ToolCompleted -> _uiState.update { state ->
+                            val summary = if (event.ok) {
+                                humanSuccessSummary(event.toolName, event.output)
+                            } else {
+                                event.errorMessage ?: "не получилось"
+                            }
+                            val newActive = state.activeTools.filter { it.name != event.toolName }
+                            val newReports = state.lastToolReports + ToolReport(
+                                name = event.toolName,
+                                ok = event.ok,
+                                summary = summary,
+                            )
+                            state.copy(
+                                activeTools = newActive,
+                                lastToolReports = newReports.take(MAX_REPORTS),
+                            )
+                        }
+
                         is AiResponse.ReplyDelta -> {
                             replyText = event.fullText
                             _uiState.update {
-                                it.copy(amaliaReply = event.fullText, replyProgress = 1f)
+                                it.copy(
+                                    amaliaReply = event.fullText,
+                                    replyProgress = 1f,
+                                    activeTools = emptyList(),
+                                )
                             }
                         }
 
@@ -349,7 +413,11 @@ class AssistantViewModel(
                         is AiResponse.Finished -> {
                             replyText = event.responseText
                             _uiState.update {
-                                it.copy(amaliaReply = event.responseText, replyProgress = 1f)
+                                it.copy(
+                                    amaliaReply = event.responseText,
+                                    replyProgress = 1f,
+                                    activeTools = emptyList(),
+                                )
                             }
                         }
 
@@ -383,15 +451,13 @@ class AssistantViewModel(
                     )
                 }
             } finally {
-                // Канал закрывается всегда: и при ошибке, и при отмене —
-                // иначе проигрыватель ждал бы данные вечно.
                 audioChannel.close()
             }
 
             playJob.join()
 
             if (failed) {
-                _uiState.update { it.copy(audioLevel = 0f, isSpeaking = false) }
+                _uiState.update { it.copy(audioLevel = 0f, isSpeaking = false, activeTools = emptyList()) }
                 return@launch
             }
 
@@ -404,7 +470,16 @@ class AssistantViewModel(
                     isSpeaking = false,
                     replyProgress = 1f,
                     suggestions = FOLLOW_UP_SUGGESTIONS,
+                    activeTools = emptyList(),
                 )
+            }
+
+            // Прячем сводку tools после паузы — даём пользователю прочитать.
+            if (_uiState.value.lastToolReports.isNotEmpty()) {
+                launch {
+                    delay(TOOL_REPORT_DISPLAY_MS)
+                    _uiState.update { it.copy(lastToolReports = emptyList()) }
+                }
             }
 
             // Hands-free: продолжаем диалог без нажатий.
@@ -456,6 +531,98 @@ class AssistantViewModel(
         }
     }
 
+    // ── Подписи для UI ───────────────────────────────────────────────────
+
+    /**
+     * Превращает имя инструмента + аргументы в короткую русскую подпись для UI.
+     *
+     * Примеры:
+     *   set_wifi({enabled=true}) → "включаю Wi-Fi"
+     *   set_brightness({percent=30}) → "ставлю яркость 30%"
+     *   set_timer({seconds=300}) → "ставлю таймер 5 мин"
+     *   web_search({query="..."}) → "ищу в интернете…"
+     */
+    private fun humanLabelFor(toolName: String, args: Map<String, Any?>): String {
+        fun str(a: Any?): String = a?.toString().orEmpty()
+        return when (toolName) {
+            "set_wifi" -> {
+                val on = (args["enabled"] as? Boolean) == true
+                if (on) "включаю Wi-Fi" else "выключаю Wi-Fi"
+            }
+            "set_bluetooth" -> {
+                val on = (args["enabled"] as? Boolean) == true
+                if (on) "включаю Bluetooth" else "выключаю Bluetooth"
+            }
+            "set_brightness" -> "ставлю яркость ${args["percent"] ?: "?"}%"
+            "set_volume" -> "ставлю громкость ${args["percent"] ?: "?"}%"
+            "set_flashlight" -> {
+                val on = (args["enabled"] as? Boolean) == true
+                if (on) "включаю фонарик" else "выключаю фонарик"
+            }
+            "set_timer" -> {
+                val seconds = (args["seconds"] as? Number)?.toInt() ?: 0
+                if (seconds >= 60) "ставлю таймер на ${seconds / 60} мин"
+                else "ставлю таймер на $seconds сек"
+            }
+            "set_alarm" -> {
+                val time = str(args["time"])
+                if (time.isNotEmpty()) "ставлю будильник на $time" else "ставлю будильник"
+            }
+            "open_app" -> "открываю ${str(args["name"]).ifEmpty { "приложение" }}"
+            "open_settings" -> "открываю настройки"
+            "web_search" -> "ищу «${str(args["query"])}»"
+            "make_call" -> "набираю номер"
+            "send_sms" -> "пишу SMS"
+            "take_photo" -> "открываю камеру"
+            "open_youtube" -> "открываю YouTube"
+            "get_current_time" -> "узнаю время"
+            "get_device_status" -> "проверяю устройство"
+            "get_battery_level" -> "смотрю батарею"
+            "get_location_status" -> "проверяю геолокацию"
+            "get_weather" -> "узнаю погоду"
+            "search_history" -> "ищу в истории"
+            "get_recent_conversations" -> "смотрю историю"
+            "clear_history" -> "очищаю историю"
+            "change_language" -> "меняю язык на ${str(args["language"])}"
+            "toggle_auto_listen" -> {
+                val on = (args["enabled"] as? Boolean) == true
+                if (on) "включаю автослушание" else "выключаю автослушание"
+            }
+            else -> "выполняю $toolName"
+        }
+    }
+
+    /**
+     * Русская сводка результата, которая показывается пользователю
+     * под ответом Амалии.
+     */
+    private fun humanSuccessSummary(toolName: String, output: String): String = when (toolName) {
+        "set_wifi" -> if (output.contains("true")) "Wi-Fi включён" else "Wi-Fi выключен"
+        "set_bluetooth" -> if (output.contains("true")) "Bluetooth включён" else "Bluetooth выключен"
+        "set_brightness" -> "яркость установлена"
+        "set_volume" -> "громкость установлена"
+        "set_flashlight" -> if (output.contains("true")) "фонарик включён" else "фонарик выключен"
+        "set_timer" -> "таймер поставлен"
+        "set_alarm" -> "будильник поставлен"
+        "open_app" -> "приложение открыто"
+        "open_settings" -> "настройки открыты"
+        "web_search" -> "поиск запущен"
+        "make_call" -> "набор открыт"
+        "send_sms" -> "SMS открыт"
+        "take_photo", "open_youtube" -> "готово"
+        "get_current_time" -> "время узнала"
+        "get_device_status" -> "статус проверен"
+        "get_battery_level" -> "батарею посмотрела"
+        "get_location_status" -> "локацию проверила"
+        "get_weather" -> "погоду узнала"
+        "search_history" -> "историю поискала"
+        "get_recent_conversations" -> "историю посмотрела"
+        "clear_history" -> "история очищена"
+        "change_language" -> "язык изменён"
+        "toggle_auto_listen" -> "настройка изменена"
+        else -> "готово"
+    }
+
     private companion object {
         val DEFAULT_SUGGESTIONS = listOf("Привет", "Что ты умеешь?", "Который час?")
         val ACTIVE_SUGGESTIONS = listOf("Стоп")
@@ -473,5 +640,11 @@ class AssistantViewModel(
 
         /** Пауза между ответом и новым слушанием в hands-free режиме. */
         const val HANDS_FREE_GAP_MS = 450L
+
+        /** Сколько последних сводок инструментов держать в UI. */
+        const val MAX_REPORTS = 3
+
+        /** Как долго показывать сводку «что сделано» в UI. */
+        const val TOOL_REPORT_DISPLAY_MS = 5_000L
     }
 }

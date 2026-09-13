@@ -1,6 +1,7 @@
 package com.my.amali.data.model
 
 import kotlinx.serialization.Serializable
+import kotlinx.serialization.Transient
 
 /**
  * A single chat message exchanged with the assistant.
@@ -8,10 +9,16 @@ import kotlinx.serialization.Serializable
  * @property id unique message identifier (UUID string).
  * @property role author of the message.
  * @property content text content of the message.
- * @property content text content of the message.
  * @property timestamp creation time in epoch milliseconds.
  * @property isStreaming true while the assistant is still generating this message;
  *   always false for persisted messages.
+ * @property toolCallId для сообщений роли [MessageRole.TOOL] — id вызова,
+ *   чей результат мы храним. LLM использует его для матчинга результатов
+ *   с запросами; без него tool-результаты попадают в никуда.
+ * @property toolCalls для сообщений роли [MessageRole.ASSISTANT] — список
+ *   вызовов инструментов, которые модель сделала В ЭТОМ сообщении.
+ *   Поле transient: не попадает в персистентную историю, но пробрасывается
+ *   в LLM на следующем раунде multi-turn цикла.
  */
 @Serializable
 data class ChatMessage(
@@ -19,7 +26,10 @@ data class ChatMessage(
     val role: MessageRole,
     val content: String,
     val timestamp: Long,
-    val isStreaming: Boolean = false
+    val isStreaming: Boolean = false,
+    val toolCallId: String? = null,
+    @Transient
+    val toolCalls: List<com.my.amali.data.ai.ToolCall> = emptyList(),
 ) {
     /** Convenience check: the message was written by the user. */
     val isFromUser: Boolean
@@ -29,8 +39,24 @@ data class ChatMessage(
     val isFromAssistant: Boolean
         get() = role == MessageRole.ASSISTANT
 
+    /** Convenience check: the message is a tool-call result for the LLM. */
+    val isToolResult: Boolean
+        get() = role == MessageRole.TOOL
+
+    /** Convenience check: the message references tool calls (multi-turn). */
+    val hasToolCalls: Boolean
+        get() = toolCalls.isNotEmpty()
+
     /** Returns a copy marked as fully received (streaming finished). */
     fun asCompleted(): ChatMessage = copy(isStreaming = false)
+
+    /**
+     * Возвращает копию с прикреплёнными вызовами инструментов и пустым content
+     * (по OpenAI спеке вызовы и текст не смешиваются в одном сообщении: либо
+     * `content`, либо `tool_calls`, но не оба сразу).
+     */
+    fun withToolCalls(calls: List<com.my.amali.data.ai.ToolCall>): ChatMessage =
+        copy(content = "", toolCalls = calls)
 
     companion object {
         /** Creates a new user message with a generated [id] and current [timestamp]. */
@@ -39,7 +65,7 @@ data class ChatMessage(
             role = MessageRole.USER,
             content = content,
             timestamp = System.currentTimeMillis(),
-            isStreaming = false
+            isStreaming = false,
         )
 
         /** Creates a new streaming assistant message placeholder. */
@@ -48,7 +74,7 @@ data class ChatMessage(
             role = MessageRole.ASSISTANT,
             content = "",
             timestamp = System.currentTimeMillis(),
-            isStreaming = true
+            isStreaming = true,
         )
 
         /** Creates a system-level message (e.g. persona instructions). */
@@ -57,7 +83,22 @@ data class ChatMessage(
             role = MessageRole.SYSTEM,
             content = content,
             timestamp = System.currentTimeMillis(),
-            isStreaming = false
+            isStreaming = false,
+        )
+
+        /**
+         * Создаёт tool-result сообщение для отправки LLM.
+         *
+         * @param toolCallId id вызова из [com.my.amali.data.ai.ToolCall.id].
+         * @param content результат в виде строки (как правило JSON).
+         */
+        fun toolResult(toolCallId: String, content: String): ChatMessage = ChatMessage(
+            id = newId(),
+            role = MessageRole.TOOL,
+            content = content,
+            timestamp = System.currentTimeMillis(),
+            isStreaming = false,
+            toolCallId = toolCallId,
         )
 
         /** Generates a fresh UUID string for message ids. */
@@ -65,10 +106,17 @@ data class ChatMessage(
     }
 }
 
-/** Author of a [ChatMessage]. */
+/**
+ * Автор [ChatMessage].
+ *
+ * Расширен [MessageRole.TOOL] для поддержки функции-вызовов:
+ * такие сообщения — это ответы обработчиков инструментов, которые LLM
+ * видит как подтверждение и идёт делать следующий вызов/ответ.
+ */
 @Serializable
 enum class MessageRole {
     USER,
     ASSISTANT,
-    SYSTEM
+    SYSTEM,
+    TOOL,
 }

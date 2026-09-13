@@ -5,9 +5,16 @@ package com.my.amali.data.ai
  * По ним UI ведёт свою машину состояний (волна, подписи, карточки диалога).
  *
  * Типичная последовательность:
- * `Level`* → `PartialTranscript`* → `Transcript` → `Thinking(true)` →
- * `ReplyDelta`* → `Thinking(false)` → `Speaking(true)` → `Audio`* →
+ * `Level`* → `PartialTranscript`* → `Transcript` →
+ * `Thinking(true)` →
+ * [`ToolRunning`* → `ToolCompleted`*]* →
+ * `ReplyDelta`* → `Thinking(false)` →
+ * `Speaking(true)` → `Audio`* →
  * `Speaking(false)` → `Finished`.
+ *
+ * Tool-события между `Thinking(true)` и `ReplyDelta` появляются только если
+ * LLM хочет вызвать устройство/инструменты; для чисто текстового диалога
+ * их нет в потоке.
  */
 sealed interface AiResponse {
 
@@ -22,6 +29,30 @@ sealed interface AiResponse {
 
     /** Вход/выход из фазы размышления модели. */
     data class Thinking(val isThinking: Boolean) : AiResponse
+
+    /**
+     * Инструмент начал исполнение. UI может показать короткий индикатор
+     * (например, «⚙️ выполняю…»), если хочет прозрачности для пользователя.
+     */
+    data class ToolRunning(
+        val toolName: String,
+        val arguments: Map<String, Any?>,
+    ) : AiResponse
+
+    /**
+     * Инструмент отработал.
+     *
+     * @property ok true = инструмент успешно выполнил операцию.
+     * @property output машинно-читаемый результат, который LLM получила в ответ
+     *   (обычно JSON-строка).
+     * @property errorMessage человекочитаемое объяснение ошибки, если [ok] = false.
+     */
+    data class ToolCompleted(
+        val toolName: String,
+        val ok: Boolean,
+        val output: String,
+        val errorMessage: String?,
+    ) : AiResponse
 
     /** Очередной фрагмент ответа модели (дописывается к предыдущим). */
     data class ReplyDelta(val delta: String, val fullText: String) : AiResponse
