@@ -5,6 +5,7 @@ import com.my.amali.data.model.ChatMessage
 import com.my.amali.data.model.MessageRole
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.channelFlow
 import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.flow.flowOn
 import okhttp3.MediaType.Companion.toMediaType
@@ -66,7 +67,7 @@ class GroqLLM : LanguageModel {
         prompt: String,
         history: List<ChatMessage>,
         options: EngineOptions,
-    ): Flow<String> = flow {
+    ): Flow<String> = channelFlow {
         if (API_KEY.isBlank()) {
             throw EngineException("Не задан ключ Groq API. Добавь GROQ_API_KEY в сборку.")
         }
@@ -90,7 +91,7 @@ class GroqLLM : LanguageModel {
             streamDeltaOnly(source) { delta ->
                 if (delta.isNotEmpty()) {
                     emittedAnything = true
-                    emit(delta)
+                    send(delta)
                 }
             }
             if (!emittedAnything) {
@@ -106,7 +107,7 @@ class GroqLLM : LanguageModel {
         tools: List<ToolDefinition>,
         options: EngineOptions,
         alreadyExecutedTools: Set<String>,
-    ): Flow<LLMEvent> = flow {
+    ): Flow<LLMEvent> = channelFlow {
         if (API_KEY.isBlank()) {
             throw EngineException("Не задан ключ Groq API. Добавь GROQ_API_KEY в сборку.")
         }
@@ -137,8 +138,8 @@ class GroqLLM : LanguageModel {
 
             streamDelta(source) { delta ->
                 // 1. Естественный текст (приходит параллельно или вместо)
-                delta.optJSONObject("content")?.optStringOrNull("")?.let { text ->
-                    if (text.isNotEmpty()) emit(LLMEvent.ContentDelta(text))
+                delta.optString("content").takeIf { it.isNotEmpty() }?.let { text ->
+                    send(LLMEvent.ContentDelta(text))
                 }
                 // 2. Tool calls по индексу — аккумулируем аргументы
                 delta.optJSONArray("tool_calls")?.let { calls ->
@@ -166,9 +167,9 @@ class GroqLLM : LanguageModel {
 
             // Эмитим распарсенные tool calls как финализированные события
             streamState.finalize { call ->
-                emit(LLMEvent.ToolCallDetected(call))
+                send(LLMEvent.ToolCallDetected(call))
             }
-            emit(LLMEvent.Completed(finalReason))
+            send(LLMEvent.Completed(finalReason))
         }
     }.flowOn(Dispatchers.IO)
 
@@ -328,24 +329,20 @@ class GroqLLM : LanguageModel {
      * и `[DONE]` маркеры, выполняет [onDelta] для каждого распарсенного
      * `choices[0].delta`.
      */
-    private fun streamDelta(
+    private suspend inline fun streamDelta(
         source: okio.BufferedSource,
-        onDelta: (JSONObject) -> Unit,
+        crossinline onDelta: suspend (JSONObject) -> Unit,
     ) {
         while (true) {
             val line = source.readUtf8Line() ?: break
             if (line.isEmpty() || !line.startsWith(SSE_PREFIX)) continue
             val data = line.removePrefix(SSE_PREFIX).trim()
             if (data == SSE_DONE) break
-            runCatching {
-                val root = JSONObject(data)
-                val choice = root.optJSONArray("choices")?.optJSONObject(0)
-                val err = root.optJSONObject("error")?.optString("message")
-                if (!err.isNullOrBlank()) throw EngineException("Groq: $err")
-                choice?.optJSONObject("delta")?.let(onDelta)
-            }.onFailure { throwable ->
-                if (throwable is EngineException) throw throwable
-            }
+            val root = runCatching { JSONObject(data) }.getOrNull() ?: continue
+            val err = root.optJSONObject("error")?.optString("message")
+            if (!err.isNullOrBlank()) throw EngineException("Groq: $err")
+            root.optJSONArray("choices")?.optJSONObject(0)?.optJSONObject("delta")
+                ?.let { onDelta(it) }
         }
     }
 
@@ -353,9 +350,9 @@ class GroqLLM : LanguageModel {
      * Вариант стримера для текстовой генерации — просто эмитит строковый
      * `content` из `choices[0].delta`.
      */
-    private fun streamDeltaOnly(
+    private suspend inline fun streamDeltaOnly(
         source: okio.BufferedSource,
-        onContent: (String) -> Unit,
+        crossinline onContent: suspend (String) -> Unit,
     ) {
         while (true) {
             val line = source.readUtf8Line() ?: break
@@ -369,7 +366,7 @@ class GroqLLM : LanguageModel {
                 choice?.optJSONObject("delta")
                     ?.optStringOrNull("content")
                     ?.takeIf { it.isNotEmpty() }
-                    ?.let(onContent)
+                    ?.let { onContent(it) }
             }
         }
     }

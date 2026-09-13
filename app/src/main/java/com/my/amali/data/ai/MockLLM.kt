@@ -75,7 +75,9 @@ class MockLanguageModel : LanguageModel {
         // Фаза 1: модель «думает» и хочет вызвать инструменты, которых ещё нет
         // в уже выполненных. Если подходящих нет — сразу даём текстовый ответ.
         val intendedTools = planToolCalls(lowered, tools)
-            .filter { it.first.call.toolName !in executed }
+            .filter { (event, _) ->
+                (event as? LLMEvent.ToolCallDetected)?.call?.toolName !in executed
+            }
         intendedTools.forEach { (event, delayMs) ->
             delay(delayMs)
             emit(event)

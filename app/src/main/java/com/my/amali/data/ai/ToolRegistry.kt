@@ -2,8 +2,6 @@ package com.my.amali.data.ai
 
 import kotlinx.coroutines.CancellationException
 
-import kotlinx.coroutines.CancellationException
-
 /**
  * Реестр инструментов Амалии.
  *
