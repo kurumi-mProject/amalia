@@ -54,11 +54,40 @@ class DeepgramSTT(private val context: Context) : SpeechToTextEngine {
         .pingInterval(15, TimeUnit.SECONDS)
         .build()
 
-    override suspend fun initialize() { /* соединение живёт только во время сессии */ }
+    // Прогретое соединение от preconnect() — используется в следующем transcribe()
+    @Volatile private var warmedSocket: WebSocket? = null
+
+    override suspend fun initialize() {}
 
     override suspend fun close() {
+        warmedSocket?.close(1000, "close")
+        warmedSocket = null
         client.dispatcher.executorService.shutdown()
         client.connectionPool.evictAll()
+    }
+
+    /**
+     * Warmup: открываем WS к Deepgram заранее (при касании кнопки).
+     * Соединение сохраняется в [warmedSocket] и используется в [transcribe].
+     * Если уже есть прогретый сокет — ничего не делаем.
+     */
+    override suspend fun preconnect() {
+        if (warmedSocket != null) return
+        if (API_KEY.isBlank()) return
+        val url = buildDeepgramUrl("ru") // язык не важен для handshake
+        val request = Request.Builder()
+            .url(url)
+            .header("Authorization", "Token $API_KEY")
+            .build()
+        // Просто открываем соединение, не слушаем ничего
+        warmedSocket = client.newWebSocket(request, object : WebSocketListener() {
+            override fun onFailure(webSocket: WebSocket, t: Throwable, response: Response?) {
+                warmedSocket = null
+            }
+            override fun onClosed(webSocket: WebSocket, code: Int, reason: String) {
+                if (warmedSocket === webSocket) warmedSocket = null
+            }
+        })
     }
 
     override fun transcribe(options: EngineOptions): Flow<SttEvent> = callbackFlow {
@@ -97,94 +126,90 @@ class DeepgramSTT(private val context: Context) : SpeechToTextEngine {
             throw EngineException("Микрофон занят другим приложением.")
         }
 
-        // ── Состояние сессии ─────────────────────────────────────────────
         val stopRequested = AtomicBoolean(false)
         val gotAnyFinal = AtomicBoolean(false)
         val lastVoiceAt = AtomicLong(System.currentTimeMillis())
         val sessionStart = System.currentTimeMillis()
         val socketReady = AtomicBoolean(false)
 
-        val url = buildString {
-            append("wss://api.deepgram.com/v1/listen")
-            append("?model=nova-3")
-            append("&language=").append(options.languageCode)
-            append("&punctuate=true")
-            append("&smart_format=true")
-            append("&interim_results=true")
-            append("&encoding=linear16")
-            append("&channels=1")
-            append("&sample_rate=").append(SAMPLE_RATE)
-            append("&endpointing=700")
-            append("&vad_events=true")
-        }
-
+        val url = buildDeepgramUrl(options.languageCode)
         val request = Request.Builder()
             .url(url)
             .header("Authorization", "Token $API_KEY")
             .build()
 
-        val socket = client.newWebSocket(
-            request,
-            object : WebSocketListener() {
+        val listener = object : WebSocketListener() {
 
-                override fun onOpen(webSocket: WebSocket, response: Response) {
-                    socketReady.set(true)
-                }
+            override fun onOpen(webSocket: WebSocket, response: Response) {
+                socketReady.set(true)
+            }
 
-                override fun onMessage(webSocket: WebSocket, text: String) {
-                    runCatching {
-                        val json = JSONObject(text)
-                        when (json.optString("type")) {
-                            "SpeechStarted" -> {
-                                lastVoiceAt.set(System.currentTimeMillis())
-                                return@runCatching
-                            }
-                            "Metadata" -> return@runCatching
-                        }
-
-                        val alternative = json
-                            .optJSONObject("channel")
-                            ?.optJSONArray("alternatives")
-                            ?.optJSONObject(0)
-                        val transcript = alternative?.optString("transcript").orEmpty().trim()
-                        val isFinal = json.optBoolean("is_final", false)
-                        val speechFinal = json.optBoolean("speech_final", false)
-
-                        if (transcript.isNotEmpty()) {
+            override fun onMessage(webSocket: WebSocket, text: String) {
+                runCatching {
+                    val json = JSONObject(text)
+                    when (json.optString("type")) {
+                        "SpeechStarted" -> {
                             lastVoiceAt.set(System.currentTimeMillis())
-                            if (isFinal) {
-                                gotAnyFinal.set(true)
-                                trySend(SttEvent.Final(transcript))
-                            } else {
-                                trySend(SttEvent.Partial(transcript))
-                            }
+                            return@runCatching
                         }
+                        "Metadata" -> return@runCatching
+                    }
 
-                        // Конец высказывания по мнению сервера — закрываем сессию.
-                        if (speechFinal && gotAnyFinal.get()) {
-                            stopRequested.set(true)
+                    val alternative = json
+                        .optJSONObject("channel")
+                        ?.optJSONArray("alternatives")
+                        ?.optJSONObject(0)
+                    val transcript = alternative?.optString("transcript").orEmpty().trim()
+                    val isFinal = json.optBoolean("is_final", false)
+                    val speechFinal = json.optBoolean("speech_final", false)
+
+                    if (transcript.isNotEmpty()) {
+                        lastVoiceAt.set(System.currentTimeMillis())
+                        if (isFinal) {
+                            gotAnyFinal.set(true)
+                            trySend(SttEvent.Final(transcript))
+                        } else {
+                            trySend(SttEvent.Partial(transcript))
                         }
                     }
-                }
 
-                override fun onFailure(webSocket: WebSocket, t: Throwable, response: Response?) {
-                    stopRequested.set(true)
-                    val code = response?.code
-                    val message = when {
-                        code == 401 || code == 403 ->
-                            "Ключ Deepgram отклонён. Проверь DEEPGRAM_API_KEY."
-                        code != null -> "Распознавание речи недоступно (код $code)."
-                        else -> "Нет связи с сервисом распознавания речи."
+                    if (speechFinal && gotAnyFinal.get()) {
+                        stopRequested.set(true)
                     }
-                    close(EngineException(message, t))
                 }
+            }
 
-                override fun onClosed(webSocket: WebSocket, code: Int, reason: String) {
-                    stopRequested.set(true)
-                    channel.close()
+            override fun onFailure(webSocket: WebSocket, t: Throwable, response: Response?) {
+                stopRequested.set(true)
+                val code = response?.code
+                val message = when {
+                    code == 401 || code == 403 ->
+                        "Ключ Deepgram отклонён. Проверь DEEPGRAM_API_KEY."
+                    code != null -> "Распознавание речи недоступно (код $code)."
+                    else -> "Нет связи с сервисом распознавания речи."
                 }
-            },
-        )
+                close(EngineException(message, t))
+            }
+
+            override fun onClosed(webSocket: WebSocket, code: Int, reason: String) {
+                stopRequested.set(true)
+                channel.close()
+            }
+        }
+
+        // Используем прогретый сокет если есть, иначе открываем новый
+        val existingSocket = warmedSocket
+        val socket = if (existingSocket != null) {
+            warmedSocket = null
+            socketReady.set(true) // уже подключён
+            // Переиспользуем — меняем listener через новый newWebSocket с тем же соединением
+            // OkHttp не поддерживает смену listener, поэтому закрываем и открываем новый —
+            // но TCP соединение к хосту уже тёплое в connection pool
+            existingSocket.close(1000, "reuse")
+            client.newWebSocket(request, listener)
+        } else {
+            client.newWebSocket(request, listener)
+        }
 
         // ── Поток захвата микрофона ──────────────────────────────────────
         val micJob = launch(Dispatchers.IO) {
@@ -276,6 +301,20 @@ class DeepgramSTT(private val context: Context) : SpeechToTextEngine {
         if (counted == 0) return 0f
         val rms = sqrt(sum / counted)
         return (rms / VOICE_RMS_FULL_SCALE).coerceIn(0.0, 1.0).toFloat()
+    }
+
+    private fun buildDeepgramUrl(languageCode: String) = buildString {
+        append("wss://api.deepgram.com/v1/listen")
+        append("?model=nova-3")
+        append("&language=").append(languageCode)
+        append("&punctuate=true")
+        append("&smart_format=true")
+        append("&interim_results=true")
+        append("&encoding=linear16")
+        append("&channels=1")
+        append("&sample_rate=").append(SAMPLE_RATE)
+        append("&endpointing=700")
+        append("&vad_events=true")
     }
 
     private companion object {

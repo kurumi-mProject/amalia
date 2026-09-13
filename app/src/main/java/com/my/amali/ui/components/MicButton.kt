@@ -30,6 +30,7 @@ import androidx.compose.material.icons.filled.Stop
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
@@ -72,9 +73,15 @@ fun MicButton(
     modifier: Modifier = Modifier,
     enabled: Boolean = true,
     level: Float = 0f,
+    onPress: () -> Unit = {},
 ) {
     val interaction = remember { MutableInteractionSource() }
     val pressed by interaction.collectIsPressedAsState()
+
+    // Вызываем onPress в момент касания — до отпускания пальца
+    LaunchedEffect(pressed) {
+        if (pressed) onPress()
+    }
 
     val pulse = rememberInfiniteTransition(label = "micPulse")
     val ring by pulse.animateFloat(

@@ -215,6 +215,7 @@ fun AssistantScreen(
                 stateLabel = state.voiceState.label,
                 level = state.audioLevel,
                 onClick = { vm.toggleConversation() },
+                onPress = { vm.warmupStt() },
             )
 
             Spacer(Modifier.height(Spacing.xs))

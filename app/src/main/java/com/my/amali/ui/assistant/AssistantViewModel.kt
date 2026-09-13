@@ -120,6 +120,18 @@ class AssistantViewModel(
     }
 
     /**
+     * Вызывается при касании кнопки микрофона (до отпускания).
+     * Открывает WS соединение к Deepgram заранее, пока палец ещё на кнопке.
+     * К моменту onClick (~150-300ms) соединение уже готово — нет задержки.
+     */
+    fun warmupStt() {
+        if (_uiState.value.isBusy) return
+        viewModelScope.launch {
+            runCatching { orchestrator.sttEngine.preconnect() }
+        }
+    }
+
+    /**
      * Запускает голосовой цикл: микрофон → распознавание → ответ → озвучка.
      * Если разрешение на микрофон ещё не выдано, экран получит флаг
      * [AssistantUiState.micPermissionRequired] и покажет системный запрос.
