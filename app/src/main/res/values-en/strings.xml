@@ -35,6 +35,7 @@
 
     <string name="assistant_idle">online</string>
     <string name="assistant_listening">listening…</string>
+    <string name="assistant_connecting">please wait, connecting…</string>
     <string name="assistant_thinking">thinking…</string>
     <string name="assistant_speaking">speaking…</string>
     <string name="assistant_error">error</string>

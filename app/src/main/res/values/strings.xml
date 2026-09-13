@@ -39,6 +39,7 @@
     <!-- === Ассистент === -->
     <string name="assistant_idle">на связи</string>
     <string name="assistant_listening">слушаю…</string>
+    <string name="assistant_connecting">подождите, подключаюсь…</string>
     <string name="assistant_thinking">думаю…</string>
     <string name="assistant_speaking">говорю…</string>
     <string name="assistant_error">ошибка</string>
