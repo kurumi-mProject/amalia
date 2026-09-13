@@ -412,10 +412,10 @@ private fun WelcomeCard() {
 @Composable
 private fun ListeningCard(text: String) {
     // STT подключается ~1 секунду после нажатия — показываем подсказку
-    var connecting by androidx.compose.runtime.remember { androidx.compose.runtime.mutableStateOf(true) }
+    val connecting = androidx.compose.runtime.remember { androidx.compose.runtime.mutableStateOf(true) }
     LaunchedEffect(Unit) {
         delay(1100)
-        connecting = false
+        connecting.value = false
     }
 
     GlassCard(
@@ -428,7 +428,7 @@ private fun ListeningCard(text: String) {
         )
         Spacer(Modifier.height(Spacing.xs))
         when {
-            connecting -> Text(
+            connecting.value -> Text(
                 text = stringResource(R.string.assistant_connecting),
                 style = MaterialTheme.typography.bodyMedium,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
