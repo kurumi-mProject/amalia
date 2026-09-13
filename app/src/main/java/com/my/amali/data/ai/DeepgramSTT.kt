@@ -106,7 +106,7 @@ class DeepgramSTT(private val context: Context) : SpeechToTextEngine {
 
         val url = buildString {
             append("wss://api.deepgram.com/v1/listen")
-            append("?model=nova-2")
+            append("?model=nova-3")
             append("&language=").append(options.languageCode)
             append("&punctuate=true")
             append("&smart_format=true")
