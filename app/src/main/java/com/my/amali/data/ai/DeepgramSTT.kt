@@ -132,7 +132,9 @@ class DeepgramSTT(private val context: Context) : SpeechToTextEngine {
         val sessionStart = System.currentTimeMillis()
         val socketReady = AtomicBoolean(false)
 
-        val url = buildDeepgramUrl(options.languageCode)        val request = Request.Builder()
+        val url = buildDeepgramUrl(options.languageCode)
+
+        val request = Request.Builder()
             .url(url)
             .header("Authorization", "Token $API_KEY")
             .build()
