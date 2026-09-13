@@ -420,6 +420,8 @@ class AIOrchestrator(
         return ChatMessage(
             id = ChatMessage.newId(),
             role = MessageRole.ASSISTANT,
+            content = extraContent,
+            timestamp = System.currentTimeMillis(),
             toolCalls = calls,
         )
     }

@@ -618,12 +618,13 @@ class AmaliaTools(
         val handler = ToolHandler {
             val bm = context.getSystemService(Context.BATTERY_SERVICE) as BatteryManager
             val level = bm.getIntProperty(BatteryManager.BATTERY_PROPERTY_CAPACITY)
-            val status = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
-                bm.getIntProperty(BatteryManager.BATTERY_PROPERTY_STATUS)
-            } else 0
+            val status = bm.getIntProperty(BatteryManager.BATTERY_PROPERTY_STATUS)
             val charging = status == BatteryManager.BATTERY_STATUS_CHARGING ||
                 status == BatteryManager.BATTERY_STATUS_FULL
-            val plugged = bm.getIntProperty(BatteryManager.BATTERY_PROPERTY_PLUGGED)
+            // BATTERY_PROPERTY_PLUGGED не существует — читаем через sticky broadcast
+            val ifilter = android.content.IntentFilter(android.content.Intent.ACTION_BATTERY_CHANGED)
+            val batteryStatus = context.registerReceiver(null, ifilter)
+            val plugged = batteryStatus?.getIntExtra(android.os.BatteryManager.EXTRA_PLUGGED, 0) ?: 0
             val chargingSource = when (plugged) {
                 BatteryManager.BATTERY_PLUGGED_AC -> "AC"
                 BatteryManager.BATTERY_PLUGGED_USB -> "USB"

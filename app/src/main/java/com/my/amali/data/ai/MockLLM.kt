@@ -106,7 +106,7 @@ class MockLanguageModel : LanguageModel {
     private fun planToolCalls(
         prompt: String,
         tools: List<ToolDefinition>,
-    ): List<Pair<LLMEvent.ToolCallDetected, Long>> {
+    ): List<Pair<LLMEvent, Long>> {
         val availableNames = tools.map { it.name }.toSet()
         val actions = mutableListOf<Pair<LLMEvent, Long>>()
 
@@ -416,6 +416,7 @@ class MockLanguageModel : LanguageModel {
     private companion object {
         const val WORD_DELAY_MS = 60L
         const val WORD_DELAY_JITTER_MS = 60L
+        const val FINAL_REPLY_DELAY_MS = 120L
         const val TOOL_RESULT_WAIT_MS = 350L
         const val WIFI_DELAY_MS = 200L
         const val BT_DELAY_MS = 220L

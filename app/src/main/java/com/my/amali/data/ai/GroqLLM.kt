@@ -328,7 +328,7 @@ class GroqLLM : LanguageModel {
      * и `[DONE]` маркеры, выполняет [onDelta] для каждого распарсенного
      * `choices[0].delta`.
      */
-    private suspend fun streamDelta(
+    private fun streamDelta(
         source: okio.BufferedSource,
         onDelta: (JSONObject) -> Unit,
     ) {
@@ -353,7 +353,7 @@ class GroqLLM : LanguageModel {
      * Вариант стримера для текстовой генерации — просто эмитит строковый
      * `content` из `choices[0].delta`.
      */
-    private suspend fun streamDeltaOnly(
+    private fun streamDeltaOnly(
         source: okio.BufferedSource,
         onContent: (String) -> Unit,
     ) {
@@ -380,7 +380,7 @@ class GroqLLM : LanguageModel {
      * OpenAI/Groq шлют финальный фрейм ПОСЛЕ всех дельт: `delta` пустое,
      * но в `choices[0].finish_reason` стоит `"stop"`, `"tool_calls"` и т.д.
      */
-    private suspend fun streamFinalFrame(source: okio.BufferedSource): JSONObject? {
+    private fun streamFinalFrame(source: okio.BufferedSource): JSONObject? {
         while (true) {
             val line = source.readUtf8Line() ?: return null
             if (line.isEmpty() || !line.startsWith(SSE_PREFIX)) continue

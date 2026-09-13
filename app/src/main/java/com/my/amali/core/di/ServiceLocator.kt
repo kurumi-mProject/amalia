@@ -17,7 +17,7 @@ import com.my.amali.data.ai.MockLanguageModel
 import com.my.amali.data.ai.MockSpeechToTextEngine
 import com.my.amali.data.ai.MockTextToSpeechEngine
 import com.my.amali.data.ai.ToolRegistry
-import com.my.amali.data.ai.functions.AmaliaTools
+import com.my.amali.data.ai.AmaliaTools
 import com.my.amali.data.model.ChatMessage
 import com.my.amali.data.repository.ConversationRepository
 import com.my.amali.data.repository.SettingsRepository
@@ -52,16 +52,16 @@ object ServiceLocator {
         }
         // Подключаем «мосты» от инструментов к репозиториям. Раньше этого
         // делать нельзя — репозитории ленивые и зависят от appContext.
-        amaliaTools.searchHistoryProvider = { query ->
+        amaliaTools.searchHistoryProvider = { query: String ->
             queryForHistory(query)
         }
-        amaliaTools.recentConversationsProvider = { limit ->
+        amaliaTools.recentConversationsProvider = { limit: Int ->
             recentConversations(limit)
         }
         amaliaTools.clearHistoryProvider = {
             clearAllConversations()
         }
-        amaliaTools.settingsChangeProvider = { key, value ->
+        amaliaTools.settingsChangeProvider = { key: String, value: String ->
             applySettingChange(key, value)
         }
     }
