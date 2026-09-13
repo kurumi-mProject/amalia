@@ -106,7 +106,7 @@ class FishAudioTTS : TextToSpeechEngine {
     private companion object {
         val API_KEY: String get() = BuildConfig.FISH_AUDIO_API_KEY
         const val HTTP_ENDPOINT = "https://api.fish.audio/v1/tts"
-        const val MODEL = "speech-1.5"
+        const val MODEL = "s2.1-pro-free"
         const val REFERENCE_ID = "096d410e860346a7a73762d557a290d7"
         const val SAMPLE_RATE = 24_000 // PCM 24кГц 16-bit LE mono
 
