@@ -650,31 +650,26 @@ class AssistantViewModel(
                     when (msg.role) {
                         MessageRole.USER -> append("Пользователь: ${msg.content}\n")
                         MessageRole.ASSISTANT -> append("Ассистент: ${msg.content}\n")
-                        else -> {} // system/tool пропускаем
+                        else -> {}
                     }
                 }
             }
-            
-            val summaryRequest = orchestrator.llm.streamText(
-                history = emptyList(),
-                prompt = prompt,
-                options = EngineOptions.from(settings.value)
-            )
-            
+
             val collected = StringBuilder()
             runCatching {
-                summaryRequest.collect { event ->
-                    if (event is LLMEvent.ContentDelta) {
-                        collected.append(event.delta)
-                    }
+                orchestrator.llmEngine.generateResponse(
+                    prompt = prompt,
+                    history = emptyList(),
+                    options = EngineOptions.from(settings.value),
+                ).collect { delta ->
+                    collected.append(delta)
                 }
             }
-            
+
             val newSummary = collected.toString().trim()
             if (newSummary.isNotBlank()) {
-                // Если уже было резюме — объединяем старое + новое
                 conversationSummary = if (conversationSummary != null) {
-                    "$conversationSummary $newSummary"
+                    "${conversationSummary}\n$newSummary"
                 } else {
                     newSummary
                 }
