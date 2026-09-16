@@ -1,17 +1,13 @@
 package com.my.amali.data.ai
 
-import android.app.AlarmManager
 import android.app.SearchManager
 import android.content.Context
 import android.content.Intent
 import android.hardware.camera2.CameraManager
-import android.media.AudioManager
 import android.os.BatteryManager
-import android.os.Build
 import android.provider.AlarmClock
 import android.provider.MediaStore
 import android.provider.Settings as SystemSettings
-import com.my.amali.system.DeviceCommandExecutor
 import com.my.amali.system.SystemControllerHub
 import java.time.LocalDateTime
 import java.time.LocalTime
@@ -20,9 +16,10 @@ import java.time.format.DateTimeFormatter
 /**
  * Набор «рук» Амалии — конкретных инструментов, которые она может вызвать.
  *
- * Каждая функция — это пара (определение для LLM, обработчик для рантайма).
- * Определение содержит имя, описание и JSON Schema параметров; описание
- * критично: LLM опирается на него, решая, когда вызывать инструмент.
+ * Каждый инструмент — это [AmaliaTool] (определение для LLM + обработчик);
+ * возвращает [ToolOutcome], а не [ToolResult], потому что идентификатор
+ * вызова подставляет [ToolRegistry] и делать это в обработчиках запрещено
+ * (раньше там по ошибке попадало имя инструмента, и Groq отвечал 400).
  *
  * ## Персона инструментов
  *
@@ -34,11 +31,15 @@ import java.time.format.DateTimeFormatter
 class AmaliaTools(
     private val context: Context,
     private val hub: SystemControllerHub,
-    private val commandExecutor: DeviceCommandExecutor,
 ) {
 
-    /** Все инструменты, которые видит LLM. Имена уникальны. */
-    val all: List<Pair<ToolDefinition, ToolHandler>> = listOf(
+    /**
+     * Все инструменты, которые видит LLM.
+     *
+     * Имена уникальны — [ToolRegistry.of] отбрасывает дубликаты, но лучше
+     * до такого не доводить: модель не узнает, какой инструмент выиграл.
+     */
+    val all: List<AmaliaTool> = listOf(
         // ── Устройство: Wi-Fi / Bluetooth / яркость / громкость ──────────
         setWifi(),
         setBluetooth(),
@@ -60,7 +61,6 @@ class AmaliaTools(
         // ── Мультимедиа ────────────────────────────────────────────────────
         takePhoto(),
         openYouTube(),
-        openCamera(),
 
         // ── Информация для LLM ───────────────────────────────────────────
         getCurrentTime(),
@@ -80,14 +80,39 @@ class AmaliaTools(
     )
 
     // ════════════════════════════════════════════════════════════════════
+    //  Мосты к репозиториям (подключаются в ServiceLocator.init)
+    // ════════════════════════════════════════════════════════════════════
+
+    /**
+     * Поиск по прошлым разговорам. Возвращает JSON-строку ≤ 8000 символов.
+     * [ServiceLocator] подключает эту лямбду после своей инициализации,
+     * потому что репозитории — lazy и зависят от appContext.
+     */
+    @Volatile
+    var searchHistoryProvider: (suspend (String) -> String)? = null
+
+    /** Сводка N последних разговоров. */
+    @Volatile
+    var recentConversationsProvider: (suspend (Int) -> String)? = null
+
+    /** Полная очистка истории. Возвращает JSON со счётчиком удалённых. */
+    @Volatile
+    var clearHistoryProvider: (suspend () -> String)? = null
+
+    /** Применение настройки (язык / автослушать / тема). */
+    @Volatile
+    var settingsChangeProvider: (suspend (String, String) -> String)? = null
+
+    // ════════════════════════════════════════════════════════════════════
     //  Устройство: Wi-Fi / Bluetooth / яркость / громкость
     // ════════════════════════════════════════════════════════════════════
 
-    private fun setWifi(): Pair<ToolDefinition, ToolHandler> {
+    private fun setWifi(): AmaliaTool {
         val def = ToolDefinition(
             name = "set_wifi",
             description = "Включает или выключает Wi-Fi на устройстве. " +
-                "На Android 13+ прямой переключатель закрыт системой — покажет системный экран.",
+                "На Android 13+ прямой переключатель закрыт системой — " +
+                "вернёт ошибку с явной причиной, чтобы Амалия открыла системный экран.",
             parameters = listOf(
                 ToolParameter(
                     name = "enabled",
@@ -97,26 +122,26 @@ class AmaliaTools(
             ),
         )
         val handler = ToolHandler { args ->
-            val on = ToolArgs.bool(args, "enabled")
+            val on = args.bool("enabled")
             val ok = hub.setWifiEnabled(on)
             if (ok) {
-                ToolResult(def.name, def.name, ok = true, output = """{"wifi":${if (on) "true" else "false"}}""")
+                ToolOutcome.json("wifi" to on, "source" to "system")
             } else {
-                ToolResult(
-                    def.name, def.name, ok = false,
-                    output = "",
-                    errorMessage = "Wi-Fi нельзя переключить напрямую (Android 13+ требует системный экран).",
+                ToolOutcome.failed(
+                    "Wi-Fi нельзя переключить напрямую на этом устройстве " +
+                        "(Android 13+ требует системный экран).",
                 )
             }
         }
-        return def to handler
+        return AmaliaTool(def, handler)
     }
 
-    private fun setBluetooth(): Pair<ToolDefinition, ToolHandler> {
+    private fun setBluetooth(): AmaliaTool {
         val def = ToolDefinition(
             name = "set_bluetooth",
             description = "Включает или выключает Bluetooth. " +
-                "На Android 12+ требует системный экран.",
+                "На Android 12+ прямой переключатель закрыт — " +
+                "вернёт ошибку с явной причиной.",
             parameters = listOf(
                 ToolParameter(
                     name = "enabled",
@@ -126,61 +151,61 @@ class AmaliaTools(
             ),
         )
         val handler = ToolHandler { args ->
-            val on = ToolArgs.bool(args, "enabled")
+            val on = args.bool("enabled")
             val ok = hub.setBluetoothEnabled(on)
             if (ok) {
-                ToolResult(def.name, def.name, ok = true, output = """{"bluetooth":${if (on) "true" else "false"}}""")
+                ToolOutcome.json("bluetooth" to on, "source" to "system")
             } else {
-                ToolResult(
-                    def.name, def.name, ok = false,
-                    output = "",
-                    errorMessage = "Bluetooth нельзя переключить напрямую (Android 12+ требует системный экран).",
+                ToolOutcome.failed(
+                    "Bluetooth нельзя переключить напрямую на этом устройстве " +
+                        "(Android 12+ требует системный экран).",
                 )
             }
         }
-        return def to handler
+        return AmaliaTool(def, handler)
     }
 
-    private fun setBrightness(): Pair<ToolDefinition, ToolHandler> {
+    private fun setBrightness(): AmaliaTool {
         val def = ToolDefinition(
             name = "set_brightness",
             description = "Устанавливает яркость экрана в процентах 0..100. " +
-                "Требует разрешения WRITE_SETTINGS — если его нет, вернёт ошибку.",
+                "Требует разрешения WRITE_SETTINGS — если его нет, " +
+                "вернёт ошибку и откроет системный экран.",
             parameters = listOf(
                 ToolParameter(
                     name = "percent",
                     type = ToolParameter.JsonType.INTEGER,
-                    description = "Уровень яркости от 0 до 100 (0 = почти темно, 100 = максимум).",
+                    description = "Уровень яркости 0..100 (0 = почти темно, 100 = максимум).",
                     min = 0.0, max = 100.0,
                 ),
             ),
         )
         val handler = ToolHandler { args ->
-            val pct = ToolArgs.int(args, "percent", default = 50).coerceIn(0, 100)
+            val pct = args.int("percent", default = 50).coerceIn(0, 100)
             if (!hub.canWriteBrightness()) {
-                // Открываем системный экран разрешения и сообщаем модели, что
-                // она должна попросить пользователя выдать доступ вручную.
                 hub.openBrightnessSettingsScreen()
-                return@ToolHandler ToolResult(
-                    def.name, def.name, ok = false, output = "",
-                    errorMessage = "WRITE_SETTINGS не выдан — открыла системный экран настроек.",
+                return@ToolHandler ToolOutcome.failed(
+                    "WRITE_SETTINGS не выдан — открыла системный экран яркости, " +
+                        "попроси пользователя дать доступ «Изменять системные настройки».",
                 )
             }
             val actualLevel = (pct * 255) / 100
             val granted = hub.setBrightness(actualLevel)
-            ToolResult(
-                def.name, def.name, ok = granted,
-                output = """{"brightness_percent":$pct,"system_level":$actualLevel}""",
-                errorMessage = if (granted) null else "WRITE_SETTINGS не выдан.",
+            ToolOutcome.of(
+                ok = granted,
+                reasonIfFailed = "WRITE_SETTINGS отозван системой.",
+                "brightness_percent" to pct,
+                "system_level" to actualLevel,
             )
         }
-        return def to handler
+        return AmaliaTool(def, handler)
     }
 
-    private fun setVolume(): Pair<ToolDefinition, ToolHandler> {
+    private fun setVolume(): AmaliaTool {
         val def = ToolDefinition(
             name = "set_volume",
-            description = "Устанавливает громкость мультимедиа в процентах 0..100.",
+            description = "Устанавливает громкость мультимедиа в процентах 0..100. " +
+                "Возвращает реально установленный уровень, чтобы модель не выдумывала.",
             parameters = listOf(
                 ToolParameter(
                     name = "percent",
@@ -191,27 +216,27 @@ class AmaliaTools(
             ),
         )
         val handler = ToolHandler { args ->
-            val pct = ToolArgs.int(args, "percent", default = 50).coerceIn(0, 100)
+            val pct = args.int("percent", default = 50).coerceIn(0, 100)
             val maxVol = hub.mediaVolumeMax()
-            val applied = hub.setVolume((pct * maxVol) / 100)
-            // Возвращаем фактически установленный уровень, чтобы LLM не выдумывала.
-            ToolResult(
-                def.name, def.name, ok = true,
-                output = """{"volume_percent":$pct,"system_level":$applied,"max":$maxVol}""",
+            val applied = hub.setVolume((pct * maxVol) / 100).coerceAtMost(maxVol)
+            ToolOutcome.json(
+                "volume_percent" to pct,
+                "system_level" to applied,
+                "max" to maxVol,
             )
         }
-        return def to handler
+        return AmaliaTool(def, handler)
     }
 
     // ════════════════════════════════════════════════════════════════════
     //  Устройство: фонарик / таймер / будильник
     // ════════════════════════════════════════════════════════════════════
 
-    private fun setFlashlight(): Pair<ToolDefinition, ToolHandler> {
+    private fun setFlashlight(): AmaliaTool {
         val def = ToolDefinition(
             name = "set_flashlight",
             description = "Включает или выключает фонарик устройства. " +
-                "Требует разрешения CAMERA, если система запросит.",
+                "На устройствах без вспышки вернёт ошибку.",
             parameters = listOf(
                 ToolParameter(
                     name = "enabled",
@@ -221,27 +246,27 @@ class AmaliaTools(
             ),
         )
         val handler = ToolHandler { args ->
-            val on = ToolArgs.bool(args, "enabled")
-            val result = runCatching {
+            val on = args.bool("enabled")
+            val failure = runCatching {
                 val cm = context.getSystemService(Context.CAMERA_SERVICE) as CameraManager
                 val cameraId = cm.cameraIdList.firstOrNull()
                     ?: throw IllegalStateException("на устройстве нет камеры с фонариком")
                 cm.setTorchMode(cameraId, on)
                 true
             }
-            if (result.getOrDefault(false)) {
-                ToolResult(def.name, def.name, ok = true, output = """{"flashlight":${if (on) "true" else "false"}}""")
+            if (failure.getOrDefault(false)) {
+                ToolOutcome.json("flashlight" to on)
             } else {
-                ToolResult(
-                    def.name, def.name, ok = false, output = "",
-                    errorMessage = "Не удалось переключить фонарик: ${result.exceptionOrNull()?.message}",
+                ToolOutcome.failed(
+                    "Не удалось переключить фонарик: " +
+                        (failure.exceptionOrNull()?.message ?: "неизвестная причина"),
                 )
             }
         }
-        return def to handler
+        return AmaliaTool(def, handler)
     }
 
-    private fun setTimer(): Pair<ToolDefinition, ToolHandler> {
+    private fun setTimer(): AmaliaTool {
         val def = ToolDefinition(
             name = "set_timer",
             description = "Ставит таймер обратного отсчёта. " +
@@ -256,28 +281,25 @@ class AmaliaTools(
             ),
         )
         val handler = ToolHandler { args ->
-            val seconds = ToolArgs.int(args, "seconds", default = 60).coerceAtLeast(1)
+            val seconds = args.int("seconds", default = 60).coerceAtLeast(1)
             val intent = Intent(AlarmClock.ACTION_SET_TIMER)
                 .putExtra(AlarmClock.EXTRA_LENGTH, seconds)
                 .putExtra(AlarmClock.EXTRA_SKIP_UI, true)
                 .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
             val launched = runCatching { context.startActivity(intent) }.isSuccess
             if (launched) {
-                ToolResult(
-                    def.name, def.name, ok = true,
-                    output = """{"timer_seconds":$seconds,"minutes":${seconds / 60}}""",
+                ToolOutcome.json(
+                    "timer_seconds" to seconds,
+                    "minutes" to seconds / 60,
                 )
             } else {
-                ToolResult(
-                    def.name, def.name, ok = false, output = "",
-                    errorMessage = "Не удалось открыть приложение таймера.",
-                )
+                ToolOutcome.failed("Не удалось открыть приложение таймера.")
             }
         }
-        return def to handler
+        return AmaliaTool(def, handler)
     }
 
-    private fun setAlarm(): Pair<ToolDefinition, ToolHandler> {
+    private fun setAlarm(): AmaliaTool {
         val def = ToolDefinition(
             name = "set_alarm",
             description = "Ставит будильник на указанное время. " +
@@ -286,12 +308,13 @@ class AmaliaTools(
                 ToolParameter(
                     name = "time",
                     type = ToolParameter.JsonType.STRING,
-                    description = "Время будильника в формате 'HH:mm' (например, '07:30' или '22:15').",
+                    description = "Время будильника в формате 'HH:mm' " +
+                        "(например, '07:30' или '22:15').",
                 ),
             ),
         )
         val handler = ToolHandler { args ->
-            val raw = ToolArgs.string(args, "time", default = "07:00")
+            val raw = args.string("time", default = "07:00").trim()
             val parts = raw.split(":").mapNotNull { it.toIntOrNull() }
             val hour = parts.getOrElse(0) { 7 }.coerceIn(0, 23)
             val minute = parts.getOrElse(1) { 0 }.coerceIn(0, 59)
@@ -301,99 +324,107 @@ class AmaliaTools(
                 .putExtra(AlarmClock.EXTRA_SKIP_UI, true)
                 .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
             val launched = runCatching { context.startActivity(intent) }.isSuccess
-            if (launched) {
-                val now = LocalDateTime.now()
-                val alarmTime = now.toLocalDate().atTime(hour, minute)
-                val deltaMin = if (alarmTime.isAfter(now)) {
-                    java.time.Duration.between(now, alarmTime).toMinutes()
-                } else {
-                    java.time.Duration.between(now, alarmTime.plusDays(1)).toMinutes()
-                }
-                ToolResult(
-                    def.name, def.name, ok = true,
-                    output = """{"alarm_time":"${"%02d:%02d".format(hour, minute)}","minutes_until":$deltaMin}""",
-                )
-            } else {
-                ToolResult(
-                    def.name, def.name, ok = false, output = "",
-                    errorMessage = "Не удалось открыть приложение будильника.",
-                )
+            if (!launched) {
+                return@ToolHandler ToolOutcome.failed("Не удалось открыть приложение будильника.")
             }
+            val now = LocalDateTime.now()
+            val alarmTime = now.toLocalDate().atTime(hour, minute)
+            val deltaMin = if (alarmTime.isAfter(now)) {
+                java.time.Duration.between(now, alarmTime).toMinutes()
+            } else {
+                java.time.Duration.between(now, alarmTime.plusDays(1)).toMinutes()
+            }
+            ToolOutcome.json(
+                "alarm_time" to "%02d:%02d".format(hour, minute),
+                "minutes_until" to deltaMin,
+            )
         }
-        return def to handler
+        return AmaliaTool(def, handler)
     }
 
     // ════════════════════════════════════════════════════════════════════
     //  Системные действия: открыть / найти / позвонить / написать
     // ════════════════════════════════════════════════════════════════════
 
-    private fun openApp(): Pair<ToolDefinition, ToolHandler> {
+    private fun openApp(): AmaliaTool {
         val def = ToolDefinition(
             name = "open_app",
             description = "Открывает установленное приложение по имени или пакету. " +
-                "Если точного названия нет, можно передать пакет (например 'com.android.chrome').",
+                "Если точного названия нет, можно передать пакет " +
+                "(например 'com.android.chrome').",
             parameters = listOf(
                 ToolParameter(
                     name = "name",
                     type = ToolParameter.JsonType.STRING,
-                    description = "Имя приложения ('YouTube', 'Chrome') или его пакет ('com.google.android.youtube'). " +
-                        "Если передано имя — выбирается наиболее вероятный пакет.",
+                    description = "Имя приложения ('YouTube', 'Chrome') или его пакет " +
+                        "('com.google.android.youtube'). Если передано имя — " +
+                        "выбирается наиболее вероятный пакет из локального каталога.",
                 ),
             ),
         )
         val apps = AppCatalog.index(context.packageManager)
         val handler = ToolHandler { args ->
-            val name = ToolArgs.string(args, "name").trim()
+            val name = args.string("name").trim()
             if (name.isEmpty()) {
-                return@ToolHandler ToolResult(
-                    def.name, def.name, ok = false, output = "",
-                    errorMessage = "Не передано имя приложения.",
-                )
+                return@ToolHandler ToolOutcome.failed("Не передано имя приложения.")
             }
             val resolved = apps.resolve(name)
             if (resolved == null) {
-                return@ToolHandler ToolResult(
-                    def.name, def.name, ok = false, output = "",
-                    errorMessage = "Не нашла приложение '$name' на устройстве.",
+                return@ToolHandler ToolOutcome.failed(
+                    "Не нашла приложение '$name' на устройстве.",
                 )
             }
-            val intent = context.packageManager.getLaunchIntentForPackage(resolved.packageName)
+            val launchIntent = context.packageManager
+                .getLaunchIntentForPackage(resolved.packageName)
                 ?.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-                ?: Intent(Intent.ACTION_VIEW, android.net.Uri.parse("market://details?id=${resolved.packageName}"))
-                    .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-            val launched = runCatching { context.startActivity(intent) }.isSuccess
-            if (launched) {
-                ToolResult(
-                    def.name, def.name, ok = true,
-                    output = """{"package":"${resolved.packageName}","label":"${resolved.label.replace("\"", "'")}"}""",
+            val safeLaunch = launchIntent != null &&
+                runCatching { context.startActivity(launchIntent) }.isSuccess
+            if (safeLaunch) {
+                ToolOutcome.json(
+                    "package" to resolved.packageName,
+                    "label" to resolved.label,
                 )
             } else {
-                ToolResult(
-                    def.name, def.name, ok = false, output = "",
-                    errorMessage = "Не удалось запустить '${resolved.label}'.",
-                )
+                // Fallback в market — приложение существует, но не запускается напрямую
+                val marketIntent = Intent(
+                    Intent.ACTION_VIEW,
+                    android.net.Uri.parse("market://details?id=${resolved.packageName}"),
+                ).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                val marketOk = runCatching { context.startActivity(marketIntent) }.isSuccess
+                if (marketOk) {
+                    ToolOutcome.json(
+                        "package" to resolved.packageName,
+                        "label" to resolved.label,
+                        "fallback" to "play_market",
+                    )
+                } else {
+                    ToolOutcome.failed("Не удалось запустить '${resolved.label}'.")
+                }
             }
         }
-        return def to handler
+        return AmaliaTool(def, handler)
     }
 
-    private fun openSettings(): Pair<ToolDefinition, ToolHandler> {
+    private fun openSettings(): AmaliaTool {
         val def = ToolDefinition(
             name = "open_settings",
             description = "Открывает системный экран настроек. " +
-                "Можно указать конкретную секцию ('display', 'sound', 'apps').",
+                "Можно указать конкретную секцию ('display', 'sound', 'apps'…).",
             parameters = listOf(
                 ToolParameter(
                     name = "section",
                     type = ToolParameter.JsonType.STRING,
-                    description = "Опциональная секция: display / sound / apps / network / privacy / location.",
+                    description = "Опциональная секция: display / sound / apps / network / privacy / location / all.",
                     required = false,
-                    enumValues = listOf("display", "sound", "apps", "network", "privacy", "location", "all"),
+                    enumValues = listOf(
+                        "display", "sound", "apps", "network", "privacy",
+                        "location", "all",
+                    ),
                 ),
             ),
         )
         val handler = ToolHandler { args ->
-            val section = ToolArgs.string(args, "section").lowercase()
+            val section = args.string("section").lowercase()
             val action = when (section) {
                 "display" -> SystemSettings.ACTION_DISPLAY_SETTINGS
                 "sound" -> SystemSettings.ACTION_SOUND_SETTINGS
@@ -405,16 +436,16 @@ class AmaliaTools(
             }
             val intent = Intent(action).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
             val launched = runCatching { context.startActivity(intent) }.isSuccess
-            ToolResult(
-                def.name, def.name, ok = launched,
-                output = """{"section":"${if (section.isEmpty()) "all" else section}"}""",
-                errorMessage = if (launched) null else "Не удалось открыть настройки.",
-            )
+            if (launched) {
+                ToolOutcome.json("section" to if (section.isEmpty()) "all" else section)
+            } else {
+                ToolOutcome.failed("Не удалось открыть настройки.")
+            }
         }
-        return def to handler
+        return AmaliaTool(def, handler)
     }
 
-    private fun webSearch(): Pair<ToolDefinition, ToolHandler> {
+    private fun webSearch(): AmaliaTool {
         val def = ToolDefinition(
             name = "web_search",
             description = "Запускает системный веб-поиск по запросу. " +
@@ -428,32 +459,29 @@ class AmaliaTools(
             ),
         )
         val handler = ToolHandler { args ->
-            val query = ToolArgs.string(args, "query").trim()
+            val query = args.string("query").trim()
             if (query.isEmpty()) {
-                return@ToolHandler ToolResult(
-                    def.name, def.name, ok = false, output = "",
-                    errorMessage = "Пустой поисковый запрос.",
-                )
+                return@ToolHandler ToolOutcome.failed("Пустой поисковый запрос.")
             }
             val intent = Intent(Intent.ACTION_WEB_SEARCH)
                 .putExtra(SearchManager.QUERY, query)
                 .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
             val launched = runCatching { context.startActivity(intent) }.isSuccess
             if (launched) {
-                ToolResult(def.name, def.name, ok = true, output = """{"query":"${query.replace("\"", "'")}"}""")
+                ToolOutcome.json("query" to query)
             } else {
-                ToolResult(def.name, def.name, ok = false, output = "",
-                    errorMessage = "Не удалось запустить поиск.")
+                ToolOutcome.failed("Не удалось запустить поиск.")
             }
         }
-        return def to handler
+        return AmaliaTool(def, handler)
     }
 
-    private fun makePhoneCall(): Pair<ToolDefinition, ToolHandler> {
+    private fun makePhoneCall(): AmaliaTool {
         val def = ToolDefinition(
             name = "make_call",
             description = "Открывает номеронабиратель с уже набранным номером. " +
-                "Прямой звонок требует CALL_PHONE; мы ограничиваемся диалогом набора.",
+                "Прямой звонок требует CALL_PHONE; мы ограничиваемся диалогом набора " +
+                "— пользователь сам нажмёт трубку.",
             parameters = listOf(
                 ToolParameter(
                     name = "phone_number",
@@ -463,29 +491,27 @@ class AmaliaTools(
             ),
         )
         val handler = ToolHandler { args ->
-            val raw = ToolArgs.string(args, "phone_number").trim()
+            val raw = args.string("phone_number").trim()
             if (raw.isEmpty() || raw.length < 3) {
-                return@ToolHandler ToolResult(
-                    def.name, def.name, ok = false, output = "",
-                    errorMessage = "Не похоже на телефонный номер.",
-                )
+                return@ToolHandler ToolOutcome.failed("Не похоже на телефонный номер.")
             }
             val intent = Intent(Intent.ACTION_DIAL, android.net.Uri.parse("tel:$raw"))
                 .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
             val launched = runCatching { context.startActivity(intent) }.isSuccess
-            ToolResult(
-                def.name, def.name, ok = launched,
-                output = """{"phone_number":"$raw","mode":"dial"}""",
-                errorMessage = if (launched) null else "Не удалось открыть набор номера.",
-            )
+            if (launched) {
+                ToolOutcome.json("phone_number" to raw, "mode" to "dial")
+            } else {
+                ToolOutcome.failed("Не удалось открыть набор номера.")
+            }
         }
-        return def to handler
+        return AmaliaTool(def, handler)
     }
 
-    private fun sendSms(): Pair<ToolDefinition, ToolHandler> {
+    private fun sendSms(): AmaliaTool {
         val def = ToolDefinition(
             name = "send_sms",
-            description = "Открывает приложение SMS с предзаполненным номером (опционально) и текстом.",
+            description = "Открывает приложение SMS с предзаполненным номером " +
+                "(опционально) и текстом.",
             parameters = listOf(
                 ToolParameter(
                     name = "phone_number",
@@ -502,27 +528,34 @@ class AmaliaTools(
             ),
         )
         val handler = ToolHandler { args ->
-            val phone = ToolArgs.string(args, "phone_number")
-            val text = ToolArgs.string(args, "text")
-            val uri = if (phone.isNotBlank()) android.net.Uri.parse("smsto:$phone") else android.net.Uri.parse("smsto:")
+            val phone = args.string("phone_number").trim()
+            val text = args.string("text")
+            val uri = if (phone.isNotBlank()) {
+                android.net.Uri.parse("smsto:$phone")
+            } else {
+                android.net.Uri.parse("smsto:")
+            }
             val intent = Intent(Intent.ACTION_SENDTO, uri)
                 .putExtra("sms_body", text)
                 .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
             val launched = runCatching { context.startActivity(intent) }.isSuccess
-            ToolResult(
-                def.name, def.name, ok = launched,
-                output = """{"phone_number":"$phone","has_text":${text.isNotEmpty()}}""",
-                errorMessage = if (launched) null else "Не удалось открыть SMS.",
-            )
+            if (launched) {
+                ToolOutcome.json(
+                    "phone_number" to phone,
+                    "has_text" to text.isNotEmpty(),
+                )
+            } else {
+                ToolOutcome.failed("Не удалось открыть SMS.")
+            }
         }
-        return def to handler
+        return AmaliaTool(def, handler)
     }
 
     // ════════════════════════════════════════════════════════════════════
     //  Мультимедиа
     // ════════════════════════════════════════════════════════════════════
 
-    private fun takePhoto(): Pair<ToolDefinition, ToolHandler> {
+    private fun takePhoto(): AmaliaTool {
         val def = ToolDefinition(
             name = "take_photo",
             description = "Открывает системное приложение камеры в режиме фото.",
@@ -532,41 +565,51 @@ class AmaliaTools(
             val intent = Intent(MediaStore.INTENT_ACTION_STILL_IMAGE_CAMERA)
                 .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
             val launched = runCatching { context.startActivity(intent) }.isSuccess
-            ToolResult(
-                def.name, def.name, ok = launched, output = """{"camera_opened":$launched}""",
-                errorMessage = if (launched) null else "Камера не запустилась.",
-            )
+            if (launched) {
+                ToolOutcome.json("camera_opened" to true)
+            } else {
+                ToolOutcome.failed("Камера не запустилась.")
+            }
         }
-        return def to handler
+        return AmaliaTool(def, handler)
     }
 
-    private fun openYouTube(): Pair<ToolDefinition, ToolHandler> {
+    private fun openYouTube(): AmaliaTool {
         val def = ToolDefinition(
             name = "open_youtube",
-            description = "Открывает приложение YouTube, если оно установлено.",
+            description = "Открывает приложение YouTube, если оно установлено. " +
+                "Если нет — открывает мобильный сайт.",
             parameters = emptyList(),
         )
         val handler = ToolHandler {
-            val intent = context.packageManager.getLaunchIntentForPackage("com.google.android.youtube")
+            val appIntent = context.packageManager
+                .getLaunchIntentForPackage("com.google.android.youtube")
                 ?.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-                ?: Intent(Intent.ACTION_VIEW, android.net.Uri.parse("https://m.youtube.com"))
-                    .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-            val launched = runCatching { context.startActivity(intent) }.isSuccess
-            ToolResult(
-                def.name, def.name, ok = launched, output = """{"youtube_opened":$launched}""",
-                errorMessage = if (launched) null else "YouTube не установлен.",
-            )
+            val launched = appIntent != null &&
+                runCatching { context.startActivity(appIntent) }.isSuccess
+            if (launched) {
+                ToolOutcome.json("youtube_opened" to true, "source" to "app")
+            } else {
+                val webIntent = Intent(
+                    Intent.ACTION_VIEW,
+                    android.net.Uri.parse("https://m.youtube.com"),
+                ).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                val webOk = runCatching { context.startActivity(webIntent) }.isSuccess
+                if (webOk) {
+                    ToolOutcome.json("youtube_opened" to true, "source" to "web")
+                } else {
+                    ToolOutcome.failed("YouTube недоступен на этом устройстве.")
+                }
+            }
         }
-        return def to handler
+        return AmaliaTool(def, handler)
     }
-
-    private fun openCamera(): Pair<ToolDefinition, ToolHandler> = takePhoto() // алиас
 
     // ════════════════════════════════════════════════════════════════════
     //  Информация для LLM
     // ════════════════════════════════════════════════════════════════════
 
-    private fun getCurrentTime(): Pair<ToolDefinition, ToolHandler> {
+    private fun getCurrentTime(): AmaliaTool {
         val def = ToolDefinition(
             name = "get_current_time",
             description = "Возвращает текущее локальное время устройства в формате HH:mm:ss и дату.",
@@ -577,39 +620,38 @@ class AmaliaTools(
             val time = now.format(DateTimeFormatter.ofPattern("HH:mm:ss"))
             val date = now.format(DateTimeFormatter.ofPattern("yyyy-MM-dd"))
             val dow = now.format(DateTimeFormatter.ofPattern("EEEE"))
-            ToolResult(
-                def.name, def.name, ok = true,
-                output = """{"time":"$time","date":"$date","weekday":"$dow"}""",
+            ToolOutcome.json(
+                "time" to time,
+                "date" to date,
+                "weekday" to dow,
             )
         }
-        return def to handler
+        return AmaliaTool(def, handler)
     }
 
-    private fun getDeviceStatus(): Pair<ToolDefinition, ToolHandler> {
+    private fun getDeviceStatus(): AmaliaTool {
         val def = ToolDefinition(
             name = "get_device_status",
-            description = "Считывает актуальное состояние Wi-Fi, Bluetooth, яркости, громкости, " +
-                "геолокации и разрешений на уведомления/контакты.",
+            description = "Считывает актуальное состояние Wi-Fi, Bluetooth, яркости, " +
+                "громкости, геолокации и разрешений на уведомления/контакты.",
             parameters = emptyList(),
         )
         val handler = ToolHandler {
             val snapshot = hub.status.value
-            ToolResult(
-                def.name, def.name, ok = true,
-                output = buildString {
-                    append("""{"wifi":${snapshot.wifiEnabled},"bluetooth":${snapshot.bluetoothEnabled},""")
-                    append("\"brightness_percent\":${(snapshot.brightnessLevel * 100) / 255},")
-                    append("\"volume_percent\":${snapshot.volumeLevel},")
-                    append("\"location\":${snapshot.locationEnabled},")
-                    append("\"contacts_permission\":${snapshot.hasContactsPermission},")
-                    append("\"notifications_permission\":${snapshot.hasNotificationPermission}}")
-                },
+            ToolOutcome.json(
+                "wifi" to snapshot.wifiEnabled,
+                "bluetooth" to snapshot.bluetoothEnabled,
+                "brightness_percent" to (snapshot.brightnessLevel * 100) / 255,
+                "volume_percent" to snapshot.volumeLevel,
+                "location" to snapshot.locationEnabled,
+                "contacts_permission" to snapshot.hasContactsPermission,
+                "notifications_permission" to snapshot.hasNotificationPermission,
             )
         }
-        return def to handler
+        return AmaliaTool(def, handler)
     }
 
-    private fun getBatteryLevel(): Pair<ToolDefinition, ToolHandler> {
+    private fun getBatteryLevel(): AmaliaTool {
         val def = ToolDefinition(
             name = "get_battery_level",
             description = "Возвращает уровень заряда батареи в процентах и статус зарядки.",
@@ -621,26 +663,26 @@ class AmaliaTools(
             val status = bm.getIntProperty(BatteryManager.BATTERY_PROPERTY_STATUS)
             val charging = status == BatteryManager.BATTERY_STATUS_CHARGING ||
                 status == BatteryManager.BATTERY_STATUS_FULL
-            // BATTERY_PROPERTY_PLUGGED не существует — читаем через sticky broadcast
             val ifilter = android.content.IntentFilter(android.content.Intent.ACTION_BATTERY_CHANGED)
             val batteryStatus = context.registerReceiver(null, ifilter)
-            val plugged = batteryStatus?.getIntExtra(android.os.BatteryManager.EXTRA_PLUGGED, 0) ?: 0
+            val plugged = batteryStatus?.getIntExtra(BatteryManager.EXTRA_PLUGGED, 0) ?: 0
             val chargingSource = when (plugged) {
                 BatteryManager.BATTERY_PLUGGED_AC -> "AC"
                 BatteryManager.BATTERY_PLUGGED_USB -> "USB"
                 BatteryManager.BATTERY_PLUGGED_WIRELESS -> "Wireless"
-                0 -> "None"
+                0 -> if (charging) "Disconnected" else "None"
                 else -> "Unknown"
             }
-            ToolResult(
-                def.name, def.name, ok = true,
-                output = """{"level":$level,"charging":$charging,"source":"$chargingSource"}""",
+            ToolOutcome.json(
+                "level" to level.coerceIn(0, 100),
+                "charging" to charging,
+                "source" to chargingSource,
             )
         }
-        return def to handler
+        return AmaliaTool(def, handler)
     }
 
-    private fun getLocationStatus(): Pair<ToolDefinition, ToolHandler> {
+    private fun getLocationStatus(): AmaliaTool {
         val def = ToolDefinition(
             name = "get_location_status",
             description = "Сообщает, включены ли службы геолокации на устройстве. " +
@@ -648,31 +690,28 @@ class AmaliaTools(
             parameters = emptyList(),
         )
         val handler = ToolHandler {
-            val enabled = hub.isLocationEnabled()
-            ToolResult(
-                def.name, def.name, ok = true,
-                output = """{"location_enabled":$enabled}""",
-            )
+            ToolOutcome.json("location_enabled" to hub.isLocationEnabled())
         }
-        return def to handler
+        return AmaliaTool(def, handler)
     }
 
-    private fun getWeather(): Pair<ToolDefinition, ToolHandler> {
+    private fun getWeather(): AmaliaTool {
         val def = ToolDefinition(
             name = "get_weather",
             description = "Возвращает демо-прогноз погоды. " +
-                "В продакшене подключается к внешнему API, но сейчас — мок без сети.",
+                "В продакшене подключается к внешнему API, но сейчас — " +
+                "детерминированный мок без сети.",
             parameters = listOf(
                 ToolParameter(
                     name = "city",
                     type = ToolParameter.JsonType.STRING,
-                    description = "Опциональный город. Сейчас игнорируется.",
+                    description = "Опциональный город. Сейчас игнорируется в вычислениях.",
                     required = false,
                 ),
             ),
         )
         val handler = ToolHandler { args ->
-            val city = ToolArgs.string(args, "city")
+            val city = args.string("city")
             val hour = LocalTime.now().hour
             val temp = 12 + (hour % 8)
             val cond = when (hour % 4) {
@@ -681,33 +720,21 @@ class AmaliaTools(
                 2 -> "небольшой дождь"
                 else -> "переменная облачность"
             }
-            val cityLabel = if (city.isNotEmpty()) city else "твой город"
-            ToolResult(
-                def.name, def.name, ok = true,
-                output = """{"city":"$cityLabel","temperature_c":$temp,"condition":"$cond","source":"demo"}""",
+            ToolOutcome.json(
+                "city" to if (city.isNotEmpty()) city else "твой город",
+                "temperature_c" to temp,
+                "condition" to cond,
+                "source" to "demo",
             )
         }
-        return def to handler
+        return AmaliaTool(def, handler)
     }
 
     // ════════════════════════════════════════════════════════════════════
     //  Память разговоров
     // ════════════════════════════════════════════════════════════════════
 
-    /**
-     * Поиск по истории разговоров и сводка последних бесед.
-     *
-     * Реализация подключается через [commandExecutor] в AmaliaToolsHolder —
-     * сами хелперы ниже — это пара (определение, lazy-handler фабрика),
-     * они не должны лезть в репозиторий напрямую, чтобы не зависнуть
-     * от цикла инициализации ServiceLocator.
-     */
-    var searchHistoryProvider: (suspend (String) -> String)? = null
-    var recentConversationsProvider: (suspend (Int) -> String)? = null
-    var clearHistoryProvider: (suspend () -> String)? = null
-    var settingsChangeProvider: (suspend (String, String) -> String)? = null
-
-    private fun searchHistory(): Pair<ToolDefinition, ToolHandler> {
+    private fun searchHistory(): AmaliaTool {
         val def = ToolDefinition(
             name = "search_history",
             description = "Ищет прошлые разговоры по ключевому слову и возвращает краткие сводки.",
@@ -726,28 +753,18 @@ class AmaliaTools(
             ),
         )
         val handler = ToolHandler { args ->
-            val q = ToolArgs.string(args, "query").trim()
-            val limit = ToolArgs.int(args, "limit", default = 5)
+            val q = args.string("query").trim()
             if (q.isEmpty()) {
-                return@ToolHandler ToolResult(
-                    def.name, def.name, ok = false, output = "",
-                    errorMessage = "Пустой запрос поиска.",
-                )
+                return@ToolHandler ToolOutcome.failed("Пустой запрос поиска.")
             }
             val provider = searchHistoryProvider
-            if (provider == null) {
-                return@ToolHandler ToolResult(
-                    def.name, def.name, ok = false, output = "",
-                    errorMessage = "История ещё не подключена.",
-                )
-            }
-            val out = provider(q).take(8000)
-            ToolResult(def.name, def.name, ok = true, output = out)
+                ?: return@ToolHandler ToolOutcome.failed("История ещё не подключена.")
+            ToolOutcome.raw(provider(q).take(8000))
         }
-        return def to handler
+        return AmaliaTool(def, handler)
     }
 
-    private fun getRecentConversations(): Pair<ToolDefinition, ToolHandler> {
+    private fun getRecentConversations(): AmaliaTool {
         val def = ToolDefinition(
             name = "get_recent_conversations",
             description = "Возвращает заголовки и краткое превью N последних разговоров.",
@@ -761,21 +778,15 @@ class AmaliaTools(
             ),
         )
         val handler = ToolHandler { args ->
-            val limit = ToolArgs.int(args, "limit", default = 5).coerceIn(1, 20)
+            val limit = args.int("limit", default = 5).coerceIn(1, 20)
             val provider = recentConversationsProvider
-            if (provider == null) {
-                return@ToolHandler ToolResult(
-                    def.name, def.name, ok = false, output = "",
-                    errorMessage = "История ещё не подключена.",
-                )
-            }
-            val out = provider(limit).take(8000)
-            ToolResult(def.name, def.name, ok = true, output = out)
+                ?: return@ToolHandler ToolOutcome.failed("История ещё не подключена.")
+            ToolOutcome.raw(provider(limit).take(8000))
         }
-        return def to handler
+        return AmaliaTool(def, handler)
     }
 
-    private fun clearHistory(): Pair<ToolDefinition, ToolHandler> {
+    private fun clearHistory(): AmaliaTool {
         val def = ToolDefinition(
             name = "clear_history",
             description = "Полностью очищает сохранённую историю разговоров. " +
@@ -784,54 +795,42 @@ class AmaliaTools(
         )
         val handler = ToolHandler {
             val provider = clearHistoryProvider
-            if (provider == null) {
-                return@ToolHandler ToolResult(
-                    def.name, def.name, ok = false, output = "",
-                    errorMessage = "История ещё не подключена.",
-                )
-            }
-            val report = provider()
-            ToolResult(def.name, def.name, ok = true, output = report)
+                ?: return@ToolHandler ToolOutcome.failed("История ещё не подключена.")
+            ToolOutcome.raw(provider())
         }
-        return def to handler
+        return AmaliaTool(def, handler)
     }
 
     // ════════════════════════════════════════════════════════════════════
     //  Настройки ассистента
     // ════════════════════════════════════════════════════════════════════
 
-    private fun changeLanguage(): Pair<ToolDefinition, ToolHandler> {
+    private fun changeLanguage(): AmaliaTool {
         val def = ToolDefinition(
             name = "change_language",
             description = "Меняет язык интерфейса и распознавания. " +
-                "Поддерживает 'ru', 'en', 'system' (как в системе).",
+                "Поддерживает 'ru', 'en', 'es', 'de', 'fr', 'ja', 'zh', 'hi', 'ar', " +
+                "'system' (как в системе).",
             parameters = listOf(
                 ToolParameter(
                     name = "language",
                     type = ToolParameter.JsonType.STRING,
                     description = "Код языка: ru, en, es, de, fr, ja, zh, hi, ar, system.",
-                    enumValues = listOf("ru", "en", "es", "de", "fr", "ja", "zh", "hi", "ar", "system"),
+                    enumValues = listOf(
+                        "ru", "en", "es", "de", "fr", "ja", "zh", "hi", "ar", "system",
+                    ),
                 ),
             ),
         )
         val handler = ToolHandler { args ->
-            val lang = ToolArgs.string(args, "language").lowercase().trim()
             val provider = settingsChangeProvider
-            if (provider == null) {
-                return@ToolHandler ToolResult(
-                    def.name, def.name, ok = false, output = "",
-                    errorMessage = "Настройки ещё не подключены.",
-                )
-            }
-            ToolResult(
-                def.name, def.name, ok = true,
-                output = provider("language", lang),
-            )
+                ?: return@ToolHandler ToolOutcome.failed("Настройки ещё не подключены.")
+            ToolOutcome.raw(provider("language", args.string("language").lowercase().trim()))
         }
-        return def to handler
+        return AmaliaTool(def, handler)
     }
 
-    private fun toggleAutoListen(): Pair<ToolDefinition, ToolHandler> {
+    private fun toggleAutoListen(): AmaliaTool {
         val def = ToolDefinition(
             name = "toggle_auto_listen",
             description = "Включает или выключает автоматическое прослушивание " +
@@ -845,25 +844,16 @@ class AmaliaTools(
             ),
         )
         val handler = ToolHandler { args ->
-            val on = ToolArgs.bool(args, "enabled")
             val provider = settingsChangeProvider
-            if (provider == null) {
-                return@ToolHandler ToolResult(
-                    def.name, def.name, ok = false, output = "",
-                    errorMessage = "Настройки ещё не подключены.",
-                )
-            }
-            ToolResult(
-                def.name, def.name, ok = true,
-                output = provider("auto_listen", on.toString()),
-            )
+                ?: return@ToolHandler ToolOutcome.failed("Настройки ещё не подключены.")
+            ToolOutcome.raw(provider("auto_listen", args.bool("enabled").toString()))
         }
-        return def to handler
+        return AmaliaTool(def, handler)
     }
 }
 
 /**
- * Лёгкий локальный каталог приложений: маппит ключевые слова на пакеты.
+ * Локальный каталог приложений: маппит человеческие имена на пакеты.
  *
  * Нужен, чтобы LLM могла сказать «открой ютуб», а не угадывать
  * `com.google.android.youtube`. Полный список установленных пакетов
@@ -871,7 +861,11 @@ class AmaliaTools(
  */
 private class AppCatalog {
 
-    data class Entry(val packageName: String, val label: String, val keywords: List<String>)
+    data class Entry(
+        val packageName: String,
+        val label: String,
+        val keywords: List<String>,
+    )
 
     private val entries: List<Entry> = listOf(
         Entry("com.google.android.youtube", "YouTube", listOf("ютуб", "youtube", "ют")),
@@ -903,7 +897,6 @@ private class AppCatalog {
         entries.firstOrNull { entry ->
             entry.keywords.any { low.contains(it) } || entry.label.lowercase().contains(low)
         }?.let { return it }
-        // По подстроке package (fallback для редких приложений)
         return null
     }
 

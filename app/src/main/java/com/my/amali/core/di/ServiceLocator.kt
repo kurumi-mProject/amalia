@@ -104,17 +104,16 @@ object ServiceLocator {
         DeviceCommandExecutor(appContext, systemControllers)
     }
 
-    /** Набор инструментов Амалии — конкретные tool definitions и handlers. */
+    /** Набор инструментов Амалии — конкретные AmaliaTool (definition + handler). */
     private val amaliaTools: AmaliaTools by lazy {
         AmaliaTools(
             context = appContext,
             hub = systemControllers,
-            commandExecutor = deviceCommandExecutor,
         )
     }
 
     /** Реестр инструментов, доступных LLM. Передаётся в [aiOrchestrator]. */
-    val toolRegistry: ToolRegistry by lazy { ToolRegistry.from(amaliaTools.all) }
+    val toolRegistry: ToolRegistry by lazy { ToolRegistry.of(amaliaTools.all) }
 
     /**
      * Оркестратор AI-конвейера STT → LLM → TTS.

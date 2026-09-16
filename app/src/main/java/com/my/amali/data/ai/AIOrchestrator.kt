@@ -297,9 +297,14 @@ class AIOrchestrator(
                 for (call in calls) {
                     val result = registry.execute(call)
                     executedTools += call.toolName
+                    // Используем contentForModel(): при ok=true это нормальный
+                    // JSON-вывод, при ok=false — структура {status:error, reason:…},
+                    // которую модель умеет пересказать пользователю. Раньше
+                    // здесь был ifEmpty-хак, который при сбое отдавал модели
+                    // голую строку причины и она говорила «что-то не вышло».
                     messages += ChatMessage.toolResult(
                         toolCallId = result.toolCallId,
-                        content = result.output.ifEmpty { result.errorMessage ?: "(no output)" },
+                        content = result.contentForModel(),
                     )
                     emit(
                         AiResponse.ToolCompleted(

@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+    Список локалей, которые поддерживает приложение.
+    Используется системой Android 13+ для per-app language selection
+    и AppCompatDelegate.setApplicationLocales() на всех версиях.
+-->
+<locale-config xmlns:android="http://schemas.android.com/apk/res/android">
+    <locale android:name="ru" />
+    <locale android:name="en" />
+    <locale android:name="es" />
+    <locale android:name="ar" />
+    <locale android:name="de" />
+    <locale android:name="fr" />
+    <locale android:name="hi" />
+    <locale android:name="ja" />
+    <locale android:name="zh" />
+</locale-config>

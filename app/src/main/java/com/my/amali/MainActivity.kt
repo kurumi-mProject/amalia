@@ -4,16 +4,20 @@ import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
+import androidx.appcompat.app.AppCompatDelegate
 import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
+import androidx.core.os.LocaleListCompat
 import androidx.core.splashscreen.SplashScreen.Companion.installSplashScreen
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.lifecycleScope
 import com.my.amali.core.di.ServiceLocator
 import com.my.amali.core.navigation.AmaliaNavHost
+import com.my.amali.domain.entity.AppLanguage
 import com.my.amali.domain.entity.UserSettings
 import com.my.amali.ui.theme.AmaliaTheme
 import com.my.amali.ui.theme.AmaliaVisuals
@@ -26,11 +30,13 @@ import kotlinx.coroutines.launch
  *
  * Последовательность запуска:
  * 1. Splash держится, пока DataStore не отдаст первые настройки.
- * 2. [AmaliaTheme] строится из пользовательских настроек.
- * 3. [LocalAmaliaVisuals] раздаёт всем экранам параметры фона и стекла,
+ * 2. Локаль применяется через [AppCompatDelegate.setApplicationLocales] ещё
+ *    до [setContent] — чтобы ресурсы загрузились сразу на нужном языке.
+ * 3. [AmaliaTheme] строится из пользовательских настроек.
+ * 4. [LocalAmaliaVisuals] раздаёт всем экранам параметры фона и стекла,
  *    поэтому любой экран рисует корректную аурору без проброса настроек
  *    через параметры композаблов.
- * 4. [AmaliaNavHost] стартует с онбординга при первом запуске.
+ * 5. [AmaliaNavHost] стартует с онбординга при первом запуске.
  */
 class MainActivity : ComponentActivity() {
 
@@ -59,6 +65,11 @@ class MainActivity : ComponentActivity() {
             val completed = runCatching {
                 ServiceLocator.dataStore.data.first()[onboardingKey] ?: false
             }.getOrDefault(false)
+
+            // Применяем сохранённый язык до показа UI, чтобы ресурсы
+            // загрузились сразу на нужном языке (без перерисовки).
+            applyLocale(first.selectedLanguage)
+
             bootSettings = first
             startOnOnboarding = !completed
             uiReady = true
@@ -71,6 +82,12 @@ class MainActivity : ComponentActivity() {
                 )
             } else {
                 remember { mutableStateOf(UserSettings.DEFAULT) }
+            }
+
+            // Реактивно применяем язык при каждом изменении настройки —
+            // AppCompatDelegate перезапустит активити, если locale изменился.
+            LaunchedEffect(settings.selectedLanguage) {
+                applyLocale(settings.selectedLanguage)
             }
 
             AmaliaTheme(
@@ -92,5 +109,23 @@ class MainActivity : ComponentActivity() {
                 }
             }
         }
+    }
+
+    /**
+     * Применяет локаль через [AppCompatDelegate.setApplicationLocales].
+     *
+     * При [AppLanguage.SYSTEM] отдаём пустой список — система сама выберет
+     * язык устройства. При конкретном языке передаём его BCP-47 код.
+     *
+     * AppCompatDelegate сам определяет, изменилась ли локаль, и только
+     * тогда перезапускает активити — лишних рестартов не будет.
+     */
+    private fun applyLocale(language: AppLanguage) {
+        val localeList = if (language.isSystem) {
+            LocaleListCompat.getEmptyLocaleList()
+        } else {
+            LocaleListCompat.forLanguageTags(language.code)
+        }
+        AppCompatDelegate.setApplicationLocales(localeList)
     }
 }
