@@ -267,8 +267,8 @@ class AIOrchestrator(
             stream.collect { event ->
                 when (event) {
                     is LLMEvent.ContentDelta -> {
+                        // Накапливаем сырой JSON — не показываем пока не распарсим
                         collected.append(event.text)
-                        emit(AiResponse.ReplyDelta(event.text, collected.toString()))
                     }
 
                     is LLMEvent.ToolCallDetected -> {
@@ -285,6 +285,12 @@ class AIOrchestrator(
                         finishReason = event.reason
                     }
                 }
+            }
+
+            // Парсим reply из JSON — только это идёт в UI и TTS
+            val replyText = extractReply(collected.toString())
+            if (replyText.isNotBlank()) {
+                emit(AiResponse.ReplyDelta(replyText, replyText))
             }
 
             // Если в потоке появились вызовы инструментов — исполняем их и делаем
@@ -326,9 +332,7 @@ class AIOrchestrator(
             stopRequested = true
         }
 
-        val finalText = collectedText.toString().trim().ifEmpty {
-            // Последний раунд был чисто инструментальным без текста — даём
-            // короткую реплику, чтобы TTS не молчал.
+        val finalText = extractReply(collectedText.toString()).ifEmpty {
             if (textWasCollected) "сделала" else legacyFallbackWhenNoText()
         }
         return finalText
@@ -435,6 +439,22 @@ class AIOrchestrator(
         // Аналог того, что в системном промпте делает настоящий LLM:
         // короткая реплика после набора действий.
         "сделала"
+
+    /**
+     * Вытаскивает поле "reply" из JSON-ответа модели.
+     * Если JSON кривой или reply пустой — возвращает пустую строку
+     * (защита от ситуации когда модель вдруг ответила не JSON-ом).
+     */
+    private fun extractReply(raw: String): String {
+        val trimmed = raw.trim()
+        if (trimmed.isEmpty()) return ""
+        return runCatching {
+            org.json.JSONObject(trimmed).optString("reply", "").trim()
+        }.getOrDefault("").ifEmpty {
+            // Модель ответила не JSON — берём как есть, но без фигурных скобок
+            if (trimmed.startsWith("{")) "" else trimmed
+        }
+    }
 
     private companion object {
         const val ERROR_NO_SPEECH = "Не услышала ни слова. Нажми микрофон и скажи ещё раз."
