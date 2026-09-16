@@ -103,7 +103,7 @@ class AIOrchestrator(
         }
 
         val transcript = joinTranscript(segments.toString(), partial)
-        if (transcript.isBlank()) {
+        if (transcript.isBlank() || transcript.trim().split("\\s+".toRegex()).size < MIN_WORDS_TO_PROCESS) {
             lastError = ERROR_NO_SPEECH
             send(AiResponse.Error(ERROR_NO_SPEECH))
             return@channelFlow
@@ -448,6 +448,13 @@ class AIOrchestrator(
          * оркестратор возвращает собранный текст и TTS, чтобы UI не висел.
          */
         const val MAX_TOOL_ROUNDS = 10
+
+        /**
+         * Минимум слов в транскрипте, чтобы отправить запрос к LLM.
+         * Одиночные звуки/шумы Deepgram иногда транскрибирует как одно слово
+         * ("э", "м", "ну") — они не несут смысла и только жгут rate limit.
+         */
+        const val MIN_WORDS_TO_PROCESS = 2
     }
 
     // Подавляем предупреждение о неиспользуемых параметрах в legacy-пути

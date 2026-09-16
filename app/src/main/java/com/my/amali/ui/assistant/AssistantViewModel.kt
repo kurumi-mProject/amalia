@@ -639,7 +639,7 @@ class AssistantViewModel(
         const val SESSION_TRIM = 40
 
         /** Пауза между ответом и новым слушанием в hands-free режиме. */
-        const val HANDS_FREE_GAP_MS = 450L
+        const val HANDS_FREE_GAP_MS = 1500L
 
         /** Сколько последних сводок инструментов держать в UI. */
         const val MAX_REPORTS = 3
