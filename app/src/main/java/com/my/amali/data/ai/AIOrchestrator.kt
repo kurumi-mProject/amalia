@@ -251,6 +251,7 @@ class AIOrchestrator(
         var textWasCollected = false
         var stopRequested = false
         val executedTools = mutableSetOf<String>()
+        var lastNonEmptyReply = "" // reply из любого раунда — fallback если финальный пустой
 
         repeat(MAX_TOOL_ROUNDS) { roundIndex ->
             if (stopRequested) return@repeat
@@ -290,6 +291,7 @@ class AIOrchestrator(
             // Парсим reply из JSON — только это идёт в UI и TTS
             val replyText = extractReply(collected.toString())
             if (replyText.isNotBlank()) {
+                lastNonEmptyReply = replyText
                 emit(AiResponse.ReplyDelta(replyText, replyText))
             }
 
@@ -303,11 +305,6 @@ class AIOrchestrator(
                 for (call in calls) {
                     val result = registry.execute(call)
                     executedTools += call.toolName
-                    // Используем contentForModel(): при ok=true это нормальный
-                    // JSON-вывод, при ok=false — структура {status:error, reason:…},
-                    // которую модель умеет пересказать пользователю. Раньше
-                    // здесь был ifEmpty-хак, который при сбое отдавал модели
-                    // голую строку причины и она говорила «что-то не вышло».
                     messages += ChatMessage.toolResult(
                         toolCallId = result.toolCallId,
                         content = result.contentForModel(),
@@ -322,7 +319,11 @@ class AIOrchestrator(
                     )
                 }
                 textWasCollected = textWasCollected || collected.isNotEmpty()
-                // Продолжаем: следующий раунд LLM с результатами инструментов.
+                // В JSON-режиме модель уже дала reply + tools в одном раунде.
+                // Если reply был — останавливаемся, не делаем лишний раунд.
+                if (replyText.isNotBlank()) {
+                    stopRequested = true
+                }
                 return@repeat
             }
 
@@ -333,7 +334,9 @@ class AIOrchestrator(
         }
 
         val finalText = extractReply(collectedText.toString()).ifEmpty {
-            if (textWasCollected) "сделала" else legacyFallbackWhenNoText()
+            lastNonEmptyReply.ifEmpty {
+                if (textWasCollected) "сделала" else legacyFallbackWhenNoText()
+            }
         }
         return finalText
     }
