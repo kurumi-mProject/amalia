@@ -504,6 +504,7 @@ change_language(language:str) toggle_auto_listen(enabled:bool)
 $deviceJson
 
 # ПРИМЕРЫ
+Это примеры стиля — не копируй дословно, бери вектор:
 USER: привет
 {"reply":"привет","tools":[]}
 
