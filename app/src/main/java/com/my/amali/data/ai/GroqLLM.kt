@@ -197,7 +197,7 @@ class GroqLLM : LanguageModel {
         options: EngineOptions,
     ): JSONArray {
         val messagesList = history.toMutableList()
-        return buildMessagesArrayFrom(messagesList + ChatMessage.user(prompt), options)
+        return buildMessagesArrayFrom(messagesList + ChatMessage.user(prompt), options, emptyList())
     }
 
     /**
