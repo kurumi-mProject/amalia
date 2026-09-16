@@ -45,6 +45,8 @@ class AmaliaTools(
         setBluetooth(),
         setBrightness(),
         setVolume(),
+        volumeUp(),
+        volumeDown(),
 
         // ── Устройство: фонарик / таймер / будильник ──────────────────────
         setFlashlight(),
@@ -224,6 +226,56 @@ class AmaliaTools(
                 "system_level" to applied,
                 "max" to maxVol,
             )
+        }
+        return AmaliaTool(def, handler)
+    }
+
+    private fun volumeUp(): AmaliaTool {
+        val def = ToolDefinition(
+            name = "volume_up",
+            description = "Увеличивает громкость мультимедиа на указанное количество процентов.",
+            parameters = listOf(
+                ToolParameter(
+                    name = "step",
+                    type = ToolParameter.JsonType.INTEGER,
+                    description = "На сколько процентов увеличить (по умолчанию 10).",
+                    required = false, min = 1.0, max = 50.0,
+                ),
+            ),
+        )
+        val handler = ToolHandler { args ->
+            val step = args.int("step", default = 10).coerceIn(1, 50)
+            val maxVol = hub.mediaVolumeMax()
+            val current = hub.currentVolume()
+            val currentPct = current * 100 / maxVol
+            val newPct = (currentPct + step).coerceIn(0, 100)
+            val applied = hub.setVolume(newPct * maxVol / 100).coerceAtMost(maxVol)
+            ToolOutcome.json("volume_percent" to newPct, "system_level" to applied)
+        }
+        return AmaliaTool(def, handler)
+    }
+
+    private fun volumeDown(): AmaliaTool {
+        val def = ToolDefinition(
+            name = "volume_down",
+            description = "Уменьшает громкость мультимедиа на указанное количество процентов.",
+            parameters = listOf(
+                ToolParameter(
+                    name = "step",
+                    type = ToolParameter.JsonType.INTEGER,
+                    description = "На сколько процентов уменьшить (по умолчанию 10).",
+                    required = false, min = 1.0, max = 50.0,
+                ),
+            ),
+        )
+        val handler = ToolHandler { args ->
+            val step = args.int("step", default = 10).coerceIn(1, 50)
+            val maxVol = hub.mediaVolumeMax()
+            val current = hub.currentVolume()
+            val currentPct = current * 100 / maxVol
+            val newPct = (currentPct - step).coerceIn(0, 100)
+            val applied = hub.setVolume(newPct * maxVol / 100).coerceAtMost(maxVol)
+            ToolOutcome.json("volume_percent" to newPct, "system_level" to applied)
         }
         return AmaliaTool(def, handler)
     }

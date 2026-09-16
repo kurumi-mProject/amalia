@@ -19,12 +19,15 @@ import java.util.Locale
  * @property speechPitch множитель высоты голоса, [0.5, 2.0].
  * @property deviceStatus текущее состояние устройства — передаётся в системный промпт
  *   чтобы Амалия знала какие разрешения выданы/не выданы.
+ * @property conversationSummary краткое резюме истории (3-5 предложений) — заменяет старые сообщения
+ *   чтобы не переполнять контекст. null если сессия только началась.
  */
 data class EngineOptions(
     val languageCode: String = "ru",
     val speechRate: Float = 1.0f,
     val speechPitch: Float = 1.0f,
     val deviceStatus: DeviceStatus = DeviceStatus.Offline,
+    val conversationSummary: String? = null,
 ) {
     /** Человекочитаемое имя языка для системного промпта LLM. */
     val languageName: String

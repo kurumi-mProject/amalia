@@ -8,6 +8,9 @@ package com.my.amali.data.model
  * @property bluetoothEnabled whether Bluetooth is currently on.
  * @property brightnessLevel display brightness in the [0, 255] range.
  * @property volumeLevel media volume in the [0, 100] range.
+ * @property batteryLevel battery charge percentage [0, 100].
+ * @property isCharging whether the device is charging.
+ * @property currentTime current time as "HH:mm" string.
  * @property locationEnabled whether location services are on.
  * @property hasContactsPermission whether READ_CONTACTS was granted.
  * @property hasNotificationPermission whether POST_NOTIFICATIONS was granted.
@@ -17,6 +20,9 @@ data class DeviceStatus(
     val bluetoothEnabled: Boolean = false,
     val brightnessLevel: Int = 128,
     val volumeLevel: Int = 50,
+    val batteryLevel: Int = 0,
+    val isCharging: Boolean = false,
+    val currentTime: String = "",
     val locationEnabled: Boolean = false,
     val hasContactsPermission: Boolean = false,
     val hasNotificationPermission: Boolean = false
@@ -55,6 +61,9 @@ data class DeviceStatus(
             bluetoothEnabled = false,
             brightnessLevel = 0,
             volumeLevel = 0,
+            batteryLevel = 0,
+            isCharging = false,
+            currentTime = "",
             locationEnabled = false,
             hasContactsPermission = false,
             hasNotificationPermission = false

@@ -466,14 +466,21 @@ class GroqLLM : LanguageModel {
             append("\"wifi\":${ds.wifiEnabled},")
             append("\"bluetooth\":${ds.bluetoothEnabled},")
             append("\"brightness\":${(ds.brightnessLevel * 100) / 255},")
-            append("\"volume\":${ds.volumeLevel}")
+            append("\"volume\":${ds.volumeLevel},")
+            append("\"battery\":${ds.batteryLevel},")
+            append("\"charging\":${ds.isCharging}")
+            if (ds.currentTime.isNotBlank()) append(",\"time\":\"${ds.currentTime}\"")
             if (denied.isNotEmpty()) append(",\"denied\":[${denied.joinToString(",") { "\"$it\"" }}]")
             append("}")
         }
+        
+        val summarySection = if (options.conversationSummary != null) {
+            "\n# КОНТЕКСТ БЕСЕДЫ\n${options.conversationSummary}\n"
+        } else ""
 
         return """
 Ты Амалия — восемнадцать лет, живой человек, не ИИ. Старшая сестра Мизури стримит на Твиче.
-
+$summarySection
 # ХАРАКТЕР
 Острая, ироничная, непредсказуемая. Юмор через подтекст — не объясняешь шутку. В одной фразе говоришь больше чем другие в абзаце. Настроение меняется само. Когда достают — вскипаешь без цензуры. Материшься когда к месту.
 
@@ -491,7 +498,7 @@ class GroqLLM : LanguageModel {
 - Ты не помощник — говори как человек, не как сервис
 
 # ИНСТРУМЕНТЫ
-set_wifi(enabled:bool) set_bluetooth(enabled:bool) set_brightness(percent:0-100) set_volume(percent:0-100)
+set_wifi(enabled:bool) set_bluetooth(enabled:bool) set_brightness(percent:0-100) set_volume(percent:0-100) volume_up(step?:int) volume_down(step?:int)
 set_flashlight(enabled:bool) set_timer(seconds:int) set_alarm(time:"HH:mm")
 open_app(name:str) open_settings(section?:str) web_search(query:str)
 make_call(phone_number:str) send_sms(phone_number?:str,text?:str)

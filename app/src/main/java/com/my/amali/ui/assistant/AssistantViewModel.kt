@@ -122,6 +122,9 @@ class AssistantViewModel(
 
     /** Сообщения текущей сессии — контекст для модели и для истории. */
     private val sessionMessages = mutableListOf<ChatMessage>()
+    
+    /** Краткое резюме истории (обновляется каждые 10 сообщений). */
+    private var conversationSummary: String? = null
 
     /** Идентификатор разговора, в который дописывается сессия. */
     private var sessionConversationId: String? = null
@@ -298,7 +301,10 @@ class AssistantViewModel(
             val deviceStatus = runCatching {
                 ServiceLocator.systemControllers.refresh()
             }.getOrDefault(com.my.amali.data.model.DeviceStatus.Offline)
-            val options = EngineOptions.from(settings.value).copy(deviceStatus = deviceStatus)
+            val options = EngineOptions.from(settings.value).copy(
+                deviceStatus = deviceStatus,
+                conversationSummary = conversationSummary
+            )
             val audioChannel = Channel<AudioChunk>(capacity = Channel.UNLIMITED)
             val historySnapshot = sessionMessages.takeLast(HISTORY_LIMIT).toList()
 
@@ -515,6 +521,11 @@ class AssistantViewModel(
         if (sessionMessages.size > SESSION_TRIM) {
             repeat(sessionMessages.size - SESSION_TRIM) { sessionMessages.removeAt(0) }
         }
+        
+        // Каждые 10 сообщений — генерируем резюме для сжатия контекста
+        if (sessionMessages.size >= 10 && sessionMessages.size % 10 == 0) {
+            generateSummary()
+        }
 
         runCatching {
             val id = sessionConversationId
@@ -624,6 +635,51 @@ class AssistantViewModel(
         "change_language" -> "язык изменён"
         "toggle_auto_listen" -> "настройка изменена"
         else -> "готово"
+    }
+    
+    /**
+     * Генерирует краткое резюме истории (3-5 предложений) чтобы не переполнять контекст.
+     * Вызывается каждые 10 сообщений.
+     */
+    private fun generateSummary() {
+        viewModelScope.launch {
+            val prompt = buildString {
+                append("Сожми следующую историю диалога в 3-5 кратких предложений. ")
+                append("Сохрани только ключевые темы и факты:\n\n")
+                sessionMessages.takeLast(10).forEach { msg ->
+                    when (msg.role) {
+                        MessageRole.USER -> append("Пользователь: ${msg.content}\n")
+                        MessageRole.ASSISTANT -> append("Ассистент: ${msg.content}\n")
+                        else -> {} // system/tool пропускаем
+                    }
+                }
+            }
+            
+            val summaryRequest = orchestrator.llm.streamText(
+                history = emptyList(),
+                prompt = prompt,
+                options = EngineOptions.from(settings.value)
+            )
+            
+            val collected = StringBuilder()
+            runCatching {
+                summaryRequest.collect { event ->
+                    if (event is LLMEvent.ContentDelta) {
+                        collected.append(event.delta)
+                    }
+                }
+            }
+            
+            val newSummary = collected.toString().trim()
+            if (newSummary.isNotBlank()) {
+                // Если уже было резюме — объединяем старое + новое
+                conversationSummary = if (conversationSummary != null) {
+                    "$conversationSummary $newSummary"
+                } else {
+                    newSummary
+                }
+            }
+        }
     }
 
     private companion object {

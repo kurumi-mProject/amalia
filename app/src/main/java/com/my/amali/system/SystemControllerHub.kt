@@ -71,6 +71,26 @@ class SystemControllerHub(private val context: Context) {
             audioManager?.getStreamVolume(AudioManager.STREAM_MUSIC)
                 ?.coerceAtLeast(0) ?: DEFAULT_VOLUME
         }.getOrDefault(DEFAULT_VOLUME)
+        
+        // Battery
+        val batteryManager = context.getSystemService(Context.BATTERY_SERVICE) as? android.os.BatteryManager
+        val batteryLevel = runCatching {
+            batteryManager?.getIntProperty(android.os.BatteryManager.BATTERY_PROPERTY_CAPACITY) ?: 0
+        }.getOrDefault(0)
+        val isCharging = runCatching {
+            val intentFilter = android.content.IntentFilter(android.content.Intent.ACTION_BATTERY_CHANGED)
+            val batteryStatus = context.registerReceiver(null, intentFilter)
+            val status = batteryStatus?.getIntExtra(android.os.BatteryManager.EXTRA_STATUS, -1) ?: -1
+            status == android.os.BatteryManager.BATTERY_STATUS_CHARGING ||
+                status == android.os.BatteryManager.BATTERY_STATUS_FULL
+        }.getOrDefault(false)
+        
+        // Time
+        val currentTime = runCatching {
+            val cal = java.util.Calendar.getInstance()
+            "%02d:%02d".format(cal.get(java.util.Calendar.HOUR_OF_DAY), cal.get(java.util.Calendar.MINUTE))
+        }.getOrDefault("")
+        
         val location = runCatching {
             SystemSettings.Secure.getInt(
                 context.contentResolver,
@@ -91,6 +111,9 @@ class SystemControllerHub(private val context: Context) {
             bluetoothEnabled = bt,
             brightnessLevel = brightness,
             volumeLevel = volume,
+            batteryLevel = batteryLevel,
+            isCharging = isCharging,
+            currentTime = currentTime,
             locationEnabled = location,
             hasContactsPermission = contacts,
             hasNotificationPermission = notifications,
@@ -193,6 +216,11 @@ class SystemControllerHub(private val context: Context) {
     fun mediaVolumeMax(): Int =
         runCatching { audioManager?.getStreamMaxVolume(AudioManager.STREAM_MUSIC) ?: 15 }
             .getOrDefault(15)
+
+    /** Текущая громкость мультимедиа [0..max]. */
+    fun currentVolume(): Int =
+        runCatching { audioManager?.getStreamVolume(AudioManager.STREAM_MUSIC) ?: 0 }
+            .getOrDefault(0)
 
     // ══════════════════════════════════════════════════════════════════
     //  Локация
