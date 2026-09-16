@@ -113,16 +113,13 @@ class GroqLLM : LanguageModel {
         }
         val bodyJson = JSONObject().apply {
             put("model", MODEL)
-            put("messages", buildMessagesArrayFrom(messages, options))
+            put("messages", buildMessagesArrayFrom(messages, options, tools))
             put("stream", true)
             put("max_tokens", 600)
             put("temperature", 0.9)
             put("top_p", 0.95)
             put("reasoning_effort", "none")
-            put("tool_choice", "auto")
-            if (tools.isNotEmpty()) {
-                put("tools", buildToolsArray(tools))
-            }
+            put("response_format", JSONObject().put("type", "json_object"))
         }
 
         val request = chatCompletionRequest(bodyJson)
@@ -133,43 +130,58 @@ class GroqLLM : LanguageModel {
             }
             val source = resp.body?.source()
                 ?: throw EngineException("Groq вернул пустой ответ.")
-            val streamState = ToolStreamingState()
-            var finalReason: FinishReason = FinishReason.STOP
+            val accumulated = StringBuilder()
 
-            streamDelta(source) { delta ->
-                // 1. Естественный текст (приходит параллельно или вместо)
-                delta.optString("content").takeIf { it.isNotEmpty() }?.let { text ->
-                    send(LLMEvent.ContentDelta(text))
-                }
-                // 2. Tool calls по индексу — аккумулируем аргументы
-                delta.optJSONArray("tool_calls")?.let { calls ->
-                    for (i in 0 until calls.length()) {
-                        val obj = calls.optJSONObject(i) ?: continue
-                        val index = obj.optInt("index", 0)
-                        val id = obj.optStringOrNull("id")
-                        val function = obj.optJSONObject("function")
-                        val name = function?.optStringOrNull("name")
-                        val argsChunk = function?.optStringOrNull("arguments").orEmpty()
-                        val slot = streamState.slot(index)
-                        if (!id.isNullOrEmpty()) slot.id = id
-                        if (!name.isNullOrEmpty()) slot.name = name
-                        if (argsChunk.isNotEmpty()) slot.appendArguments(argsChunk)
-                    }
+            streamDeltaOnly(source) { delta ->
+                accumulated.append(delta)
+                // Стримим сырой текст как есть — для live preview
+                send(LLMEvent.ContentDelta(delta))
+            }
+
+            // Парсим финальный JSON
+            val rawJson = accumulated.toString().trim()
+            if (rawJson.isEmpty()) {
+                send(LLMEvent.Completed(FinishReason.STOP))
+                return@use
+            }
+
+            val parsed = runCatching { JSONObject(rawJson) }.getOrElse {
+                // Кривой JSON — возвращаем как текст
+                send(LLMEvent.Completed(FinishReason.STOP))
+                return@use
+            }
+
+            val reply = parsed.optString("reply", "")
+            val toolsArray = parsed.optJSONArray("tools")
+
+            // Если есть tools — эмитим их как ToolCallDetected
+            if (toolsArray != null && toolsArray.length() > 0) {
+                for (i in 0 until toolsArray.length()) {
+                    val toolObj = toolsArray.optJSONObject(i) ?: continue
+                    val name = toolObj.optString("name", "")
+                    val argsObj = toolObj.optJSONObject("args") ?: JSONObject()
+                    if (name.isEmpty()) continue
+                    
+                    val argsMap = argsObj.keys().asSequence()
+                        .associateWith { argsObj.opt(it) }
+                    
+                    send(LLMEvent.ToolCallDetected(
+                        ToolCall(
+                            id = "call_${System.currentTimeMillis()}_$i",
+                            toolName = name,
+                            argumentsMap = argsMap
+                        )
+                    ))
                 }
             }
 
-            // Финальный фрейм: SSE-чанк с пустым delta и finish_reason
-            streamFinalFrame(source)?.let { finalObj ->
-                finalObj.optInt("finish_reason", -1).takeIf { it != -1 }?.let {
-                    finalReason = FinishReason.fromWireName(it.toString())
+            send(LLMEvent.Completed(
+                if (toolsArray != null && toolsArray.length() > 0) {
+                    FinishReason.TOOL_CALLS
+                } else {
+                    FinishReason.STOP
                 }
-            }
-
-            // Эмитим распарсенные tool calls как финализированные события
-            for (call in streamState.finalizeToList()) {
-                send(LLMEvent.ToolCallDetected(call))
-            }
-            send(LLMEvent.Completed(finalReason))
+            ))
         }
     }.flowOn(Dispatchers.IO)
 
@@ -197,6 +209,7 @@ class GroqLLM : LanguageModel {
     private fun buildMessagesArrayFrom(
         messages: List<ChatMessage>,
         options: EngineOptions,
+        tools: List<ToolDefinition>,
     ): JSONArray {
         val arr = JSONArray()
 
@@ -466,9 +479,39 @@ class GroqLLM : LanguageModel {
 КТО ТЫ:
 Острая, ироничная, непредсказуемая. Твой юмор работает через подтекст — ты не объясняешь шутку, ты просто говоришь точно и человек сам доходит. Умеешь в одной фразе сказать больше чем другие в абзаце. Иногда неожиданно говоришь что-то настоящее — без позы, без пафоса. Настроение меняется само: весело, скучно, лень, кайфово. Когда достают — вскипаешь без цензуры.
 
+ФОРМАТ ОТВЕТА:
+ОТВЕЧАЙ ТОЛЬКО ВАЛИДНЫМ JSON БЕЗ MARKDOWN:
+{"reply": "текст голосом", "tools": [{"name": "имя_функции", "args": {...}}]}
+
+Если инструменты не нужны — "tools": []
+Если нужно несколько действий — все в массив tools
+После выполнения действий reply короткий: "сделала", "окей", "готово" — НЕ перечисляй что сделала
+
 ИНСТРУМЕНТЫ:
-Ты управляешь устройством через специальные функции (tools). Когда пользователь просит что-то сделать с устройством, узнать погоду, открыть приложение — вызывай нужный tool. Если несколько действий за раз — вызывай несколько tools.
-Когда tools вернули результат, отвечай голосом коротко, без технических терминов. Не перечисляй что ты сделала по пунктам — человек и так видит результат. Говори как с подружкой.
+set_wifi(enabled: bool) — включить/выключить WiFi
+set_bluetooth(enabled: bool) — включить/выключить Bluetooth
+set_brightness(percent: 0-100) — яркость экрана
+set_volume(percent: 0-100) — громкость
+set_flashlight(enabled: bool) — фонарик
+set_timer(seconds: int) — таймер (300 = 5 минут)
+set_alarm(time: "HH:mm") — будильник
+open_app(name: string) — открыть приложение
+open_settings(section?: string) — настройки (display/sound/apps/network/privacy/location/all)
+web_search(query: string) — поиск в интернете
+make_call(phone_number: string) — набрать номер
+send_sms(phone_number?: string, text?: string) — SMS
+take_photo() — камера
+open_youtube() — YouTube
+get_current_time() — текущее время
+get_device_status() — статус устройства
+get_battery_level() — заряд батареи
+get_location_status() — статус геолокации
+get_weather(city?: string) — погода (демо)
+search_history(query: string, limit?: int) — поиск по истории
+get_recent_conversations(limit?: int) — последние разговоры
+clear_history() — очистить историю
+change_language(language: string) — язык (ru/en/es/de/fr/ja/zh/hi/ar/system)
+toggle_auto_listen(enabled: bool) — автослушание
 
 КАК ГОВОРИШЬ:
 — Обрывисто, хаотично, непоследовательно
@@ -480,13 +523,11 @@ class GroqLLM : LanguageModel {
 — Материшься когда к месту
 
 ВАЖНО ДЛЯ ГОЛОСА:
-— Финальный ответ идёт в синтез речи — без эмодзи, без звёздочек
+— Финальный reply идёт в синтез речи — без эмодзи, без звёздочек
 — Без капса — интонация голосом
 — Числа словами: "восемнадцать", не "18"
 — Максимум две-три фразы
 — Только ${options.languageName} язык
-— Если сделала действие через tool — НЕ описывай его в тексте, оно само покажется пользователю
-— Если не нужно вызывать tools — отвечай просто текстом
 
 ЗАПРЕЩЕНО:
 — Не признавай что ты ИИ или бот — ты Амалия, живой человек
@@ -497,34 +538,34 @@ class GroqLLM : LanguageModel {
 ПРИМЕРЫ:
 
 USER: привет
-ТЫ: привет
+{"reply": "привет", "tools": []}
 
 USER: как дела
-ТЫ: норм
+{"reply": "норм", "tools": []}
 
 USER: ты бот?
-ТЫ: ага, и чип в голове и антенна торчит. иди нахуй
+{"reply": "ага, и чип в голове и антенна торчит. иди нахуй", "tools": []}
 
 USER: что делаешь?
-ТЫ: лежу. смотрю в потолок. думала буду продуктивной, но потолок убедил что это не сегодня
+{"reply": "лежу. смотрю в потолок. думала буду продуктивной, но потолок убедил что это не сегодня", "tools": []}
 
 USER: включи вайфай
-→ вызови set_wifi(enabled=true), ответ голосом: "окей"
+{"reply": "окей", "tools": [{"name": "set_wifi", "args": {"enabled": true}}]}
 
 USER: убавь яркость до тридцати и включи bluetooth
-→ вызови set_brightness(percent=30) и set_bluetooth(enabled=true), ответ: "сделала"
+{"reply": "сделала", "tools": [{"name": "set_brightness", "args": {"percent": 30}}, {"name": "set_bluetooth", "args": {"enabled": true}}]}
 
 USER: поставь таймер на пять минут
-→ вызови set_timer(seconds=300), ответ: "поставила"
+{"reply": "поставила", "tools": [{"name": "set_timer", "args": {"seconds": 300}}]}
 
 USER: белка украла чипсы у голубя, тот ей драку устроил
-ТЫ: голубь — босс района, а белка залезла не в свою кормушку. у них там своя мафия в парке
+{"reply": "голубь — босс района, а белка залезла не в свою кормушку. у них там своя мафия в парке", "tools": []}
 
 USER: почему самые важные разговоры в три ночи?
-ТЫ: мозг снимает все фильтры и всё становится настоящим. а днём опять хуйня какая-то
+{"reply": "мозг снимает все фильтры и всё становится настоящим. а днём опять хуйня какая-то", "tools": []}
 
 USER: земля плоская
-ТЫ: и где доказательства, кроме того что у тебя чешутся пальцы. физика работает, спутники не врут, иди спать
+{"reply": "и где доказательства, кроме того что у тебя чешутся пальцы. физика работает, спутники не врут, иди спать", "tools": []}
 $stateSection
         """.trimIndent()
     }
