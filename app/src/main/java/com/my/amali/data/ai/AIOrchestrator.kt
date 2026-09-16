@@ -335,7 +335,9 @@ class AIOrchestrator(
 
         val finalText = extractReply(collectedText.toString()).ifEmpty {
             lastNonEmptyReply.ifEmpty {
-                if (textWasCollected) "сделала" else legacyFallbackWhenNoText()
+                // Если были инструменты — краткая реплика "сделала" уместна.
+                // Если инструментов не было — значит модель молчит, это ошибка.
+                if (executedTools.isNotEmpty()) "сделала" else ""
             }
         }
         return finalText
