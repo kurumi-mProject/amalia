@@ -296,7 +296,7 @@ class AssistantViewModel(
 
         conversationJob = viewModelScope.launch {
             val deviceStatus = runCatching {
-                ServiceLocator.systemControllerHub.refresh()
+                ServiceLocator.systemControllers.refresh()
             }.getOrDefault(com.my.amali.data.model.DeviceStatus.Offline)
             val options = EngineOptions.from(settings.value).copy(deviceStatus = deviceStatus)
             val audioChannel = Channel<AudioChunk>(capacity = Channel.UNLIMITED)
