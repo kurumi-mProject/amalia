@@ -198,19 +198,21 @@ class DeepgramSTT(private val context: Context) : SpeechToTextEngine {
             }
         }
 
-        // Используем прогретый сокет если есть, иначе открываем новый
+        // Используем прогретый сокет: он ускоряет TCP/TLS handshake через
+        // connection pool, но сам закрывается — OkHttp не умеет менять
+        // listener у живого соединения.
+        //
+        // ВАЖНО: socketReady выставляет только onOpen нового сокета.
+        // Раньше для «переиспользованного» пути флаг ставился сразу, а сокет
+        // открывался заново: первые ~200 мс микрофонных данных отправлялись
+        // в ещё не открытый WebSocket, OkHttp молча их отбрасывал, и начало
+        // фразы («включи…») не долетало до распознавания.
         val existingSocket = warmedSocket
-        val socket = if (existingSocket != null) {
+        if (existingSocket != null) {
             warmedSocket = null
-            socketReady.set(true) // уже подключён
-            // Переиспользуем — меняем listener через новый newWebSocket с тем же соединением
-            // OkHttp не поддерживает смену listener, поэтому закрываем и открываем новый —
-            // но TCP соединение к хосту уже тёплое в connection pool
-            existingSocket.close(1000, "reuse")
-            client.newWebSocket(request, listener)
-        } else {
-            client.newWebSocket(request, listener)
+            runCatching { existingSocket.close(1000, "warmup consumed") }
         }
+        val socket = client.newWebSocket(request, listener)
 
         // ── Поток захвата микрофона ──────────────────────────────────────
         val micJob = launch(Dispatchers.IO) {

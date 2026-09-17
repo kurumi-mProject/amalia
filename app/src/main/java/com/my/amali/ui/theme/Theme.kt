@@ -318,7 +318,11 @@ fun AmaliaTheme(
     val view = LocalView.current
     if (!view.isInEditMode) {
         SideEffect {
-            val window = (view.context as Activity).window
+            // Контекст может быть не активити (ContextThemeWrapper у части
+            // OEM-оболочек, превью-хосты, инструментальные обёртки). Прямой
+            // cast здесь давал ClassCastException и убивал процесс целиком —
+            // а без статус-бар-контроллера приложение прекрасно живёт.
+            val window = (view.context as? Activity)?.window ?: return@SideEffect
             WindowCompat.setDecorFitsSystemWindows(window, false)
             WindowCompat.getInsetsController(window, view).apply {
                 isAppearanceLightStatusBars = !effectiveDark

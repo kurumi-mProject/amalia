@@ -297,4 +297,11 @@
     <string name="motif_period_firefly">at twilight, right after sunset</string>
     <string name="motif_period_snow">only when you pick it — snow is not tied to a season</string>
     <string name="motif_period_stars">at night, when the sun is below the horizon</string>
+
+    <!-- Герой-приветствие главного экрана: выбирается по фазе суток -->
+    <string name="greeting_morning">Guten Morgen</string>
+    <string name="greeting_day">Guten Tag</string>
+    <string name="greeting_evening">Guten Abend</string>
+    <string name="greeting_night">Gute Nacht</string>
+    <string name="greeting_prompt">Was machen wir?</string>
 </resources>

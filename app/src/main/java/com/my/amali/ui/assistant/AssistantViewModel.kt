@@ -167,6 +167,11 @@ class AssistantViewModel(
 
     init {
         viewModelScope.launch {
+            // Срок хранения истории применяется при каждом старте ассистента:
+            // настройка «хранить 7/30/90 дней» раньше была декоративной.
+            runCatching {
+                conversationRepo.applyRetention(settings.first().dataRetentionDays)
+            }
             val conversations = runCatching { conversationRepo.recentSnapshot(1) }.getOrDefault(emptyList())
             val count = conversations.size
             val existing = conversations.firstOrNull()

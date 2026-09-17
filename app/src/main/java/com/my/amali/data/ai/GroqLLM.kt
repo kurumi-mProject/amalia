@@ -138,8 +138,13 @@ class GroqLLM : LanguageModel {
                 send(LLMEvent.ContentDelta(delta))
             }
 
-            // Парсим финальный JSON
-            val rawJson = accumulated.toString().trim()
+            // Парсим финальный JSON.
+            //
+            // Модель регулярно заворачивает ответ в markdown-фенс (```json … ```)
+            // вопреки контракту:JSONObject на таком тексте бросает исключение,
+            // tool-calls молча терялись, а сырой текст с фигурными скобками
+            // уезжал в TTS и озвучивался голосом. Фенс срезается до парсинга.
+            val rawJson = stripCodeFences(accumulated.toString())
             if (rawJson.isEmpty()) {
                 send(LLMEvent.Completed(FinishReason.STOP))
                 return@use
@@ -456,6 +461,25 @@ USER: почему самые важные разговоры в три ночи
         const val SSE_DONE = "[DONE]"
         const val MAX_HISTORY_MESSAGES = 12
         val JSON_MEDIA_TYPE = "application/json; charset=utf-8".toMediaType()
+    }
+
+    /**
+     * Срезает markdown-кодовый фенс вокруг JSON-ответа модели.
+     *
+     * Контракт системного промпта требует «только JSON», но qwen в части
+     * ответов оборачивает его в ```json … ``` — прямо валидный JSON после
+     * этого ломает парсер, вызовы инструментов теряются, и модельный
+     * контракт уезжает в озвучку. Фенс срезается и в начале, и в конце.
+     */
+    private fun stripCodeFences(raw: String): String {
+        var text = raw.trim()
+        if (!text.startsWith("```")) return text
+        // Снимаем открывающий фенс с необязательным ярлыком языка.
+        text = text.removePrefix("```").trimStart()
+        text = text.removePrefix("json").removePrefix("JSON").trimStart()
+        val closing = text.lastIndexOf("```")
+        if (closing >= 0) text = text.substring(0, closing)
+        return text.trim()
     }
 }
 

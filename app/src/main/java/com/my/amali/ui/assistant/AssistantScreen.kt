@@ -75,6 +75,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.scale
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.ClipEntry
@@ -101,6 +102,7 @@ import com.my.amali.ui.components.MicButton
 import com.my.amali.ui.components.SuggestionChips
 import com.my.amali.ui.theme.AmaliaTheme
 import com.my.amali.ui.theme.AmaliaVisuals
+import com.my.amali.ui.theme.CircadianPhase
 import com.my.amali.ui.theme.LocalAmaliaVisuals
 import com.my.amali.ui.theme.LocalLightProfile
 import com.my.amali.ui.theme.Radius
@@ -313,38 +315,48 @@ fun AssistantScreenContent(
                     },
                     label = "dialog",
                 ) { phase ->
-                    when (phase) {
-                        DialogPhase.Welcome -> WelcomeCard(
-                            suggestions = suggestions,
-                            onPickSuggestion = onPickSuggestion,
-                        )
-                        DialogPhase.Listening -> ListeningCard(transcript = state.userTranscript)
-                        DialogPhase.Thinking -> ThinkingCard(
-                            prompt = state.userTranscript,
-                            activeTools = state.activeTools,
-                        )
-                        DialogPhase.Reply -> ReplyCard(
-                            prompt = state.userTranscript,
-                            reply = state.amaliaReply,
-                            progress = state.replyProgress,
-                            speaking = state.voiceState == VoiceState.Speaking,
-                            toolReports = state.lastToolReports,
-                            contextCompressed = state.contextCompressed,
-                            contextMessageCount = state.contextMessageCount,
-                            onRepeat = onRepeat,
-                            onCopy = onCopy,
-                        )
-                        DialogPhase.Error -> ErrorCard(
-                            message = state.errorMessage
-                                ?: stringResource(R.string.assistant_error),
-                            onRetry = onMicClick,
-                            onDismiss = onDismissError,
-                            onOpenSettings = if (state.micPermissionDenied) {
-                                onOpenAppSettings
-                            } else {
-                                null
-                            },
-                        )
+                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                        // Герой-приветствие: крупная типографика фазы суток
+                        // занимает «воздух» над карточкой в покое. Именно он
+                        // делает экран элегантным, а не пустым. На компактных
+                        // экранах воздух жертвуется первым.
+                        if (phase == DialogPhase.Welcome && !compact) {
+                            GreetingHero()
+                            Spacer(Modifier.height(Spacing.lg))
+                        }
+                        when (phase) {
+                            DialogPhase.Welcome -> WelcomeCard(
+                                suggestions = suggestions,
+                                onPickSuggestion = onPickSuggestion,
+                            )
+                            DialogPhase.Listening -> ListeningCard(transcript = state.userTranscript)
+                            DialogPhase.Thinking -> ThinkingCard(
+                                prompt = state.userTranscript,
+                                activeTools = state.activeTools,
+                            )
+                            DialogPhase.Reply -> ReplyCard(
+                                prompt = state.userTranscript,
+                                reply = state.amaliaReply,
+                                progress = state.replyProgress,
+                                speaking = state.voiceState == VoiceState.Speaking,
+                                toolReports = state.lastToolReports,
+                                contextCompressed = state.contextCompressed,
+                                contextMessageCount = state.contextMessageCount,
+                                onRepeat = onRepeat,
+                                onCopy = onCopy,
+                            )
+                            DialogPhase.Error -> ErrorCard(
+                                message = state.errorMessage
+                                    ?: stringResource(R.string.assistant_error),
+                                onRetry = onMicClick,
+                                onDismiss = onDismissError,
+                                onOpenSettings = if (state.micPermissionDenied) {
+                                    onOpenAppSettings
+                                } else {
+                                    null
+                                },
+                            )
+                        }
                     }
                 }
             }
@@ -387,6 +399,77 @@ fun AssistantScreenContent(
             // главное действие уезжает вверх из зоны большого пальца.
             Spacer(Modifier.height(BottomBarReserve))
         }
+    }
+}
+
+// ============================================================
+//  ГЕРОЙ-ПРИВЕТСТВИЕ
+// ============================================================
+
+/**
+ * Герой-приветствие главного экрана: крупная типографика фазы суток
+ * и приглашение к разговору.
+ *
+ * Занимает «воздух» над карточкой диалога в покое — именно пустое
+ * пространство прежде делало экран безликим. Приветствие следует
+ * циркадному движку: тот же [LocalLightProfile], что красит фон,
+ * выбирает и слова, поэтому текст и свет никогда не расходятся.
+ *
+ * Фирменная деталь — тонкая дышащая черта под текстом: экран живёт
+ * даже в абсолютном покое, 3.2 с на цикл, без резких движений.
+ */
+@Composable
+private fun GreetingHero(modifier: Modifier = Modifier) {
+    val light = LocalLightProfile.current
+    val greetingRes = when (light.phase) {
+        CircadianPhase.DAWN, CircadianPhase.MORNING -> R.string.greeting_morning
+        CircadianPhase.MIDDAY, CircadianPhase.AFTERNOON -> R.string.greeting_day
+        CircadianPhase.DUSK, CircadianPhase.EVENING -> R.string.greeting_evening
+        CircadianPhase.NIGHT, CircadianPhase.DEEP_NIGHT -> R.string.greeting_night
+    }
+    val transition = rememberInfiniteTransition(label = "greetingBreath")
+    val breath by transition.animateFloat(
+        initialValue = 0.35f,
+        targetValue = 1f,
+        animationSpec = infiniteRepeatable(
+            tween(3_200, easing = LinearEasing),
+            RepeatMode.Reverse,
+        ),
+        label = "greetingBar",
+    )
+    Column(
+        modifier = modifier
+            .fillMaxWidth()
+            .padding(horizontal = Spacing.screen),
+        horizontalAlignment = Alignment.CenterHorizontally,
+    ) {
+        Text(
+            text = stringResource(greetingRes),
+            style = MaterialTheme.typography.displaySmall,
+            color = MaterialTheme.colorScheme.onBackground,
+            textAlign = TextAlign.Center,
+        )
+        Spacer(Modifier.height(Spacing.xs))
+        Text(
+            text = stringResource(R.string.greeting_prompt),
+            style = MaterialTheme.typography.bodyMedium,
+            color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.85f),
+            textAlign = TextAlign.Center,
+        )
+        Spacer(Modifier.height(Spacing.sm))
+        Box(
+            modifier = Modifier
+                .size(width = 46.dp, height = 3.dp)
+                .clip(RoundedCornerShape(Radius.chip))
+                .background(
+                    Brush.horizontalGradient(
+                        listOf(
+                            MaterialTheme.colorScheme.primary.copy(alpha = 0.95f * breath),
+                            MaterialTheme.colorScheme.secondary.copy(alpha = 0.55f * breath),
+                        ),
+                    ),
+                ),
+        )
     }
 }
 
@@ -535,12 +618,19 @@ private fun LightChip(
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(4.dp),
     ) {
-        // Тёплый свет — янтарная точка, холодный — голубая.
+        // Точка-индикатор тонирована светом палитры: тёплый вечер — янтарь,
+        // холодное утро — лёд. Цвет не константа, а производная палитры,
+        // поэтому чип не спорит с фоном ни в одной фазе суток.
+        val dotColor = if (isWarm) {
+            Color(0xFFE8B054)
+        } else {
+            Color(0xFF9EC2F0)
+        }
         Box(
             modifier = Modifier
                 .size(7.dp)
                 .clip(CircleShape)
-                .background(if (isWarm) Color(0xFFE0A25C) else Color(0xFF8FB6E8)),
+                .background(dotColor),
         )
         Text(
             text = "$label · ${cct}K",
@@ -635,7 +725,9 @@ private fun StatusLabel(state: VoiceState, modifier: Modifier = Modifier) {
 private fun stateColor(state: VoiceState): Color = when (state) {
     VoiceState.Idle -> MaterialTheme.colorScheme.onSurfaceVariant
     VoiceState.Listening -> MaterialTheme.colorScheme.secondary
-    VoiceState.Thinking -> MaterialTheme.colorScheme.onSurfaceVariant
+    // «Думаю» — третичный акцент, а не серый: фаза активная, и она должна
+    // читаться живой, а не «погасшей».
+    VoiceState.Thinking -> MaterialTheme.colorScheme.tertiary
     VoiceState.Speaking -> MaterialTheme.colorScheme.tertiary
     VoiceState.Error -> MaterialTheme.colorScheme.error
 }

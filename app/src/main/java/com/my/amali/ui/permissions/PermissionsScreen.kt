@@ -104,16 +104,31 @@ fun PermissionsScreen(
     // Поэтому лончер создаётся **один раз на экран**, а карточки только
     // сообщают, какое разрешение запросить. Один владелец — одна
     // регистрация — ноль поводов для конфликта.
+    //
+    // Почему RequestMultiplePermissions, а не RequestPermission — это не
+    // вкусовщина, а фикс краша:
+    //
+    // Android связывает некоторые разрешения в пары, и одиночный запрос
+    // из пары **роняет приложение** SecurityException-ом:
+    //
+    //  — ACCESS_FINE_LOCATION без ACCESS_COARSE_LOCATION в том же запросе
+    //    на Android 12+ бросает «SecurityException: …must be requested with
+    //    ACCESS_COARSE_LOCATION». Раньше группа пары честно собиралась в
+    //    requestGroup(), но запускать её пытались одиночным контрактом
+    //    (group.first() = FINE в одиночку) — то есть краш оставался на месте.
+    //
+    // Мульти-контракт принимает массив разрешений: пара уходит в один системный
+    // диалог, одиночные — в массиве из одного элемента, поведение системы
+    // идентично RequestPermission.
     val launcher = androidx.activity.compose.rememberLauncherForActivityResult(
-        contract = androidx.activity.result.contract.ActivityResultContracts.RequestPermission(),
+        contract = androidx.activity.result.contract.ActivityResultContracts.RequestMultiplePermissions(),
     ) { _ ->
         // Перечитываем статусы ВСЕХ разрешений, а не только запрошенного.
         //
-        // Это важнее, чем кажется: выдача одного разрешения может изменить
-        // статус соседнего. Например, `ACCESS_COARSE_LOCATION` становится
-        // выданным автоматически вместе с `ACCESS_FINE_LOCATION`, и без
-        // общего перечитывания карточка осталась бы с кнопкой «Разрешить»,
-        // хотя разрешение уже есть.
+        // Выдача одного разрешения может изменить статус соседнего:
+        // ACCESS_COARSE_LOCATION становится выданным автоматически вместе
+        // с FINE, и без общего перечитывания карточка осталась бы с кнопкой
+        // «Разрешить», хотя разрешение уже есть.
         refreshTick++
     }
 
@@ -173,27 +188,16 @@ fun PermissionsScreen(
                         // Проверяем валидность до `launch`: на API ниже
                         // требуемого `manifestPermission` равен null, и
                         // `launch(null)` бросает IllegalArgumentException.
-                        // ══════════════════════════════════════════════
-                        //  ГРУППЫ РАЗРЕШЕНИЙ: их нельзя запрашивать по одному
-                        // ══════════════════════════════════════════════════
                         //
-                        // Вторая причина краха при входе в «Разрешения».
-                        //
-                        // Android связывает некоторые разрешения в пары, и
-                        // запрос одиночного разрешения из пары **падает**:
-                        //
-                        //  — `ACCESS_FINE_LOCATION` требует, чтобы в том же
-                        //    запросе был `ACCESS_COARSE_LOCATION`. Начиная с
-                        //    Android 12 система бросает
-                        //    `SecurityException: ACCESS_FINE_LOCATION must be
-                        //    requested with ACCESS_COARSE_LOCATION`;
-                        //  — `READ_MEDIA_IMAGES` без `READ_MEDIA_VIDEO` на
-                        //    части прошивок даёт частичную выдачу, и карточка
-                        //    навсегда остаётся «не выдано».
-                        //
-                        // Поэтому запрашивается **вся группа** целевого
-                        // разрешения: если у него есть обязательный спутник,
-                        // он уходит в том же вызове.
+                        // Запрашивается ВСЯ группа целевого разрешения — это
+                        // фикс краша, а не перестраховка. Android связывает
+                        // часть разрешений в пары, и одиночный запрос из пары
+                        // падает: ACCESS_FINE_LOCATION без ACCESS_COARSE_LOCATION
+                        // в том же запросе на Android 12+ бросает
+                        // «SecurityException: …must be requested with
+                        // ACCESS_COARSE_LOCATION». Раньше группа честно
+                        // собиралась, но запускалась одиночным контрактом —
+                        // и краш оставался на месте.
                         val group = target.requestGroup()
                         if (group.isEmpty()) {
                             // Пустая группа означает «на этой версии Android
@@ -204,7 +208,11 @@ fun PermissionsScreen(
                             // бы приложение, поэтому просто перечитываем.
                             refreshTick++
                         } else {
-                            launcher.launch(group.first())
+                            // Массив, а не первый элемент: пара
+                            // «точная + примерная локация» обязана
+                            // уйти в одном запросе, иначе Android 12+
+                            // роняет приложение (SecurityException).
+                            launcher.launch(group.toTypedArray())
                         }
                     },
                 )

@@ -7,6 +7,7 @@ import androidx.datastore.preferences.core.edit
 import androidx.datastore.preferences.core.stringPreferencesKey
 import com.my.amali.data.model.ChatMessage
 import com.my.amali.data.model.Conversation
+import com.my.amali.domain.entity.UserSettings
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.catch
 import kotlinx.coroutines.flow.first
@@ -164,6 +165,24 @@ class ConversationRepository(
         }
     }
 
+    /**
+     * Применяет срок хранения: удаляет разговоры старше [retentionDays] суток.
+     *
+     * [UserSettings.RETENTION_FOREVER] — no-op. Дата сравнивается по
+     * [Conversation.updatedAt]: разговор, в который дописали сообщение вчера,
+     * жив, даже если начался месяц назад.
+     *
+     * Раньше настройка «хранить 7/30/90 дней» была декоративной: ползунок
+     * сохранялся, но ничего не удалял, и история росла бесконечно. Теперь
+     * вызывается при старте ассистента и при открытии списка истории.
+     */
+    suspend fun applyRetention(retentionDays: Int) {
+        if (retentionDays == UserSettings.RETENTION_FOREVER) return
+        if (retentionDays <= 0) return
+        val cutoff = System.currentTimeMillis() - retentionDays * DAY_MILLIS
+        mutate { list -> list.filter { it.updatedAt >= cutoff } }
+    }
+
     // ── Внутреннее ───────────────────────────────────────────────────────
 
     /**
@@ -184,4 +203,8 @@ class ConversationRepository(
         } else {
             runCatching { json.decodeFromString(serializer, raw) }.getOrDefault(emptyList())
         }
+
+    private companion object {
+        const val DAY_MILLIS = 24L * 60L * 60L * 1000L
+    }
 }

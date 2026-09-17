@@ -481,14 +481,36 @@ class AIOrchestrator(
      * (защита от ситуации когда модель вдруг ответила не JSON-ом).
      */
     private fun extractReply(raw: String): String {
-        val trimmed = raw.trim()
+        var trimmed = raw.trim()
         if (trimmed.isEmpty()) return ""
+        // Markdown-фенс вокруг JSON — частое поведение qwen вопреки контракту.
+        if (trimmed.startsWith("```")) trimmed = stripCodeFences(trimmed)
+
         val fromJson = runCatching {
             org.json.JSONObject(trimmed).optString("reply", "").trim()
         }.getOrDefault("")
         if (fromJson.isNotBlank()) return fromJson
-        // Модель ответила не JSON — берём как есть, но без фигурных скобок
-        return if (trimmed.startsWith("{")) "" else trimmed
+
+        // JSON не собрался. Раньше сырой текст возвращался «как есть» — и
+        // фигурные скобки с кавычками озвучивались голосом. Теперь из сломанного
+        // JSON выуживаем reply регэкспом; если и это не вышло — молчим:
+        // «ничего не сказали» лучше, чем «прочитали контракт вслух».
+        if (trimmed.startsWith("{")) {
+            val viaRegex = Regex("\"reply\"\\s*:\\s*\"((?:[^\"\\\\]|\\\\.)*)\"")
+                .find(trimmed)?.groupValues?.get(1)
+            if (!viaRegex.isNullOrBlank()) return viaRegex
+            return ""
+        }
+        return trimmed
+    }
+
+    /** Срезает markdown-кодовый фенс: ```json … ``` → чистый текст. */
+    private fun stripCodeFences(raw: String): String {
+        var text = raw.trim().removePrefix("```").trimStart()
+        text = text.removePrefix("json").removePrefix("JSON").trimStart()
+        val closing = text.lastIndexOf("```")
+        if (closing >= 0) text = text.substring(0, closing)
+        return text.trim()
     }
 
     private companion object {

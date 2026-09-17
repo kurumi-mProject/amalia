@@ -215,11 +215,22 @@ fun Modifier.accentGlow(
  * палитры ([LocalAmaliaShadow]) и подмешивается в сторону ведущего тона —
  * физически это близко к тому, как свет отражается от поверхностей вокруг.
  *
- * Тень рисуется двумя пятнами (контактная + рассеянная), а не одним: одна
- * мягкая тень выглядит как «размытие», две дают настоящую глубину.
+ * ## Почему пятна стоят ПОД нижней кромкой, а не в центре
+ *
+ * Прежняя версия рисовала радиальные пятна из середины элемента: стекло
+ * накрывало их собой целиком, и наружу выглядывала лишь тонкая кромка
+ * по бокам — глубина читалась как грязный ореол, а не как тень. Настоящая
+ * тень от предмета на столе сидит ПОД ним: контактное пятно прижато к нижней
+ * кромке (чуть вылезая вниз), ambient-пятно — крупнее и мягче, с меньшим
+ * смещением. Верхняя половина каждого круга остаётся за поверхностью карточки
+ * и не тратит альфу зря.
+ *
+ * Два пятна вместо одного обязательны: одиночный мягкий градиент выглядит
+ * как «размытие», пара контакт+ambient даёт настоящую глубину.
  *
  * @param elevation сила подъёма поверхности, 0..1.
- * @param shape форма поверхности — тень обязана ей следовать.
+ * @param shape форма поверхности; зарезервировано для будущей фигурной
+ *   отсадки, текущая отрисовка кругами следует общим габаритам.
  */
 @Composable
 fun Modifier.amaliaShadow(elevation: Float = 0.3f, shape: Shape): Modifier {
@@ -228,31 +239,36 @@ fun Modifier.amaliaShadow(elevation: Float = 0.3f, shape: Shape): Modifier {
     val e = elevation.coerceIn(0f, 1f)
     // Ночью тень глубже и мягче, днём — почти незаметна: это соответствует
     // тому, как рассеянный дневной свет «съедает» жёсткие тени.
-    val strength = if (palette.isDark) 0.35f + e * 0.65f else 0.10f + e * 0.30f
+    val strength = if (palette.isDark) 0.30f + e * 0.60f else 0.12f + e * 0.32f
 
     return this.drawWithCache {
-        val contactRadius = maxOf(size.width, size.height) * 0.62f
-        val ambientRadius = maxOf(size.width, size.height) * (0.85f + e * 0.35f)
-        val centerY = size.height * 0.56f
+        val wide = maxOf(size.width, size.height)
+        val contactRadius = wide * 0.52f
+        val ambientRadius = wide * (0.74f + e * 0.30f)
+        // Контакт — сразу под нижней кромкой: наружу выглядывает нижние ~30%
+        // пятна, остальное накрывает само стекло.
+        val contactCenter = Offset(size.width / 2f, size.height + contactRadius * 0.22f)
+        // Ambient — крупнее, мягче и ниже: «воздух» между предметом и полом.
+        val ambientCenter = Offset(size.width / 2f, size.height + ambientRadius * 0.14f)
         val contact = Brush.radialGradient(
             colors = listOf(
                 shadow.color.copy(alpha = shadow.color.alpha * strength),
                 Color.Transparent,
             ),
-            center = Offset(size.width / 2f, centerY),
+            center = contactCenter,
             radius = contactRadius,
         )
         val ambient = Brush.radialGradient(
             colors = listOf(
-                shadow.ambient.copy(alpha = shadow.ambient.alpha * strength * 0.8f),
+                shadow.ambient.copy(alpha = shadow.ambient.alpha * strength * 0.9f),
                 Color.Transparent,
             ),
-            center = Offset(size.width / 2f, centerY + size.height * 0.10f),
+            center = ambientCenter,
             radius = ambientRadius,
         )
         onDrawBehind {
-            drawCircle(ambient, radius = ambientRadius, center = Offset(size.width / 2f, centerY))
-            drawCircle(contact, radius = contactRadius, center = Offset(size.width / 2f, centerY))
+            drawCircle(ambient, radius = ambientRadius, center = ambientCenter)
+            drawCircle(contact, radius = contactRadius, center = contactCenter)
         }
     }
 }

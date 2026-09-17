@@ -166,7 +166,7 @@ private fun NavPill(
 
     Column(
         modifier = Modifier
-            .width(96.dp)
+            .width(88.dp)
             .height(56.dp)
             .clip(RoundedCornerShape(Radius.md))
             .clickable(

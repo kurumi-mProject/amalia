@@ -76,13 +76,15 @@ class MainActivity : ComponentActivity() {
         }
 
         setContent {
-            val settings by if (bootSettings != null) {
-                settingsRepository.settings.collectAsStateWithLifecycle(
-                    initialValue = bootSettings ?: UserSettings.DEFAULT,
-                )
-            } else {
-                remember { mutableStateOf(UserSettings.DEFAULT) }
-            }
+            // Единая точка подписки на настройки. Раньше здесь была условная
+            // ветка «сплэш ещё виден → remember-заглушка», из-за которой
+            // композиция переключала источник состояния на полпути: часть
+            // изменений настроек, случившихся в первые кадры, терялась.
+            // Сплэш всё равно держится до готовности репозитория, поэтому
+            // DEFAULT на первом кадре пользователь никогда не увидит.
+            val settings by settingsRepository.settings.collectAsStateWithLifecycle(
+                initialValue = bootSettings ?: UserSettings.DEFAULT,
+            )
 
             // Реактивно применяем язык при каждом изменении настройки —
             // AppCompatDelegate перезапустит активити, если locale изменился.

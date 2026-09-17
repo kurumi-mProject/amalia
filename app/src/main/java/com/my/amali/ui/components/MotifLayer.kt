@@ -23,7 +23,7 @@ import com.my.amali.ui.theme.AmaliaMotif
 import com.my.amali.ui.theme.MotifBehavior
 import com.my.amali.ui.theme.behavior
 import com.my.amali.ui.theme.currentPalette
-import com.my.amali.ui.theme.previewColors
+import com.my.amali.ui.theme.particleColors
 import com.my.amali.ui.theme.resolveMotif
 import kotlin.math.PI
 import kotlin.math.cos
@@ -79,10 +79,13 @@ fun MotifLayer(
         }
     }
 
-    val mainColor = palette.motifAccent.takeIf { it != Color.Unspecified }
-        ?: palette.auroras.firstOrNull()
-        ?: Color.White
-    val altColor = palette.motifAccentAlt.takeIf { it != Color.Unspecified } ?: mainColor
+    // ── Цвета частиц ──────────────────────────────────────────────────────
+    //
+    // Цвет берётся из КАНОНИЧЕСКОЙ пары мотива (particleColors), а не из
+    // акцентов текущей палитры: ручная «Сакура» обязана быть розовой и ночью,
+    // «Клены» — медными вечером. Для AUTO канонический мотив и палитра
+    // согласованы по построению, так что картинка не меняется.
+    val (mainColor, altColor) = resolved.particleColors()
 
     Canvas(modifier = modifier.fillMaxSize()) {
         val w = size.width

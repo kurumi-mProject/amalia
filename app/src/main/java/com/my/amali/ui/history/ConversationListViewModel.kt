@@ -10,6 +10,7 @@ import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 
@@ -22,6 +23,18 @@ class ConversationListViewModel : ViewModel() {
     private val repository: ConversationRepository = ServiceLocator.conversationRepository
 
     private val query = MutableStateFlow("")
+
+    init {
+        // Ретеншн применяется и здесь: пользователь может открыть приложение
+        // сразу на вкладке «История» (restore state после свёртывания).
+        viewModelScope.launch {
+            runCatching {
+                ServiceLocator.settingsRepository.settings.first().dataRetentionDays.let {
+                    repository.applyRetention(it)
+                }
+            }
+        }
+    }
 
     /** Отфильтрованный список разговоров (новые сверху). */
     val conversations: StateFlow<List<Conversation>> = combine(

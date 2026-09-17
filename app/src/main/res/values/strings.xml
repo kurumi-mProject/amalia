@@ -314,4 +314,11 @@
     <string name="motif_period_firefly">в сумерках, сразу после заката</string>
     <string name="motif_period_snow">только по твоему выбору — снег не привязан ко времени года</string>
     <string name="motif_period_stars">ночью, когда солнце под горизонтом</string>
+
+    <!-- Герой-приветствие главного экрана: выбирается по фазе суток -->
+    <string name="greeting_morning">Доброе утро</string>
+    <string name="greeting_day">Добрый день</string>
+    <string name="greeting_evening">Добрый вечер</string>
+    <string name="greeting_night">Доброй ночи</string>
+    <string name="greeting_prompt">Чем займёмся?</string>
 </resources>
