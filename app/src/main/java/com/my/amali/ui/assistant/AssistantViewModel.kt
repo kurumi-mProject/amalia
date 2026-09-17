@@ -810,26 +810,40 @@ class AssistantViewModel(
      * модели проще связать «музон» с конкретным Spotify, когда они стоят
      * рядом, чем искать соответствие в двух разных блоках промпта.
      */
-    private suspend fun knownAppsForPrompt(): List<KnownApp> = runCatching {
-        val pinned = ServiceLocator.appPreferencesRepository.pinnedApps.first()
-        if (pinned.isEmpty()) return@runCatching emptyList()
+    private suspend fun knownAppsForPrompt(): List<KnownApp> {
+        // `runCatching` здесь вызывается ВНЕ тела suspend-функции, а внутри —
+        // обычный код: `runCatching` объявлен `inline` и не является suspend,
+        // поэтому вызов suspend-функций (`first()`, `installedApps()`) в его
+        // лямбде — неочевидный случай. Заменено на явный try/catch: он и
+        // читается проще, и гарантированно не зависит от того, что компилятор
+        // выведет из последнего выражения лямбды.
+        return try {
+            val pinned = ServiceLocator.appPreferencesRepository.pinnedApps.first()
+            if (pinned.isEmpty()) return emptyList()
 
-        val installed = ServiceLocator.appRegistry.installedApps()
-        val byPackage = installed.associateBy { it.packageName }
-        val aliases = ServiceLocator.appPreferencesRepository.aliases.first()
+            val installed = ServiceLocator.appRegistry.installedApps()
+            val byPackage = installed.associateBy { it.packageName }
+            val aliases = ServiceLocator.appPreferencesRepository.aliases.first()
 
-        pinned.mapNotNull { pin ->
-            val app = byPackage[pin.packageName] ?: return@mapNotNull null
-            KnownApp(
-                label = app.label,
-                packageName = app.packageName,
-                aliases = aliases
-                    .filterValues { it == app.packageName }
-                    .keys
-                    .sorted(),
-            )
+            pinned.mapNotNull { pin ->
+                val app = byPackage[pin.packageName] ?: return@mapNotNull null
+                KnownApp(
+                    label = app.label,
+                    packageName = app.packageName,
+                    aliases = aliases
+                        .filterValues { it == app.packageName }
+                        .keys
+                        .sorted(),
+                )
+            }
+        } catch (e: kotlinx.coroutines.CancellationException) {
+            // Отмену корутины нельзя глотать — иначе отменённая генерация
+            // ответа продолжит жить и перезапишет состояние новой.
+            throw e
+        } catch (e: Throwable) {
+            emptyList()
         }
-    }.getOrDefault(emptyList())
+    }
 
     // ── Строки ───────────────────────────────────────────────────────────
 

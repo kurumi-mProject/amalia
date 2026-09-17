@@ -242,7 +242,10 @@ class SystemControllerHub(private val context: Context) {
      * для старых систем, где `NetworkCapabilities` может ещё не обновиться.
      */
     private fun readWifiEnabled(): Boolean {
-        val viaConnectivity: Boolean? = runCatching {
+        // runCatching<Boolean?> с явным параметром типа: иначе вывод опирается
+        // на последнее выражение лямбды, а досрочные `return@runCatching null`
+        // в её начале ломают эту опору и дают «Syntax error / type mismatch».
+        val viaConnectivity: Boolean? = runCatching<Boolean?> {
             val network = connectivityManager?.activeNetwork ?: return@runCatching null
             val caps = connectivityManager.getNetworkCapabilities(network)
                 ?: return@runCatching null
@@ -296,7 +299,7 @@ class SystemControllerHub(private val context: Context) {
     }.getOrDefault(0 to false)
 
     /** Есть ли вообще выход в интернет прямо сейчас. */
-    private fun readInternetAvailable(): Boolean = runCatching {
+    private fun readInternetAvailable(): Boolean = runCatching<Boolean> {
         val network = connectivityManager?.activeNetwork ?: return@runCatching false
         val caps = connectivityManager.getNetworkCapabilities(network)
             ?: return@runCatching false
@@ -318,9 +321,14 @@ class SystemControllerHub(private val context: Context) {
      */
     suspend fun setWifiEnabled(enabled: Boolean): ControlResult = withContext(Dispatchers.Default) {
         if (canToggleWifiDirectly()) {
-            val attempted = runCatching {
+            // Явный тип Boolean (не Boolean?) обязателен: `wifiManager` объявлен
+            // nullable, поэтому без `?: false` вся лямбда даёт Boolean?, и
+            // `runCatching` выводит Result<Boolean?>. Дальше `.getOrDefault(false)`
+            // возвращает Boolean?, а в условии `||` компилятор требует строгий
+            // Boolean — отсюда «Condition type mismatch» на строке ниже.
+            val attempted: Boolean = runCatching {
                 @Suppress("DEPRECATION")
-                wifiManager?.setWifiEnabled(enabled)
+                wifiManager?.setWifiEnabled(enabled) ?: false
             }.getOrDefault(false)
             val actual = refresh().wifiEnabled
             if (actual == enabled || attempted) {
@@ -364,7 +372,7 @@ class SystemControllerHub(private val context: Context) {
     suspend fun setBluetoothEnabled(enabled: Boolean): ControlResult =
         withContext(Dispatchers.Default) {
             if (canToggleBluetoothDirectly()) {
-                val ok = runCatching {
+                val ok = runCatching<Boolean> {
                     val adapter = bluetoothManager?.adapter
                         ?: return@runCatching false
                     if (enabled) {
@@ -486,8 +494,13 @@ class SystemControllerHub(private val context: Context) {
     suspend fun setVolumePercent(percent: Int): ControlResult = withContext(Dispatchers.Default) {
         val max = mediaVolumeMax()
         val target = ((percent.coerceIn(0, 100) * max) / 100).coerceIn(0, max)
-        val ok = runCatching {
-            audioManager?.setStreamVolume(AudioManager.STREAM_MUSIC, target, 0)
+        // Явный тип Boolean и никакой зависимости от «последнего выражения»:
+        // `setStreamVolume` возвращает Unit, поэтому `true` в конце лямбды —
+        // единственное, что даёт нужный тип. Параметр типа убирает зависимость
+        // от вывода и делает намерение очевидным.
+        val ok = runCatching<Boolean> {
+            val am = audioManager ?: return@runCatching false
+            am.setStreamVolume(AudioManager.STREAM_MUSIC, target, 0)
             true
         }.getOrDefault(false)
         ControlResult.Applied(
@@ -526,14 +539,24 @@ class SystemControllerHub(private val context: Context) {
                 "Фонарик через API доступен с Android 6.0. Открываю камеру.",
             )
         }
-        val cameraId: String? = runCatching {
-            val ids = cameraManager?.cameraIdList ?: return@runCatching null
-            ids.firstOrNull { id ->
-                val chars = cameraManager?.getCameraCharacteristics(id)
-                chars?.get(android.hardware.camera2.CameraCharacteristics.FLASH_INFO_AVAILABLE)
-                    == true
-            } ?: ids.firstOrNull()
-        }.getOrNull()
+        // Поиск камеры со вспышкой.
+        //
+        // Раньше это был `runCatching { ... ?: return@runCatching null ... }`
+        // с досрочным возвратом прямо в первой строке лямбды. Так делать нельзя:
+        // вывод типа лямбды опирается на её последнее выражение, а `return@` в
+        // начале лишает компилятор опоры — он выдаёт «Syntax error: Expecting
+        // an element» на пустое место после `null`. Поэтому логика разложена на
+        // явные шаги с обычными ранними возвратами.
+        val cameraIds: Array<String> = runCatching<Array<String>> {
+            cameraManager?.cameraIdList ?: emptyArray()
+        }.getOrDefault(emptyArray())
+
+        val cameraId: String? = cameraIds.firstOrNull { id ->
+            val chars = runCatching<android.hardware.camera2.CameraCharacteristics?> {
+                cameraManager?.getCameraCharacteristics(id)
+            }.getOrNull()
+            chars?.get(android.hardware.camera2.CameraCharacteristics.FLASH_INFO_AVAILABLE) == true
+        } ?: cameraIds.firstOrNull()
 
         if (cameraId == null) {
             return@withContext ControlResult.Unsupported(
@@ -541,8 +564,9 @@ class SystemControllerHub(private val context: Context) {
             )
         }
 
-        val ok = runCatching {
-            cameraManager?.setTorchMode(cameraId, enabled)
+        val ok = runCatching<Boolean> {
+            val cm = cameraManager ?: return@runCatching false
+            cm.setTorchMode(cameraId, enabled)
             true
         }.getOrDefault(false)
 
