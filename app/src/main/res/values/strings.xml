@@ -257,7 +257,6 @@
     <string name="device_access_panel">Откроется панель — один тап</string>
     <string name="device_access_screen">Откроются системные настройки</string>
     <string name="device_flashlight">Фонарик</string>
-    <string name="device_notifications">Уведомления</string>
     <string name="device_volume_note">Шкала устройства: %1$d шагов. Приложение всегда работает в процентах, чтобы значение совпадало на любом телефоне.</string>
     <string name="device_battery">Батарея</string>
     <string name="device_battery_level">Заряд %1$d%% · %2$s</string>
@@ -299,4 +298,16 @@
     <string name="apps_alias_title">Как называть «%1$s»</string>
     <string name="apps_alias_desc">Скажи вслух это слово — Амалия откроет именно это приложение. Например: «открой музон». Приоритет у твоего названия выше любого автоматического поиска.</string>
     <string name="apps_alias_existing">Уже заданные названия</string>
+
+    <!-- Декор фона: живое превью и привязка к фазе суток -->
+    <string name="appearance_motif_live">Живой предпросмотр</string>
+    <string name="appearance_motif_off_hint">Декораций нет — фон остаётся чистым</string>
+    <string name="appearance_motif_when">Появляется сам: %1$s</string>
+    <string name="motif_period_off">никогда — выбран режим «без декора»</string>
+    <string name="motif_period_auto">по времени суток, следом за светом</string>
+    <string name="motif_period_sakura">днём, пока солнце высоко</string>
+    <string name="motif_period_maple">на рассвете и на закате, когда солнце низко</string>
+    <string name="motif_period_firefly">в сумерках, сразу после заката</string>
+    <string name="motif_period_snow">только по твоему выбору — снег не привязан ко времени года</string>
+    <string name="motif_period_stars">ночью, когда солнце под горизонтом</string>
 </resources>

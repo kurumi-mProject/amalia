@@ -14,6 +14,7 @@ import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.drawscope.DrawScope
+import androidx.compose.ui.graphics.drawscope.clipRect
 import androidx.compose.ui.graphics.drawscope.rotate
 import androidx.compose.ui.graphics.drawscope.scale
 import androidx.compose.ui.graphics.drawscope.translate
@@ -201,14 +202,20 @@ private fun buildParticles(
             x = random.nextFloat(),
             y = random.nextFloat(),
             size = spec.minSize + random.nextFloat() * (spec.maxSize - spec.minSize),
-            fallSpeed = 0.035f + random.nextFloat() * 0.055f,
+            // Скорость берётся из поведения мотива, а не из общей константы:
+            // иначе снег и лепестки падают одинаково и разница форм теряется.
+            fallSpeed = BASE_FALL_SPEED *
+                spec.fallSpeedScale *
+                (0.72f + random.nextFloat() * 0.56f),
             swayFreq = 0.25f + random.nextFloat() * 0.5f,
             spin = spec.spin * (0.6f + random.nextFloat() * 0.8f),
             spinSign = if (index % 2 == 0) 1f else -1f,
             phase = random.nextFloat() * TAU,
             tint = random.nextFloat(),
             depth = 0.45f + random.nextFloat() * 0.55f,
-            pulseRate = 0.35f + random.nextFloat() * 0.65f,
+            // Мерцание масштабируется поведением: у звёзд и светлячков
+            // spec.pulse = 1, у падающих мотивов его нет вовсе.
+            pulseRate = (0.35f + random.nextFloat() * 0.65f) * (0.4f + spec.pulse),
         )
     }
 }
@@ -257,7 +264,21 @@ private sealed interface MotifShape {
     }
 }
 
-/** Лепесток сакуры: капля с выемкой на широком конце. */
+/**
+ * Лепесток сакуры: капля с выемкой на широком конце.
+ *
+ * ## Что было сломано
+ *
+ * Подсветка рисовалась **тем же путём целиком**: `drawPath(path, white α0.16)`
+ * заливал весь лепесток белым поверх основного цвета. Визуально это давало
+ * не «блик», а просто более бледный лепесток — вся форма теряла объём и
+ * превращалась в плоское пятно, а внутренняя выемка (характерная деталь
+ * сакуры) вообще переставала читаться.
+ *
+ * Теперь свет падает **только на левую половину**: заливка ограничена
+ * прямоугольником через `clipRect`, поэтому появляется граница света и тени.
+ * Это то, что отличает «лепесток» от «розового овала».
+ */
 private object Petal : MotifShape {
     private val path = Path().apply {
         moveTo(0f, -0.5f)
@@ -271,9 +292,17 @@ private object Petal : MotifShape {
     override fun draw(scope: DrawScope, color: Color, radius: Float) {
         with(scope) {
             drawPath(path, color)
-            // Внутренняя подсветка: половина лепестка светлее — он перестаёт
-            // быть плоским пятном и выглядит как тонкая ткань.
-            drawPath(path, Color.White.copy(alpha = 0.16f * color.alpha))
+            // Свет только на левой половине — объём вместо плоской заливки.
+            clipRect(left = -0.5f, top = -0.5f, right = 0f, bottom = 0.5f) {
+                drawPath(path, Color.White.copy(alpha = 0.20f * color.alpha))
+            }
+            // Тонкая прожилка от основания к кончику — узнаваемая деталь.
+            drawLine(
+                color = color.copy(alpha = color.alpha * 0.35f),
+                start = Offset(0f, -0.36f),
+                end = Offset(0f, 0.30f),
+                strokeWidth = 0.045f,
+            )
         }
     }
 }
@@ -292,42 +321,105 @@ private object Leaf : MotifShape {
     override fun draw(scope: DrawScope, color: Color, radius: Float) {
         with(scope) {
             drawPath(path, color)
+            // Свет на левой половине — та же логика, что у лепестка:
+            // заливка целиком делает лист плоским пятном.
+            clipRect(left = -0.5f, top = -0.5f, right = 0f, bottom = 0.5f) {
+                drawPath(path, Color.White.copy(alpha = 0.16f * color.alpha))
+            }
             // Центральная жилка делает лист читаемым даже в мелком размере.
             drawLine(
-                color = color.copy(alpha = color.alpha * 0.45f),
+                color = color.copy(alpha = color.alpha * 0.5f),
                 start = Offset(0f, -0.42f),
                 end = Offset(0f, 0.5f),
-                strokeWidth = 0.07f,
+                strokeWidth = 0.06f,
             )
+            // Боковые жилки: без них лист на 12 dp выглядит как запятая.
+            listOf(-0.22f to 0.26f, 0.02f to 0.34f, 0.22f to 0.30f).forEach { (y, len) ->
+                drawLine(
+                    color = color.copy(alpha = color.alpha * 0.3f),
+                    start = Offset(0f, y),
+                    end = Offset(len * 0.55f, y + 0.12f),
+                    strokeWidth = 0.035f,
+                )
+                drawLine(
+                    color = color.copy(alpha = color.alpha * 0.3f),
+                    start = Offset(0f, y),
+                    end = Offset(-len * 0.55f, y + 0.12f),
+                    strokeWidth = 0.035f,
+                )
+            }
         }
     }
 }
 
-/** Снежинка: три пересекающихся луча — форма, а не пятно. */
+/**
+ * Снежинка: шесть лучей с боковыми веточками.
+ *
+ * Раньше было три линии крест-накрест — это читалось как «звёздочка», а не
+ * как снежинка, и на мелком размере превращалось в плюсик. Шесть лучей по
+ * 60° с короткими веточками дают узнаваемый силуэт даже в 3 dp, потому что
+ * веточки создают характерную «пушистость» края.
+ *
+ * Толщина в unit-координатах домножается на радиус при отрисовке, поэтому
+ * снежинка выглядит одинаково на любом размере экрана.
+ */
 private object Snowflake : MotifShape {
     override fun draw(scope: DrawScope, color: Color, radius: Float) {
         with(scope) {
             val arm = 0.5f
-            repeat(3) { index ->
+            repeat(6) { index ->
                 val rad = index * 60f * PI.toFloat() / 180f
-                val dx = cos(rad) * arm
-                val dy = sin(rad) * arm
+                val dx = cos(rad)
+                val dy = sin(rad)
                 drawLine(
                     color = color,
-                    start = Offset(-dx, -dy),
-                    end = Offset(dx, dy),
-                    strokeWidth = 0.12f,
+                    start = Offset(-dx * arm, -dy * arm),
+                    end = Offset(dx * arm, dy * arm),
+                    strokeWidth = 0.09f,
                     cap = androidx.compose.ui.graphics.StrokeCap.Round,
                 )
+                // Две пары боковых веточек на каждой спице.
+                listOf(0.22f, 0.36f).forEach { at ->
+                    val bx = dx * at
+                    val by = dy * at
+                    val spread = 0.15f
+                    // Перпендикуляр к спице, повёрнутый на ±35°.
+                    val perpX = -dy * spread
+                    val perpY = dx * spread
+                    val fwdX = dx * spread
+                    val fwdY = dy * spread
+                    drawLine(
+                        color = color.copy(alpha = color.alpha * 0.85f),
+                        start = Offset(bx, by),
+                        end = Offset(bx + perpX + fwdX, by + perpY + fwdY),
+                        strokeWidth = 0.055f,
+                        cap = androidx.compose.ui.graphics.StrokeCap.Round,
+                    )
+                    drawLine(
+                        color = color.copy(alpha = color.alpha * 0.85f),
+                        start = Offset(bx, by),
+                        end = Offset(bx - perpX + fwdX, by - perpY + fwdY),
+                        strokeWidth = 0.055f,
+                        cap = androidx.compose.ui.graphics.StrokeCap.Round,
+                    )
+                }
             }
-            drawCircle(color.copy(alpha = color.alpha * 0.8f), radius = 0.1f)
+            // Шестиугольное ядро — центр, который держит композицию.
+            drawCircle(color.copy(alpha = color.alpha * 0.9f), radius = 0.075f)
         }
     }
 }
 
-/** Звезда: четыре луча, собранные вогнутыми дугами. */
+/**
+ * Звезда: основной четырёхлучевой блик плюс второй, повёрнутый на 45°.
+ *
+ * Одиночный четырёхлучевой путь на мелком размере выглядел как случайная
+ * точка: глазу не за что зацепиться. Второй, более короткий и тусклый блик
+ * под 45° даёт характерное «мерцание» — так рисуют звёзды в оптике, и это
+ * то, что читается как звезда даже в 1.6 dp.
+ */
 private object Star : MotifShape {
-    private val path = Path().apply {
+    private fun sparklePath() = Path().apply {
         moveTo(0f, -0.5f)
         quadraticTo(0.05f, -0.05f, 0.5f, 0f)
         quadraticTo(0.05f, 0.05f, 0f, 0.5f)
@@ -336,15 +428,56 @@ private object Star : MotifShape {
         close()
     }
 
+    private val main = sparklePath()
+
     override fun draw(scope: DrawScope, color: Color, radius: Float) {
-        with(scope) { drawPath(path, color) }
+        with(scope) {
+            drawPath(main, color)
+            // Вторичный блик под 45°, короче и тусклее — даёт «лучистость».
+            rotate(45f) {
+                scale(scaleX = 0.5f, scaleY = 0.5f) {
+                    drawPath(main, color.copy(alpha = color.alpha * 0.45f))
+                }
+            }
+            // Яркое ядро: без него звезда выглядит вырезанной, а не светящейся.
+            drawCircle(Color.White.copy(alpha = color.alpha * 0.55f), radius = 0.06f)
+        }
     }
 }
 
-/** Светлячок: яркое ядро; ореол рисует [drawGlow]. */
+/**
+ * Светлячок: светящееся брюшко плюс тёмная головка и крылья.
+ *
+ * Раньше это был один круг: со свечением получалась «светящаяся точка», то
+ * есть то же самое, что звезда, только крупнее. Разница между звездой и
+ * светлячком в силуэте: у светлячка есть тёмная головка и сомкнутые крылья,
+ * и именно они делают его узнаваемым, когда он пролетает мимо.
+ */
 private object Firefly : MotifShape {
     override fun draw(scope: DrawScope, color: Color, radius: Float) {
-        with(scope) { drawCircle(color, radius = 0.22f) }
+        with(scope) {
+            // Крылья: вытянутый овал под углом — тело в полёте.
+            rotate(-28f) {
+                drawOval(
+                    color = color.copy(alpha = color.alpha * 0.32f),
+                    topLeft = Offset(-0.11f, -0.30f),
+                    size = androidx.compose.ui.geometry.Size(0.22f, 0.44f),
+                )
+            }
+            // Светящееся брюшко — основной источник света.
+            drawCircle(color, radius = 0.20f)
+            // Яркое ядро внутри брюшка.
+            drawCircle(
+                Color.White.copy(alpha = color.alpha * 0.6f),
+                radius = 0.09f,
+            )
+            // Тёмная головка: даёт силуэту направление.
+            drawCircle(
+                Color.Black.copy(alpha = 0.42f * color.alpha),
+                radius = 0.075f,
+                center = Offset(0f, -0.24f),
+            )
+        }
     }
 }
 
@@ -389,6 +522,16 @@ private data class MotifParticle(
 private val TAU = (2 * PI).toFloat()
 private const val FRAME_BUDGET_MS = 33L
 private const val MAX_PARTICLES = 40
+
+/**
+ * Базовая скорость падения — доля высоты экрана в секунду.
+ *
+ * Вынесена в константу, потому что от неё теперь умножается индивидуальный
+ * [MotifBehavior.fallSpeedScale]: так «лист падает быстрее лепестка»
+ * выражается одним числом в описании мотива, а не подбором случайных
+ * диапазонов в двух местах.
+ */
+private const val BASE_FALL_SPEED = 0.055f
 private const val GLOW_RATIO = 3.4f
 private const val MAX_TILT = 34f
 private const val TILT_STARS = 12f

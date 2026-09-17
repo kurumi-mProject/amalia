@@ -57,6 +57,7 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import com.my.amali.R
 import com.my.amali.ui.components.AmaliaScreen
 import com.my.amali.ui.components.GlassDivider
+import com.my.amali.ui.components.MotifLayer
 import com.my.amali.ui.components.MotifSwatch
 import com.my.amali.ui.components.GlassGroup
 import com.my.amali.ui.components.GlassSlider
@@ -185,6 +186,19 @@ fun AppearanceSettings(
                 ),
             )
 
+            // Живая миниатюра выбранного мотива во всю ширину.
+            //
+            // Статичные свотчи в чипах отвечают на вопрос «что это за форма»,
+            // но не на вопрос «как оно двигается». А движение — половина
+            // впечатления: лепестки падают медленно и качаются, снег идёт
+            // ровно, светлячки блуждают. Здесь мотив показан в его настоящей
+            // анимации, поэтому выбор перестаёт быть лотереей.
+            MotifPreviewStrip(
+                motif = settings.motif,
+                density = settings.motifDensity,
+            )
+            Spacer(Modifier.height(Spacing.sm))
+
             // Живой фон этого экрана перекрашивается сразу: выбор мотива
             // видно не в миниатюре, а на всём интерфейсе.
             LazyRow(horizontalArrangement = Arrangement.spacedBy(Spacing.xs)) {
@@ -196,6 +210,23 @@ fun AppearanceSettings(
                     )
                 }
             }
+
+            // Когда именно выбранный мотив появляется сам.
+            //
+            // Без этой подписи «сакура» выглядит как произвольная картинка,
+            // и пользователь не понимает, что она привязана к свету: выбрал
+            // снег — и он идёт круглый год. Здесь честно сказано, к какой
+            // фазе суток мотив привязан, а к какому — не привязан вовсе.
+            Spacer(Modifier.height(Spacing.xs))
+            Text(
+                text = stringResource(
+                    R.string.appearance_motif_when,
+                    stringResource(motifPeriodRes(settings.motif)),
+                ),
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.padding(horizontal = Spacing.xxs),
+            )
 
             if (settings.motif != AmaliaMotif.OFF) {
                 Spacer(Modifier.height(Spacing.xs))
@@ -672,4 +703,91 @@ private fun MelatoninBar(percent: Int, protected: Boolean) {
             )
         }
     }
+}
+
+/**
+ * Полоса-превью выбранного мотива в натуральную величину и в движении.
+ *
+ * ## Зачем это, если рядом уже есть чипы с миниатюрами
+ *
+ * Свотч в чипе статичен и размером с ноготь: он отвечает только на вопрос
+ * «какая форма». Пользователь выбирает мотив не по форме, а по **впечатлению
+ * от движения** — лепестки должны падать медленно и качаться, снег идти
+ * ровной стеной, светлячки блуждать. Пока этого не видно, выбор превращается
+ * в лотерею: человек ставит снег в июле, не понимая, что снег не сезонный,
+ * а просто один из пяти вариантов.
+ *
+ * Полоса использует **тот же** [MotifLayer], что и главный экран, поэтому
+ * показанное движение — не отдельная демонстрация, а ровно то, что будет
+ * видно в приложении. Разойтись они не могут.
+ *
+ * Плотность берётся из пользовательской настройки: если человек убавил
+ * густоту, превью обязано показать именно его вариант, а не «полный».
+ */
+@Composable
+private fun MotifPreviewStrip(
+    motif: AmaliaMotif,
+    density: Float,
+    modifier: Modifier = Modifier,
+) {
+    val shape = RoundedCornerShape(Radius.md)
+    val palette = currentPalette
+
+    Box(
+        modifier = modifier
+            .fillMaxWidth()
+            .height(132.dp)
+            .clip(shape)
+            .background(
+                Brush.verticalGradient(
+                    colorStops = palette.stops.map { it.position to it.color }.toTypedArray(),
+                ),
+            )
+            .border(
+                width = 0.8.dp,
+                color = MaterialTheme.colorScheme.outline.copy(alpha = 0.4f),
+                shape = shape,
+            ),
+    ) {
+        // Живой слой: те же частицы, та же физика, та же палитра.
+        MotifLayer(
+            motif = motif,
+            density = density.coerceIn(0.25f, 1f),
+            modifier = Modifier.fillMaxSize(),
+        )
+
+        // Подпись поверх — чтобы полоса не выглядела просто картинкой.
+        Text(
+            text = stringResource(R.string.appearance_motif_live),
+            style = MaterialTheme.typography.labelSmall,
+            color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.75f),
+            modifier = Modifier
+                .align(Alignment.TopStart)
+                .padding(Spacing.xs),
+        )
+
+        if (motif == AmaliaMotif.OFF) {
+            // OFF не рисует ничего — объясняем это, а не оставляем пустой бокс.
+            Text(
+                text = stringResource(R.string.appearance_motif_off_hint),
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier
+                    .align(Alignment.Center)
+                    .padding(Spacing.md),
+            )
+        }
+    }
+}
+
+/** Ресурс с описанием фазы суток, к которой привязан мотив. */
+@StringRes
+private fun motifPeriodRes(motif: AmaliaMotif): Int = when (motif) {
+    AmaliaMotif.OFF -> R.string.motif_period_off
+    AmaliaMotif.AUTO -> R.string.motif_period_auto
+    AmaliaMotif.SAKURA -> R.string.motif_period_sakura
+    AmaliaMotif.MAPLE -> R.string.motif_period_maple
+    AmaliaMotif.FIREFLY -> R.string.motif_period_firefly
+    AmaliaMotif.SNOW -> R.string.motif_period_snow
+    AmaliaMotif.STARS -> R.string.motif_period_stars
 }

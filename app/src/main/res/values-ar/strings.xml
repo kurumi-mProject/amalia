@@ -233,7 +233,6 @@
     <string name="device_access_panel">Opens the panel — one tap</string>
     <string name="device_access_screen">Opens system settings</string>
     <string name="device_flashlight">Flashlight</string>
-    <string name="device_notifications">Notifications</string>
     <string name="device_volume_note">Device scale: %1$d steps. The app always works in percentages so the value means the same on any phone.</string>
     <string name="device_battery">Battery</string>
     <string name="device_battery_level">%1$d%% · %2$s</string>
@@ -275,4 +274,16 @@
     <string name="apps_alias_title">What to call “%1$s”</string>
     <string name="apps_alias_desc">Say this word out loud and Amalia opens exactly this app. For example “open tunes”. Your name always beats automatic matching.</string>
     <string name="apps_alias_existing">Names already set</string>
+
+    <!-- Background decor: live preview and daytime binding -->
+    <string name="appearance_motif_live">Live preview</string>
+    <string name="appearance_motif_off_hint">No decorations — the background stays clean</string>
+    <string name="appearance_motif_when">Appears on its own: %1$s</string>
+    <string name="motif_period_off">never — “no decor” is selected</string>
+    <string name="motif_period_auto">by time of day, following the light</string>
+    <string name="motif_period_sakura">by day, while the sun is high</string>
+    <string name="motif_period_maple">at dawn and dusk, when the sun is low</string>
+    <string name="motif_period_firefly">at twilight, right after sunset</string>
+    <string name="motif_period_snow">only when you pick it — snow is not tied to a season</string>
+    <string name="motif_period_stars">at night, when the sun is below the horizon</string>
 </resources>

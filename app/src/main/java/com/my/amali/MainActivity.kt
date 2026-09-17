@@ -90,29 +90,97 @@ class MainActivity : ComponentActivity() {
                 applyLocale(settings.selectedLanguage)
             }
 
-            AmaliaTheme(
-                darkModePref = settings.darkModePref,
-                visualTheme = settings.visualTheme,
-                useBioTime = settings.useBioTime,
-            ) {
-                CompositionLocalProvider(
-                    LocalAmaliaVisuals provides AmaliaVisuals(
-                        visualTheme = settings.visualTheme,
-                        darkModePref = settings.darkModePref,
-                        useBioTime = settings.useBioTime,
-                        // Интенсивность фона следует настройке стекла, но
-                        // никогда не гаснет полностью: минимум 35% свечения.
-                        glassIntensity = 0.35f + settings.glassIntensity * 0.65f,
-                        motif = settings.motif,
-                        // Густота декораций следует за стеклом, но не гаснет
-                        // вместе с ним: «тихая» тема остаётся тихой целиком.
-                        motifDensity = (0.35f + settings.motifDensity * 0.65f) *
-                            (0.6f + settings.glassIntensity * 0.4f),
-                    ),
+            // Локаль применяется ДО темы и навигации: все строки внутри
+            // CompositionLocalProvider уже берутся из переопределённого
+            // контекста, поэтому смена языка перерисовывает интерфейс
+            // сразу, а не только после перезапуска активити.
+            LocalizedContent(language = settings.selectedLanguage) {
+                AmaliaTheme(
+                    darkModePref = settings.darkModePref,
+                    visualTheme = settings.visualTheme,
+                    useBioTime = settings.useBioTime,
                 ) {
-                    AmaliaNavHost(startOnOnboarding = startOnOnboarding)
+                    CompositionLocalProvider(
+                        LocalAmaliaVisuals provides AmaliaVisuals(
+                            visualTheme = settings.visualTheme,
+                            darkModePref = settings.darkModePref,
+                            useBioTime = settings.useBioTime,
+                            // Интенсивность фона следует настройке стекла, но
+                            // никогда не гаснет полностью: минимум 35% свечения.
+                            glassIntensity = 0.35f + settings.glassIntensity * 0.65f,
+                            motif = settings.motif,
+                            // Густота декораций следует за стеклом, но не гаснет
+                            // вместе с ним: «тихая» тема остаётся тихой целиком.
+                            motifDensity = (0.35f + settings.motifDensity * 0.65f) *
+                                (0.6f + settings.glassIntensity * 0.4f),
+                        ),
+                    ) {
+                        AmaliaNavHost(startOnOnboarding = startOnOnboarding)
+                    }
                 }
             }
+        }
+    }
+
+    /**
+     * Переопределяет локаль для всего поддерева композиции.
+     *
+     * ## Зачем это нужно, если уже есть [AppCompatDelegate]
+     *
+     * `AppCompatDelegate.setApplicationLocales()` **пересоздаёт активити** —
+     * это единственный способ, которым он умеет обновить ресурсы, потому что
+     * строки (`stringResource`) читаются из `Context`, зафиксированного при
+     * создании активити. Побочные эффекты этого решения неприятны:
+     *
+     *  — пользователь нажимает «English» и видит мигание/перезапуск;
+     *  — теряется состояние прокрутки и навигации: возвращаешься не на экран
+     *    языка, а на главный;
+     *  — если активити перезапускается слишком быстро, диалог подтверждения
+     *    успевает мигнуть и закрыться.
+     *
+     * Поэтому здесь используется второй, «мягкий» механизм: контекст с
+     * переопределённой локалью подкладывается прямо в дерево композиции.
+     * Compose пересобирает поддерево (ключ — [language]), и все
+     * `stringResource` внутри мгновенно читают строки нового языка — без
+     * перезапуска и без потери навигации.
+     *
+     * [AppCompatDelegate] при этом никуда не исчезает: он продолжает
+     * работать и отвечает за **персистентность** (сохранение выбора между
+     * запусками) и за системную настройку «Язык приложения» в настройках
+     * Android 13+. То есть мягкий путь — для мгновенности, системный — для
+     * того, чтобы выбор не терялся.
+     *
+     * @param language выбранный язык; [AppLanguage.SYSTEM] означает «как в
+     *   системе» и не переопределяет ничего.
+     */
+    @androidx.compose.runtime.Composable
+    private fun LocalizedContent(
+        language: AppLanguage,
+        content: @androidx.compose.runtime.Composable () -> Unit,
+    ) {
+        val baseContext = androidx.compose.ui.platform.LocalContext.current
+        val resources = baseContext.resources
+
+        // Каждый раз, когда язык меняется, создаётся новый Configuration и
+        // новый контекст. `remember(language)` гарантирует, что это происходит
+        // ровно один раз на смену языка, а не на каждую рекомпозицию.
+        val localizedContext = remember(language) {
+            if (language.isSystem) {
+                baseContext
+            } else {
+                val locale = java.util.Locale.forLanguageTag(language.code)
+                java.util.Locale.setDefault(locale)
+                val configuration = android.content.res.Configuration(resources.configuration)
+                configuration.setLocale(locale)
+                configuration.setLayoutDirection(locale)
+                baseContext.createConfigurationContext(configuration)
+            }
+        }
+
+        androidx.compose.runtime.CompositionLocalProvider(
+            androidx.compose.ui.platform.LocalContext provides localizedContext,
+        ) {
+            content()
         }
     }
 
