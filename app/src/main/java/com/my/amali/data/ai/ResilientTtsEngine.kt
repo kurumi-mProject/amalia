@@ -2,8 +2,8 @@ package com.my.amali.data.ai
 
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.channels.Channel
+import kotlinx.coroutines.channels.ProducerScope
 import kotlinx.coroutines.flow.Flow
-import kotlinx.coroutines.flow.FlowCollector
 import kotlinx.coroutines.flow.channelFlow
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withTimeoutOrNull
@@ -150,8 +150,13 @@ class ResilientTtsEngine(
      * сгенерирован и лежит в карточке, и потеря голоса не должна превращать
      * успешный разговор в экран ошибки. Молчание — честная деградация,
      * «ошибка» на весь экран — нет.
+     *
+     * Расширение объявлено на [ProducerScope], а не на `FlowCollector`:
+     * блок [channelFlow] даёт именно `ProducerScope`, и у него нет `emit` —
+     * чанки уходят через `send`. Именно на этом падала первая версия файла:
+     * «receiver type mismatch» на всех трёх вызовах.
      */
-    private suspend fun FlowCollector<AudioChunk>.emitFallback(
+    private suspend fun ProducerScope<AudioChunk>.emitFallback(
         text: String,
         options: EngineOptions,
         reason: String,
@@ -159,7 +164,7 @@ class ResilientTtsEngine(
         lastUsedEngine = ENGINE_FALLBACK
         lastFallbackReason = reason
         try {
-            fallback.speak(text, options).collect { chunk -> emit(chunk) }
+            fallback.speak(text, options).collect { chunk -> send(chunk) }
         } catch (e: CancellationException) {
             throw e
         } catch (e: Throwable) {

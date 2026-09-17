@@ -16,6 +16,8 @@ import com.my.amali.data.ai.GroqLLM
 import com.my.amali.data.ai.MockLanguageModel
 import com.my.amali.data.ai.MockSpeechToTextEngine
 import com.my.amali.data.ai.MockTextToSpeechEngine
+import com.my.amali.data.ai.ResilientTtsEngine
+import com.my.amali.data.ai.SystemTtsEngine
 import com.my.amali.data.ai.ToolRegistry
 import com.my.amali.data.ai.AmaliaTools
 import com.my.amali.data.apps.AppRegistry
@@ -176,11 +178,12 @@ object ServiceLocator {
      * системный голос Android как страховка.
      *
      * Разделение появилось после реальных отказов облака: при нулевом балансе
-     * платная модель отвечает `402` на каждую фразу, а бесплатная синтезирует
-     * короткую фразу около 38 секунд. В обоих случаях ассистент молчал, хотя
-     * текст ответа уже был готов. Теперь [ResilientTtsEngine] ждёт первый звук
-     * ограниченное время и при неудаче переключается на системный голос —
-     * ответ звучит всегда, а не «когда-нибудь».
+     * платные модели отвечают `402` на каждую фразу, а бесплатная после паузы
+     * разогревается около 38 секунд (в прогретом состоянии — 2.4–3 с).
+     * В обоих случаях ассистент молчал, хотя текст ответа уже был готов.
+     * Теперь [ResilientTtsEngine] ждёт первый звук ограниченное время и при
+     * неудаче переключается на системный голос — ответ звучит всегда,
+     * а не «когда-нибудь».
      */
     val ttsEngine: ResilientTtsEngine by lazy {
         ResilientTtsEngine(

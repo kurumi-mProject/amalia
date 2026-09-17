@@ -13,7 +13,6 @@ import androidx.compose.ui.graphics.Color
  *   иначе в девяти локалях приложения состояние читалось бы по-русски.
  */
 enum class VoiceState(
-    @Deprecated("UI берёт подпись из строковых ресурсов, а не из enum")
     val label: String,
     val color: Color,
 ) {
