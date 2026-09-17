@@ -94,8 +94,32 @@ fun MotifLayer(
 
         particles.forEach { p ->
             val color = mix(mainColor, altColor, p.tint)
-            val radius = p.size * pixelsPerDp * p.depth
-            val alpha = (if (palette.isDark) 0.62f else 0.78f) * (0.4f + 0.6f * p.depth)
+
+            // ══════════════════════════════════════════════════════════════
+            //  РАЗМЕР — здесь была причина «сакуры не видно»
+            // ══════════════════════════════════════════════════════════════
+            //
+            // `p.size` задан в **dp** (spec.minSize = 7f, maxSize = 15f).
+            // `scale(scaleX = radius, ...)` масштабирует путь, нарисованный в
+            // единичных координатах −0.5..+0.5, то есть его полуширина равна
+            // 0.5. Значит видимый радиус в пикселях = radius * 0.5.
+            //
+            // Прежний код: `val radius = p.size * pixelsPerDp * p.depth`,
+            // и тогда видимый размер = p.size * density * depth * 0.5
+            //                        = 10dp * 3.0 * 0.7 * 0.5 = 10.5 px = 3.5 dp
+            // То есть лепесток «7–15 dp» рисовался как 2.5–5 dp — он был
+            // физически меньше, чем точка на экране, и на фоне ауроры просто
+            // не читался. Отсюда «нихуя не видно».
+            //
+            // Теперь размер приводится к пикселям целиком и сразу делится на
+            // полуширину пути: `scale` получает ровно то число, которое даёт
+            // нужный видимый радиус.
+            val radius = p.size * pixelsPerDp * p.depth * PATH_HALF_EXTENT
+
+            // Альфа. Нижняя граница поднята: лепесток обязан читаться даже
+            // на светлом фоне. Было 0.4 + 0.6 * depth при базе 0.62 -> в
+            // сумме давало 0.25..0.62 с учётом прозрачности палитры.
+            val alpha = (if (palette.isDark) 0.78f else 0.88f) * (0.62f + 0.38f * p.depth)
 
             if (spec.falling) {
                 val y = ((p.y * span + t * p.fallSpeed * span * p.depth) % span) - MARGIN_PX
@@ -111,7 +135,9 @@ fun MotifLayer(
                     }
                 }
             } else {
-                val twinkle = 0.45f + 0.55f * sin(t * p.pulseRate * TAU + p.phase)
+                // Мерцание висячих мотивов. Нижняя граница поднята с 0.45
+                // до 0.62: на светлом фоне тусклая частица исчезала совсем.
+                val twinkle = 0.62f + 0.38f * sin(t * p.pulseRate * TAU + p.phase)
                 val drift = spec.drift * w * sin(t * 0.25f + p.phase)
                 val center = Offset(
                     x = p.x * w + drift,
@@ -532,6 +558,19 @@ private const val MAX_PARTICLES = 40
  * диапазонов в двух местах.
  */
 private const val BASE_FALL_SPEED = 0.055f
+
+/**
+ * Полуширина единичного пути мотива.
+ *
+ * Все фигуры ([Petal], [Leaf], [Snowflake], [Star] и прочие) рисуются в
+ * координатах −0.5..+0.5, то есть от центра до края ровно 0.5 единицы.
+ * `scale(scaleX = r)` умножает эти единицы на r, поэтому чтобы получить
+ * видимый радиус `r` пикселей, в `scale` нужно передать `r / 0.5 = r * 2`.
+ *
+ * Эта константа — то место, где ошибка в размерностях была допущена, и
+ * единственное место, где она теперь исправляется.
+ */
+private const val PATH_HALF_EXTENT = 2f
 private const val GLOW_RATIO = 3.4f
 private const val MAX_TILT = 34f
 private const val TILT_STARS = 12f

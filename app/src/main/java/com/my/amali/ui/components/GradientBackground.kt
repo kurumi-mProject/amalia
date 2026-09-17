@@ -99,20 +99,38 @@ fun GradientBackground(
             intensity = strength,
             modifier = Modifier.fillMaxSize(),
         )
-        MotifLayer(
-            motif = motif,
-            density = motifDensity,
-            modifier = Modifier.fillMaxSize(),
-        )
         VignetteCanvas(
             palette = palette,
             shadow = shadow,
             modifier = Modifier.fillMaxSize(),
         )
+        // ══════════════════════════════════════════════════════════════════
+        //  ПОРЯДОК СЛОЁВ — вторая причина «сакуры не видно»
+        // ══════════════════════════════════════════════════════════════════
+        //
+        // Раньше мотив рисовался ДО виньетки и блика:
+        //
+        //   1. Aurora      2. AmbientDepth      3. MotifLayer
+        //   4. Vignette    5. Sheen
+        //
+        // Виньетка затемняет края, а Sheen добавляет светлый блик сверху —
+        // оба слоя ложились **поверх** лепестков и гасили их. Особенно
+        // страдал верх экрана, где блик самый сильный: лепесток там
+        // превращался в еле заметное пятно.
+        //
+        // Теперь порядок обратный: сначала фон целиком (аурора + глубина +
+        // виньетка + блик), затем мотив. Лепестки рисуются поверх готового
+        // фона — как предметы в воздухе, а не как часть градиента. Это же
+        // соответствует физике: объект перед нами, а не за ним.
         SheenCanvas(
             dark = palette.isDark,
             palette = palette,
             strength = light.displayLuminance,
+            modifier = Modifier.fillMaxSize(),
+        )
+        MotifLayer(
+            motif = motif,
+            density = motifDensity,
             modifier = Modifier.fillMaxSize(),
         )
     }

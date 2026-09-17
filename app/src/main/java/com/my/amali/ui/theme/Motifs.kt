@@ -102,9 +102,13 @@ fun AmaliaMotif.behavior(): MotifBehavior? = when (this) {
         falling = true,
         spin = 0.55f,
         sway = 0.090f,
-        count = 16,
-        minSize = 7f,
-        maxSize = 15f,
+        // 22 вместо 16: при 16 лепестков на весь экран падало по 3-4 в
+        // кадре, и «сонм» читался как случайные точки. Плотность лепестка
+        // низкая (он лёгкий), поэтому их должно быть заметно больше, чем
+        // листьев, чтобы движение считывалось как непрерывный поток.
+        count = 22,
+        minSize = 9f,
+        maxSize = 17f,
         // Медленное падение + сильное качание = «лепесток в воздухе».
         fallSpeedScale = 0.72f,
     )
@@ -143,9 +147,9 @@ fun AmaliaMotif.behavior(): MotifBehavior? = when (this) {
         falling = false,
         spin = 0f,
         sway = 0.04f,
-        count = 12,
-        minSize = 3.5f,
-        maxSize = 7.5f,
+        count = 14,
+        minSize = 4f,
+        maxSize = 8f,
         pulse = 1f,
         // Единственный мотив с блужданием: светлячки гуляют по экрану.
         drift = 0.075f,

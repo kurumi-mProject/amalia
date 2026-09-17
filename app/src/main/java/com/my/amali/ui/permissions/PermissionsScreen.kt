@@ -77,6 +77,46 @@ fun PermissionsScreen(
     val context = LocalContext.current
     var refreshTick by remember { mutableIntStateOf(0) }
 
+    // ══════════════════════════════════════════════════════════════════════
+    //  ПОЧЕМУ ЛОНЧЕР ОДИН НА ЭКРАН, А НЕ В КАЖДОЙ КАРТОЧКЕ
+    // ══════════════════════════════════════════════════════════════════════
+    //
+    // Причина краха при входе в «Разрешения».
+    //
+    // Раньше `rememberLauncherForActivityResult` вызывался внутри
+    // `PermissionCardItem`, то есть **внутри элемента LazyColumn**. Это
+    // ломается по двум причинам сразу:
+    //
+    //  1. **Dispose при скролле.** Ленивый список выбрасывает ушедшие вверх
+    //     элементы из композиции. Вместе с элементом уничтожается его
+    //     ActivityResultLauncher — а вместе с ним снимается регистрация
+    //     контракта в ActivityResultRegistry. Когда пользователь прокручивает
+    //     обратно, Compose пытается зарегистрировать лончер с тем же ключом
+    //     повторно, и реестр падает с «Attempting to register a launcher for
+    //     a key that is already registered» — это и есть краш.
+    //
+    //  2. **Конфликт ключей.** У десяти элементов десять лончеров, и у них
+    //     одновременно активен один и тот же контракт. Даже без скролла
+    //     запуск разрешения у одной карточки уничтожает композицию соседних
+    //     (меняется `refreshTick` → пересобирается список), и они
+    //     разрегистрируются прямо во время запроса.
+    //
+    // Поэтому лончер создаётся **один раз на экран**, а карточки только
+    // сообщают, какое разрешение запросить. Один владелец — одна
+    // регистрация — ноль поводов для конфликта.
+    val launcher = androidx.activity.compose.rememberLauncherForActivityResult(
+        contract = androidx.activity.result.contract.ActivityResultContracts.RequestPermission(),
+    ) { _ ->
+        // Перечитываем статусы ВСЕХ разрешений, а не только запрошенного.
+        //
+        // Это важнее, чем кажется: выдача одного разрешения может изменить
+        // статус соседнего. Например, `ACCESS_COARSE_LOCATION` становится
+        // выданным автоматически вместе с `ACCESS_FINE_LOCATION`, и без
+        // общего перечитывания карточка осталась бы с кнопкой «Разрешить»,
+        // хотя разрешение уже есть.
+        refreshTick++
+    }
+
     val permissions = remember(refreshTick) { AmaliaPermission.requiredForCurrentDevice() }
     val statuses = remember(refreshTick) {
         permissions.associateWith { it.isGranted(context) }
@@ -128,7 +168,45 @@ fun PermissionsScreen(
                 PermissionCardItem(
                     permission = permission,
                     granted = statuses[permission] == true,
-                    onGrant = { refreshTick++ },
+                    onRequest = { target ->
+                        // Запрос идёт через единственный лончер экрана.
+                        // Проверяем валидность до `launch`: на API ниже
+                        // требуемого `manifestPermission` равен null, и
+                        // `launch(null)` бросает IllegalArgumentException.
+                        // ══════════════════════════════════════════════
+                        //  ГРУППЫ РАЗРЕШЕНИЙ: их нельзя запрашивать по одному
+                        // ══════════════════════════════════════════════════
+                        //
+                        // Вторая причина краха при входе в «Разрешения».
+                        //
+                        // Android связывает некоторые разрешения в пары, и
+                        // запрос одиночного разрешения из пары **падает**:
+                        //
+                        //  — `ACCESS_FINE_LOCATION` требует, чтобы в том же
+                        //    запросе был `ACCESS_COARSE_LOCATION`. Начиная с
+                        //    Android 12 система бросает
+                        //    `SecurityException: ACCESS_FINE_LOCATION must be
+                        //    requested with ACCESS_COARSE_LOCATION`;
+                        //  — `READ_MEDIA_IMAGES` без `READ_MEDIA_VIDEO` на
+                        //    части прошивок даёт частичную выдачу, и карточка
+                        //    навсегда остаётся «не выдано».
+                        //
+                        // Поэтому запрашивается **вся группа** целевого
+                        // разрешения: если у него есть обязательный спутник,
+                        // он уходит в том же вызове.
+                        val group = target.requestGroup()
+                        if (group.isEmpty()) {
+                            // Пустая группа означает «на этой версии Android
+                            // разрешение не нужно»: AmaliaPermission
+                            // подставляет null для POST_NOTIFICATIONS ниже
+                            // API 33, BLUETOOTH_CONNECT ниже API 31 и
+                            // READ_MEDIA_* ниже API 33. `launch(null)` уронил
+                            // бы приложение, поэтому просто перечитываем.
+                            refreshTick++
+                        } else {
+                            launcher.launch(group.first())
+                        }
+                    },
                 )
             }
         }
@@ -181,17 +259,19 @@ private fun PermissionProgress(granted: Int, total: Int) {
     }
 }
 
-/** Карточка разрешения с реальным системным запросом. */
+/**
+ * Карточка разрешения.
+ *
+ * Лончера здесь **нет** намеренно: он живёт один на экран
+ * ([PermissionsScreen]). Эта функция только сообщает наверх, какое
+ * разрешение нужно запросить, — и остаётся чистой отрисовкой.
+ */
 @Composable
 private fun PermissionCardItem(
     permission: AmaliaPermission,
     granted: Boolean,
-    onGrant: () -> Unit,
+    onRequest: (AmaliaPermission) -> Unit,
 ) {
-    val launcher = androidx.activity.compose.rememberLauncherForActivityResult(
-        contract = androidx.activity.result.contract.ActivityResultContracts.RequestPermission(),
-    ) { onGrant() }
-
     PermissionCard(
         icon = permission.icon(),
         title = stringResource(rationaleTitleFor(permission)),
@@ -199,14 +279,7 @@ private fun PermissionCardItem(
         granted = granted,
         grantLabel = stringResource(R.string.permission_grant),
         grantedLabel = stringResource(R.string.device_status_on),
-        onGrant = {
-            val manifest = permission.manifestPermission
-            if (manifest != null && !granted) {
-                launcher.launch(manifest)
-            } else {
-                onGrant()
-            }
-        },
+        onGrant = { onRequest(permission) },
     )
 }
 
@@ -232,4 +305,43 @@ private fun rationaleTitleFor(permission: AmaliaPermission): Int = when (permiss
     AmaliaPermission.PHONE -> R.string.privacy_permissions
     AmaliaPermission.MEDIA_AUDIO, AmaliaPermission.MEDIA_IMAGES, AmaliaPermission.MEDIA_VIDEO ->
         R.string.privacy_storage
+}
+
+/**
+ * Разрешения, которые нужно запросить **вместе** с этим.
+ *
+ * Возвращает список, где первый элемент — основное разрешение (именно его
+ * принимает `RequestPermission`-контракт), остальные — обязательные спутники.
+ * Пустой список означает «запрашивать нечего на этой версии Android».
+ *
+ * ## Почему нельзя запрашивать по одному
+ *
+ * Android жёстко связывает часть разрешений, и запрос одиночного падает:
+ *
+ *  — **локация.** С Android 12 `ACCESS_FINE_LOCATION` обязан идти в одном
+ *    запросе с `ACCESS_COARSE_LOCATION`, иначе `SecurityException`. При этом
+ *    система сама решает, что выдать: пользователь может разрешить только
+ *    «примерное» местоположение.
+ *  — **медиа.** `READ_MEDIA_*` логически независимы, но приложение, которое
+ *    показывает галерею, просит их вместе — иначе пользователь получает
+ *    три отдельных диалога подряд, что читается как вымогательство.
+ *
+ * Здесь описан только обязательный минимум (спутники, без которых запрос
+ * падает). Остальное — вопрос UX, а не корректности.
+ */
+private fun AmaliaPermission.requestGroup(): List<String> {
+    val self = manifestPermission ?: return emptyList()
+    return when (this) {
+        // Точная локация без примерной запросить нельзя — Android 12+.
+        AmaliaPermission.LOCATION_FINE ->
+            listOf(self, AmaliaPermission.LOCATION_COARSE.manifestPermission)
+                .filterNotNull()
+
+        // Примерная локация самодостаточна, но если точная уже запрашивается
+        // в том же кадре — система объединит их в один диалог, и это лучше,
+        // чем два подряд.
+        AmaliaPermission.LOCATION_COARSE -> listOf(self)
+
+        else -> listOf(self)
+    }
 }
