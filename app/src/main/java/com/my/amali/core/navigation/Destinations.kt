@@ -51,7 +51,10 @@ sealed class Destinations(val route: String) {
  */
 data class BottomTab(
     val destination: Destinations,
-    @StringRes val labelRes: Int,
+    // @param: — явная цель аннотации. Kotlin 2.2 предупреждает, что без неё
+    // аннотация применяется только к параметру, а в будущем начнёт применяться
+    // ещё и к полю; здесь достаточно параметра (проверка значения в конструкторе).
+    @param:StringRes val labelRes: Int,
 )
 
 /** Три вкладки Амалии. */

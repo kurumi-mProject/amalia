@@ -168,7 +168,7 @@
     <string name="history_messages">messages : %1$d</string>
     <string name="history_delete_confirm">Supprimer la conversation ?</string>
     <string name="assistant_connecting">un instant, connexion…</string>
-    <string name="appearance_glass_always_dark">Liquid Glass est toujours sombre : c'est ainsi que le verre et sa lueur fonctionnent correctement.</string>
+    <string name="appearance_glass_always_dark">Liquid Glass est toujours sombre : c\'est ainsi que le verre et sa lueur fonctionnent correctement.</string>
     <string name="history_empty">Pas encore de conversations</string>
     <string name="history_empty_desc">Parle à Amalia et tes conversations apparaîtront ici.</string>
     <string name="history_today">Aujourd\'hui</string>

@@ -396,7 +396,7 @@ data class AIConfig(
         /** Реальный продакшен-конвейер. */
         val Live: AIConfig = AIConfig(
             sttEngineName = "Deepgram nova-2",
-            ttsEngineName = "Fish Audio s2.1-pro",
+            ttsEngineName = "Fish Audio drama-3-preview",
             llmEngineName = "Groq qwen3.8-27b + tools",
         )
 

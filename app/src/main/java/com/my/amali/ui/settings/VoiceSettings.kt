@@ -150,7 +150,7 @@ private fun TtsEngineCard(modifier: Modifier = Modifier) {
                 Text(
                     text = if (live) {
                         // Название продукта — не переводится: это бренд движка.
-                        "Fish Audio s2.1-pro"
+                        "Fish Audio drama-3-preview"
                     } else {
                         stringResource(R.string.voice_tts_engine_mock)
                     },
