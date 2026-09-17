@@ -594,13 +594,23 @@ class SystemControllerHub(private val context: Context) {
      */
     fun isLocationEnabled(): Boolean {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
-            val viaManager = runCatching {
+            val viaManager = runCatching<Boolean?> {
                 val lm = context.getSystemService(Context.LOCATION_SERVICE)
                     as? android.location.LocationManager
                 lm?.isLocationEnabled
             }.getOrNull()
             if (viaManager != null) return viaManager
         }
+        // Фоллбэк только для API < 28.
+        //
+        // `Secure.LOCATION_MODE` помечен deprecated, и это не косметика: начиная
+        // с API 28 платформа не гарантирует его значение (управление ушло в
+        // `LocationManager`). Но на старых системах альтернативы нет — там эта
+        // константа работает, а `LocationManager.isLocationEnabled` ещё не
+        // существует. Подавляем предупреждение локально и с объяснением, а не
+        // глушим его на весь файл: остальные использования `@Suppress` не должны
+        // маскировать настоящие deprecated-вызовы.
+        @Suppress("DEPRECATION")
         return runCatching {
             SystemSettings.Secure.getInt(
                 context.contentResolver,

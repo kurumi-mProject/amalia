@@ -14,7 +14,7 @@ import androidx.compose.material.icons.rounded.Bluetooth
 import androidx.compose.material.icons.rounded.FlashlightOn
 import androidx.compose.material.icons.rounded.LocationOn
 import androidx.compose.material.icons.rounded.Notifications
-import androidx.compose.material.icons.rounded.OpenInNew
+import androidx.compose.material.icons.automirrored.rounded.OpenInNew
 import androidx.compose.material.icons.rounded.Wifi
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
@@ -304,7 +304,7 @@ fun DeviceControlSettings(
                 Spacer(Modifier.height(Spacing.md))
                 SecondaryButton(
                     text = stringResource(R.string.permission_open_settings),
-                    icon = Icons.Rounded.OpenInNew,
+                    icon = Icons.AutoMirrored.Rounded.OpenInNew,
                     onClick = {
                         runCatching {
                             val context = ServiceLocator.appContextValue

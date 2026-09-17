@@ -1,5 +1,6 @@
 package com.my.amali.ui.assistant
 
+import android.content.ClipData
 import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.animateColorAsState
@@ -64,6 +65,7 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -71,14 +73,14 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.scale
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
-import androidx.compose.ui.platform.LocalClipboardManager
+import androidx.compose.ui.platform.ClipEntry
+import androidx.compose.ui.platform.LocalClipboard
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.role
 import androidx.compose.ui.semantics.semantics
-import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.tooling.preview.Preview
@@ -102,6 +104,7 @@ import com.my.amali.ui.theme.glassSurface
 import com.my.amali.ui.theme.iconAccent
 import com.my.amali.ui.theme.paletteChip
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
 
 /**
  * AssistantScreen — главный экран Амалии.
@@ -166,7 +169,12 @@ fun AssistantScreen(
     val state by vm.uiState.collectAsStateWithLifecycle()
     val visuals = LocalAmaliaVisuals.current
     val light = LocalLightProfile.current
-    val clipboard = LocalClipboardManager.current
+    // LocalClipboardManager объявлен deprecated: он не поддерживает suspend и
+    // не умеет отдавать в буфер ничего, кроме текста. Замена — LocalClipboard,
+    // работающий через ClipboardEntry (поддерживает URI, HTML, картинки).
+    // Его setClipEntry — suspend-функция, поэтому вызов идёт через scope.
+    val clipboard = LocalClipboard.current
+    val clipboardScope = rememberCoroutineScope()
 
     // На коротких экранах волна и отступы ужимаются: иначе карточка диалога
     // схлопывается в ноль и кнопка уезжает под плавающую навигацию.
@@ -259,7 +267,18 @@ fun AssistantScreen(
                             contextCompressed = state.contextCompressed,
                             contextMessageCount = state.contextMessageCount,
                             onRepeat = { vm.startConversation(state.userTranscript) },
-                            onCopy = { clipboard.setText(AnnotatedString(state.amaliaReply)) },
+                            onCopy = {
+                                clipboardScope.launch {
+                                    clipboard.setClipEntry(
+                                        ClipEntry(
+                                            ClipData.newPlainText(
+                                                "amalia_reply",
+                                                state.amaliaReply,
+                                            ),
+                                        ),
+                                    )
+                                }
+                            },
                         )
                         DialogPhase.Error -> ErrorCard(
                             message = state.errorMessage

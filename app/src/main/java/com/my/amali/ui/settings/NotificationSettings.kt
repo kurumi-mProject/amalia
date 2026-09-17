@@ -11,7 +11,7 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.NotificationsActive
 import androidx.compose.material.icons.rounded.NotificationsOff
-import androidx.compose.material.icons.rounded.OpenInNew
+import androidx.compose.material.icons.automirrored.rounded.OpenInNew
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -103,7 +103,7 @@ fun NotificationSettings(
                 Spacer(Modifier.height(Spacing.md))
                 SecondaryButton(
                     text = stringResource(R.string.permission_open_settings),
-                    icon = Icons.Rounded.OpenInNew,
+                    icon = Icons.AutoMirrored.Rounded.OpenInNew,
                     onClick = { hub.openNotificationSettings() },
                     modifier = Modifier.fillMaxWidth(),
                 )

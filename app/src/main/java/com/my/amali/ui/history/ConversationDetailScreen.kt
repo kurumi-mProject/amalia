@@ -1,5 +1,6 @@
 package com.my.amali.ui.history
 
+import android.content.ClipData
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.core.Spring
 import androidx.compose.animation.core.animateFloatAsState
@@ -46,6 +47,7 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -53,7 +55,8 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.rotate
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.platform.LocalClipboardManager
+import androidx.compose.ui.platform.ClipEntry
+import androidx.compose.ui.platform.LocalClipboard
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
@@ -62,6 +65,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.SavedStateHandle
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import kotlinx.coroutines.launch
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.lifecycle.viewmodel.initializer
 import androidx.lifecycle.viewmodel.viewModelFactory
@@ -114,7 +118,11 @@ fun ConversationDetailScreen(
         },
     )
     val conversation by vm.conversation.collectAsStateWithLifecycle()
-    val clipboard = LocalClipboardManager.current
+    // Замена deprecated LocalClipboardManager: он не поддерживает suspend
+    // и умеет класть в буфер только простой текст. LocalClipboard работает
+    // через ClipboardEntry, поэтому вызов идёт через scope.
+    val clipboard = LocalClipboard.current
+    val clipboardScope = rememberCoroutineScope()
     val haptics = androidx.compose.ui.platform.LocalHapticFeedback.current
     val listState = rememberLazyListState()
     var showDelete by remember { mutableStateOf(false) }
@@ -173,7 +181,16 @@ fun ConversationDetailScreen(
                         is DetailRow.Message -> MessageBubble(
                             message = row.message,
                             onCopy = {
-                                clipboard.setText(AnnotatedString(row.message.content))
+                                clipboardScope.launch {
+                                    clipboard.setClipEntry(
+                                        ClipEntry(
+                                            ClipData.newPlainText(
+                                                "amalia_message",
+                                                row.message.content,
+                                            ),
+                                        ),
+                                    )
+                                }
                                 haptics.performHapticFeedback(
                                     androidx.compose.ui.hapticfeedback.HapticFeedbackType.LongPress,
                                 )

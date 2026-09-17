@@ -38,7 +38,7 @@ import androidx.compose.material.icons.rounded.Bluetooth
 import androidx.compose.material.icons.rounded.BrightnessMedium
 import androidx.compose.material.icons.rounded.CheckCircle
 import androidx.compose.material.icons.rounded.Mic
-import androidx.compose.material.icons.rounded.VolumeUp
+import androidx.compose.material.icons.automirrored.rounded.VolumeUp
 import androidx.compose.material.icons.rounded.Wifi
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
@@ -96,7 +96,7 @@ private val controlIcons = listOf(
     ControlIcon(Icons.Rounded.Wifi, R.string.device_wifi),
     ControlIcon(Icons.Rounded.Bluetooth, R.string.device_bluetooth),
     ControlIcon(Icons.Rounded.BrightnessMedium, R.string.device_brightness),
-    ControlIcon(Icons.Rounded.VolumeUp, R.string.device_volume),
+    ControlIcon(Icons.AutoMirrored.Rounded.VolumeUp, R.string.device_volume),
 )
 
 /**

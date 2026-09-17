@@ -255,7 +255,7 @@
     <string name="appearance_eye_astigmatism">If you have astigmatism (about one in three people), light mode reads better — set “Dark theme” to “Always light”.</string>
 
     <!-- Amalia's apps -->
-    <string name="settings_apps">Amalia's apps</string>
+    <string name="settings_apps">Amalia\'s apps</string>
     <string name="settings_apps_desc">Pick what she opens by voice and name it your way</string>
     <string name="apps_scanning">Scanning installed apps…</string>
     <string name="apps_selected_count">%1$d of %2$d selected</string>
