@@ -101,7 +101,6 @@
 
     <string name="voice_tts_engine">Moteur vocal</string>
     <string name="voice_tts_engine_mock">Moteur de test</string>
-    <string name="voice_tts_fallback_note">Si le cloud ne répond pas, la voix du système parle</string>
     <string name="voice_speech_rate">Débit de parole</string>
     <string name="voice_speech_pitch">Tonalité</string>
     <string name="voice_voice_id">Voix</string>

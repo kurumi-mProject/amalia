@@ -101,7 +101,6 @@
 
     <string name="voice_tts_engine">语音引擎</string>
     <string name="voice_tts_engine_mock">测试引擎</string>
-    <string name="voice_tts_fallback_note">如果云端没有响应，将由系统语音朗读</string>
     <string name="voice_speech_rate">语速</string>
     <string name="voice_speech_pitch">音调</string>
     <string name="voice_voice_id">声音</string>

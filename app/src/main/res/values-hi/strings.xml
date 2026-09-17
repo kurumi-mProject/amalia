@@ -101,7 +101,6 @@
 
     <string name="voice_tts_engine">स्पीच इंजन</string>
     <string name="voice_tts_engine_mock">टेस्ट इंजन</string>
-    <string name="voice_tts_fallback_note">अगर क्लाउड जवाब न दे, तो सिस्टम आवाज़ बोलेगी</string>
     <string name="voice_speech_rate">बोलने की गति</string>
     <string name="voice_speech_pitch">आवाज़ की पिच</string>
     <string name="voice_voice_id">आवाज़</string>

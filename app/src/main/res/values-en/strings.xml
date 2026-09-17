@@ -102,7 +102,6 @@
 
     <string name="voice_tts_engine">Speech engine</string>
     <string name="voice_tts_engine_mock">Mock engine</string>
-    <string name="voice_tts_fallback_note">If the cloud does not respond, the system voice speaks</string>
     <string name="voice_speech_rate">Speech rate</string>
     <string name="voice_speech_pitch">Speech pitch</string>
     <string name="voice_voice_id">Voice</string>

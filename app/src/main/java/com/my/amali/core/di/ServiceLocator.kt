@@ -16,8 +16,6 @@ import com.my.amali.data.ai.GroqLLM
 import com.my.amali.data.ai.MockLanguageModel
 import com.my.amali.data.ai.MockSpeechToTextEngine
 import com.my.amali.data.ai.MockTextToSpeechEngine
-import com.my.amali.data.ai.ResilientTtsEngine
-import com.my.amali.data.ai.SystemTtsEngine
 import com.my.amali.data.ai.ToolRegistry
 import com.my.amali.data.ai.AmaliaTools
 import com.my.amali.data.apps.AppRegistry
@@ -174,23 +172,19 @@ object ServiceLocator {
     }
 
     /**
-     * Синтез речи с двумя движками: облачный голос Амалии (Fish Audio) и
-     * системный голос Android как страховка.
+     * Синтез речи: голос Амалии через Fish Audio.
      *
-     * Разделение появилось после реальных отказов облака: при нулевом балансе
-     * платные модели отвечают `402` на каждую фразу, а бесплатная после паузы
-     * разогревается около 38 секунд (в прогретом состоянии — 2.4–3 с).
-     * В обоих случаях ассистент молчал, хотя текст ответа уже был готов.
-     * Теперь [ResilientTtsEngine] ждёт первый звук ограниченное время и при
-     * неудаче переключается на системный голос — ответ звучит всегда,
-     * а не «когда-нибудь».
+     * Движок ровно один — и это осознанное решение: ассистент обязан
+     * говорить голосом Амалии, а не «каким-нибудь» голосом системы.
+     * Раньше здесь стояла обёртка с подменой на системный TTS Android
+     * при сбое облака — она убрана, потому что подмена голоса ломает сам
+     * продукт: пользователь слышит чужой голос и не понимает, почему.
+     *
+     * Что происходит, если синтез не удался: оркестратор не считает сбой
+     * озвучки ошибкой цикла, поэтому ответ остаётся текстом в карточке,
+     * а не превращается в экран ошибки. Тихо и честно — без подмены.
      */
-    val ttsEngine: ResilientTtsEngine by lazy {
-        ResilientTtsEngine(
-            primary = FishAudioTTS(),
-            fallback = SystemTtsEngine(appContext),
-        )
-    }
+    val ttsEngine: FishAudioTTS by lazy { FishAudioTTS() }
 
     /** Выдан ли прямо сейчас доступ к микрофону. */
     fun hasMicPermission(): Boolean =

@@ -101,7 +101,6 @@
 
     <string name="voice_tts_engine">Sprach-Engine</string>
     <string name="voice_tts_engine_mock">Test-Engine</string>
-    <string name="voice_tts_fallback_note">Antwortet die Cloud nicht, spricht die Systemstimme</string>
     <string name="voice_speech_rate">Sprechtempo</string>
     <string name="voice_speech_pitch">Stimmlage</string>
     <string name="voice_voice_id">Stimme</string>

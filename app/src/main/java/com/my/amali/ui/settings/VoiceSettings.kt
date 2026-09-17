@@ -160,7 +160,10 @@ private fun TtsEngineCard(modifier: Modifier = Modifier) {
                 Spacer(Modifier.height(2.dp))
                 Text(
                     text = if (live) {
-                        stringResource(R.string.voice_tts_fallback_note)
+                        // Никакого системного синтеза «на подхвате»: если облако
+                        // не ответит, ответ просто останется текстом — но чужого
+                        // голоса пользователь не услышит.
+                        stringResource(R.string.ai_engine_connected)
                     } else {
                         stringResource(R.string.ai_engine_not_connected)
                     },

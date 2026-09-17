@@ -113,7 +113,6 @@
     <!-- === Голос === -->
     <string name="voice_tts_engine">Движок синтеза речи</string>
     <string name="voice_tts_engine_mock">Демо (заглушка)</string>
-    <string name="voice_tts_fallback_note">Если облако не ответит, ответ озвучит системный голос</string>
     <string name="voice_speech_rate">Скорость речи</string>
     <string name="voice_speech_pitch">Тон голоса</string>
     <string name="voice_voice_id">Голос</string>
