@@ -75,7 +75,6 @@ import androidx.compose.ui.platform.LocalClipboardManager
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.contentDescription
-import androidx.compose.ui.semantics.expanded
 import androidx.compose.ui.semantics.role
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.AnnotatedString
@@ -783,7 +782,6 @@ private fun ToolSummary(reports: List<ToolReport>, modifier: Modifier = Modifier
                     .semantics {
                         role = Role.Button
                         contentDescription = actionsTitle
-                        this.expanded = expanded
                     },
                 verticalAlignment = Alignment.CenterVertically,
             ) {

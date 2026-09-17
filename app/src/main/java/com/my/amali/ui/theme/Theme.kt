@@ -11,10 +11,9 @@ import androidx.compose.runtime.ReadOnlyComposable
 import androidx.compose.runtime.SideEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.produceState
-import androidx.compose.runtime.remember
 import androidx.compose.runtime.staticCompositionLocalOf
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.blend
+import androidx.compose.ui.graphics.lerp
 import androidx.compose.ui.graphics.luminance
 import androidx.compose.ui.platform.LocalView
 import androidx.core.view.WindowCompat
@@ -297,16 +296,16 @@ private fun tintScheme(
     val spark = tones.getOrElse(2 % tones.size) { scheme.tertiary }
 
     fun fit(accent: Color): Color {
-        val mixed = scheme.primary.blend(accent, TINT_RATIO)
+        val mixed = lerp(scheme.primary, accent, TINT_RATIO)
         return if (isDark) {
             if (mixed.luminance() < MIN_DARK_LUMINANCE) {
-                mixed.blend(Color.White, LIFT_RATIO)
+                lerp(mixed, Color.White, LIFT_RATIO)
             } else {
                 mixed
             }
         } else {
             if (mixed.luminance() > MAX_LIGHT_LUMINANCE) {
-                mixed.blend(Color.Black, DEEPEN_RATIO)
+                lerp(mixed, Color.Black, DEEPEN_RATIO)
             } else {
                 mixed
             }
@@ -319,10 +318,10 @@ private fun tintScheme(
 
     return scheme.copy(
         primary = primary,
-        primaryContainer = primary.blend(scheme.surface, 0.72f),
+        primaryContainer = lerp(primary, scheme.surface, 0.72f),
         onPrimaryContainer = scheme.onSurface,
         secondary = secondary,
-        secondaryContainer = secondary.blend(scheme.surface, 0.82f),
+        secondaryContainer = lerp(secondary, scheme.surface, 0.82f),
         onSecondary = scheme.background,
         tertiary = tertiary,
         onTertiary = scheme.background,
@@ -394,7 +393,7 @@ fun iconAccent(): Color {
     val tone = palette.motifAccent.takeIf { it != Color.Unspecified }
         ?: palette.auroras.firstOrNull()
         ?: MaterialTheme.colorScheme.primary
-    return tone.blend(MaterialTheme.colorScheme.primary, if (palette.isDark) 0.35f else 0.5f)
+    return lerp(tone, MaterialTheme.colorScheme.primary, if (palette.isDark) 0.35f else 0.5f)
 }
 
 private const val TINT_RATIO = 0.30f

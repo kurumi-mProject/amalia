@@ -103,7 +103,7 @@ fun MotifLayer(
                 // он то раскрывается плашмя, то складывается в профиль.
                 val fold = 0.35f + 0.65f * cos(t * p.spin * TAU + p.phase)
                 translate(left = p.x * w + sway, top = y) {
-                    rotate(deg = cos(t * p.spin * TAU + p.phase) * MAX_TILT * p.spin.sign) {
+                    rotate(cos(t * p.spin * TAU + p.phase) * MAX_TILT * p.spinSign) {
                         scale(scaleX = radius, scaleY = radius * fold) {
                             shape.draw(this, color.copy(alpha = alpha), radius)
                         }
@@ -118,7 +118,7 @@ fun MotifLayer(
                 )
                 drawGlow(color, center, radius, twinkle)
                 translate(left = center.x, top = center.y) {
-                    rotate(deg = twinkle * TILT_STARS) {
+                    rotate(twinkle * TILT_STARS) {
                         scale(scaleX = radius, scaleY = radius) {
                             shape.draw(this, color.copy(alpha = alpha * twinkle), radius)
                         }
@@ -173,7 +173,7 @@ fun MotifSwatch(
                 )
             }
             translate(left = fx * size.width, top = fy * size.height) {
-                rotate(deg = (index - 1) * 22f) {
+                rotate((index - 1) * 22f) {
                     scale(scaleX = radius, scaleY = radius * 0.85f) {
                         shape.draw(this, color.copy(alpha = 0.9f * anchor), radius)
                     }

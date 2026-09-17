@@ -28,6 +28,7 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.receiveAsFlow
 import kotlinx.coroutines.flow.stateIn
+import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withTimeoutOrNull
 
@@ -595,7 +596,9 @@ class AssistantViewModel(
                 )
                 sessionConversationId = created.id
                 conversationRepo.appendMessages(created.id, turn)
-                _uiState.update { it.copy(conversationCount = conversationRepo.count()) }
+                // count() — suspend: снаружи update{}, иначе вызов не скомпилируется
+                val newCount = conversationRepo.count()
+                _uiState.update { it.copy(conversationCount = newCount) }
             } else {
                 conversationRepo.appendMessages(id, turn)
             }
