@@ -15,13 +15,29 @@ import kotlinx.coroutines.flow.channelFlow
  *
  * 1. STT превращает звук в [ChatMessage.user].
  * 2. LLM читает **сообщения + инструменты** и стримит SSE-события:
- *    - [LLMEvent.ContentDelta] — кусочек естественного текста;
+ *    - [LLMEvent.ContentDelta] — кусочек ответа (в нашем контракте это JSON `{reply,tools}`);
  *    - [LLMEvent.ToolCallDetected] — модель хочет вызвать инструмент;
  *    - [LLMEvent.Completed] — поток LLM закрыт, указывает причину.
- * 3. Оркестратор гоняет **multi-turn loop**: каждый tool call исполняется,
- *    результат добавляется в историю, LLM вызывается снова. Максимум
- *    [MAX_TOOL_ROUNDS] раундов, чтобы случайная рекурсия не зациклилась.
+ * 3. Оркестратор исполняет **все** вызовы раунда, добавляет результаты в
+ *    историю и — только если без результатов нельзя ответить — делает ровно
+ *    один дополнительный раунд LLM.
  * 4. Финальный текст ответа уходит в TTS.
+ *
+ * ## Почему раундов больше не может быть «много»
+ *
+ * Модель отвечает нативным Tools API не пользуется (мы просим JSON в `content`),
+ * поэтому исторически её собственный JSON-ответ возвращался в историю как
+ * `assistant`-сообщение. На следующем раунде модель видела
+ * `{"reply":"окей","tools":[{"name":"set_wifi"…}]}` в своей же реплике и
+ * продолжала вызывать те же инструменты, пока не упиралась в лимит раундов —
+ * наружу улетало «сделала», а пользователь слышал бесконечные повторы.
+ *
+ * Сейчас действует три защиты:
+ *  - в историю попадает **только человеческий текст** `reply`, никогда JSON;
+ *  - вызовы дедуплицируются по сигнатуре `имя(аргументы)` — повтор не исполняется;
+ *  - второй раунд назначается только для `INFORMATIONAL_TOOLS` (те, чей результат
+ *    обязан прозвучать в ответе). Действия вида «включи Wi-Fi» закрываются за
+ *    ОДИН раунд LLM — это ровно вдвое быстрее прежнего.
  *
  * ## Совместимость
  *
@@ -32,13 +48,9 @@ import kotlinx.coroutines.flow.channelFlow
  *
  * ## Конвейер событий наружу
  *
- * UI получает ровно те же [AiResponse], что и раньше, плюс два новых:
- * - [AiResponse.ToolRunning] — инструмент начал работу (можно подсветить);
- * - [AiResponse.ToolCompleted] — инструмент закончил (можно свернуть подсказку).
- *
- * В оркестраторе оба события эмитятся между [Thinking] и [Speaking], поэтому
- * визуально они живут внутри фазы «Думаю» — пользователь видит кратковременный
- * «пульс» и слышит голосовую реплику как обычно.
+ * UI получает ровно те же [AiResponse], что и раньше, плюс два служебных:
+ * - [AiResponse.ToolRunning] — инструмент начал исполнение;
+ * - [AiResponse.ToolCompleted] — инструмент закончил.
  */
 class AIOrchestrator(
     internal val sttEngine: SpeechToTextEngine,
@@ -52,6 +64,14 @@ class AIOrchestrator(
     /** Текст последней ошибки конвейера или null, если последний прогон успешен. */
     @Volatile
     var lastError: String? = null
+        private set
+
+    /**
+     * Что модель успела сделать в последнем прогоне — по именам инструментов.
+     * UI читает это, чтобы показать сводку действий, не разбирая события.
+     */
+    @Volatile
+    var lastExecutedTools: List<String> = emptyList()
         private set
 
     /** Инициализирует все движки. Идемпотентно. */
@@ -103,7 +123,10 @@ class AIOrchestrator(
         }
 
         val transcript = joinTranscript(segments.toString(), partial)
-        if (transcript.isBlank() || transcript.trim().split("\\s+".toRegex()).size < MIN_WORDS_TO_PROCESS) {
+        if (transcript.isBlank() ||
+            transcript.trim().split("\\s+".toRegex()).size < MIN_WORDS_TO_PROCESS ||
+            isLikelyNoise(transcript)
+        ) {
             lastError = ERROR_NO_SPEECH
             send(AiResponse.Error(ERROR_NO_SPEECH))
             return@channelFlow
@@ -133,8 +156,9 @@ class AIOrchestrator(
     }.catch { throwable -> emitFailure(throwable) }
 
     /**
-     * Только текстовый ответ модели без синтеза — для служебных сценариев.
-     * Эмитит накопленный текст после каждой дельты.
+     * Только текстовый ответ модели без синтеза — для служебных сценариев
+     * (например, сжатие контекста). Возвращает уже чистый человеческий текст,
+     * а не JSON-контракт модели.
      */
     fun textOnlyResponse(
         text: String,
@@ -142,34 +166,26 @@ class AIOrchestrator(
         options: EngineOptions = EngineOptions.Default,
     ): Flow<String> = kotlinx.coroutines.flow.flow {
         if (llmEngine.supportsTools && registry.names.isNotEmpty()) {
-            // Tool-aware: используем chatWithTools и собираем только текст
             val acc = StringBuilder()
             llmEngine.chatWithTools(
                 messages = history + ChatMessage.user(text),
                 tools = registry.definitions,
                 options = options,
             ).collect { event ->
-                if (event is LLMEvent.ContentDelta) {
-                    acc.append(event.text)
-                    // Не эмитим промежуточные tool-вызовы — для этого entry-point
-                    // интересует только финальный текст.
-                    if (event.text.isNotEmpty()) emit(acc.toString())
-                }
+                if (event is LLMEvent.ContentDelta) acc.append(event.text)
             }
+            val clean = extractReply(acc.toString()).ifBlank { stripJson(acc.toString()) }
+            if (clean.isNotBlank()) emit(clean)
         } else {
-            // Legacy: один текстовый запрос
-            llmEngine.generateResponse(text, history, options).collect { acc ->
-                emit(acc)
-            }
+            llmEngine.generateResponse(text, history, options).collect { emit(it) }
         }
     }
 
     // ── Ядро конвейера ───────────────────────────────────────────────────
 
     /**
-     * LLM с прямой стриминговой поддержкой tools.
+     * Единая точка прогона: LLM (+инструменты) → текст → TTS.
      *
-     * Главный метод — точка, вокруг которой строится весь multi-turn цикл.
      * Используется и tool-aware, и legacy путём в зависимости от [llmEngine.supportsTools].
      */
     private suspend fun runPipeline(
@@ -179,6 +195,8 @@ class AIOrchestrator(
         emit: suspend (AiResponse) -> Unit,
     ) = kotlinx.coroutines.coroutineScope {
         emit(AiResponse.Thinking(true))
+
+        lastExecutedTools = emptyList()
 
         val responseText: String = try {
             if (llmEngine.supportsTools && registry.names.isNotEmpty()) {
@@ -218,12 +236,13 @@ class AIOrchestrator(
     }
 
     /**
-     * Tool-aware путь: несколько вызовов LLM, между ними — исполнение
-     * инструментов и дополнение истории.
+     * Tool-aware путь.
      *
-     * Возвращает финальный голосовой текст для TTS. Если в последнем раунде
-     * модель выдала только tools без текста — берётся fallback (компактная
-     * реплика на основе числа выполненных инструментов).
+     * Возвращает финальный голосовой текст для TTS. Реплика модели из
+     * ПЕРВОГО раунда никогда не теряется: если она есть, она и звучит.
+     * Дополнительный раунд к LLM — только когда вызван инструмент, чей
+     * результат обязан попасть в ответ (время, батарея, погода, поиск по
+     * истории). Все остальные случаи закрываются одним обращением к модели.
      */
     private suspend fun runToolLoop(
         commandText: String,
@@ -231,116 +250,92 @@ class AIOrchestrator(
         options: EngineOptions,
         emit: suspend (AiResponse) -> Unit,
     ): String {
-        val transcriptHolder = listOf(commandText)
-        // LLM работает с системным промптом и историей. Оркестратор держит
-        // «теневую» историю, которая пополняется результатами tools и при
-        // необходимости — ассистентскими сообщениями-обёртками.
         val messages = mutableListOf<ChatMessage>().apply {
-            // сначала явная история диалога
+            // Инструментарные хвосты прошлых циклов в общий контекст не идут —
+            // они относятся к конкретному раунду.
             addAll(history.filter { it.role != MessageRole.TOOL })
-            // ...а tool-results внутри неё отбрасываем — они часть конкретного раунда, не общей истории.
         }
-        // Дублируем user-реплику, чтобы она была «свежей» (последней)
+        // Держим реплику пользователя последней, чтобы модель не читала
+        // «свежий» запрос как уже отвеченный.
         val lastUser = messages.lastOrNull { it.role == MessageRole.USER }?.content
-        if (lastUser != commandText) {
-            messages += ChatMessage.user(commandText)
-        }
+        if (lastUser != commandText) messages += ChatMessage.user(commandText)
 
         val toolSpecs = registry.definitions
-        var collectedText = StringBuilder()
-        var textWasCollected = false
-        var stopRequested = false
-        val executedTools = mutableSetOf<String>()
-        var lastNonEmptyReply = "" // reply из любого раунда — fallback если финальный пустой
+        val executedNames = linkedSetOf<String>()
+        val executedSignatures = mutableSetOf<String>()
+        var reply = ""
+        var round = 0
 
-        repeat(MAX_TOOL_ROUNDS) { roundIndex ->
-            if (stopRequested) return@repeat
-            val stream = llmEngine.chatWithTools(
+        while (round < MAX_TOOL_ROUNDS) {
+            round++
+
+            val collected = StringBuilder()
+            val calls = mutableListOf<ToolCall>()
+
+            llmEngine.chatWithTools(
                 messages = messages.toList(),
                 tools = toolSpecs,
                 options = options,
-                alreadyExecutedTools = executedTools.toSet(),
-            )
-            val collected = StringBuilder()
-            val calls = mutableListOf<ToolCall>()
-            var finishReason = FinishReason.STOP
-
-            stream.collect { event ->
+                alreadyExecutedTools = executedNames.toSet(),
+            ).collect { event ->
                 when (event) {
-                    is LLMEvent.ContentDelta -> {
-                        // Накапливаем сырой JSON — не показываем пока не распарсим
-                        collected.append(event.text)
-                    }
-
-                    is LLMEvent.ToolCallDetected -> {
-                        calls += event.call
-                        emit(
-                            AiResponse.ToolRunning(
-                                toolName = event.call.toolName,
-                                arguments = event.call.argumentsMap,
-                            ),
-                        )
-                    }
-
-                    is LLMEvent.Completed -> {
-                        finishReason = event.reason
-                    }
+                    is LLMEvent.ContentDelta -> collected.append(event.text)
+                    is LLMEvent.ToolCallDetected -> calls += event.call
+                    is LLMEvent.Completed -> Unit
                 }
             }
 
-            // Парсим reply из JSON — только это идёт в UI и TTS
-            val replyText = extractReply(collected.toString())
-            if (replyText.isNotBlank()) {
-                lastNonEmptyReply = replyText
-                emit(AiResponse.ReplyDelta(replyText, replyText))
+            // В UI и в историю уходит только человеческий текст.
+            extractReply(collected.toString()).takeIf { it.isNotBlank() }?.let { text ->
+                reply = if (reply.isBlank() || reply.contains(text)) text else "$reply $text"
+                emit(AiResponse.ReplyDelta(text, reply))
             }
 
-            // Если в потоке появились вызовы инструментов — исполняем их и делаем
-            // второй раунд к LLM с результатами. Это правило работает даже
-            // если finish_reason == "stop" (модели вроде o1 стримят вызовы
-            // и завершают stop'ом в одном чанке), и для mock-LLM (он тоже
-            // не возвращает отдельный finish_reason tool_calls).
-            if (calls.isNotEmpty()) {
-                messages += syntacticAssistantToolMessage(calls, collected.toString())
-                for (call in calls) {
-                    val result = registry.execute(call)
-                    executedTools += call.toolName
-                    messages += ChatMessage.toolResult(
-                        toolCallId = result.toolCallId,
-                        content = result.contentForModel(),
-                    )
-                    emit(
-                        AiResponse.ToolCompleted(
-                            toolName = result.toolName,
-                            ok = result.ok,
-                            output = result.output,
-                            errorMessage = result.errorMessage,
-                        ),
-                    )
+            if (calls.isEmpty()) return reply.ifBlank { fallbackReply(executedNames) }
+
+            // Повтор уже сделанного действия не исполняется никогда — это
+            // главный стопор против «зацикливания на сделала».
+            val fresh = calls.filter { executedSignatures.add(signatureOf(it)) }
+            if (fresh.isEmpty()) return reply.ifBlank { fallbackReply(executedNames) }
+
+            // Результаты инструментов, без которых ответ невозможен.
+            val feedBack = mutableListOf<String>()
+            var dataNeeded = false
+
+            for (call in fresh) {
+                emit(AiResponse.ToolRunning(call.toolName, call.argumentsMap))
+                val result = registry.execute(call)
+                executedNames += call.toolName
+                emit(
+                    AiResponse.ToolCompleted(
+                        toolName = result.toolName,
+                        ok = result.ok,
+                        output = result.output,
+                        errorMessage = result.errorMessage,
+                    ),
+                )
+                if (result.toolName in INFORMATIONAL_TOOLS) {
+                    dataNeeded = true
+                    feedBack += "${result.toolName}: ${result.contentForModel()}"
                 }
-                textWasCollected = textWasCollected || collected.isNotEmpty()
-                // В JSON-режиме модель уже дала reply + tools в одном раунде.
-                // Если reply был — останавливаемся, не делаем лишний раунд.
-                if (replyText.isNotBlank()) {
-                    stopRequested = true
-                }
-                return@repeat
             }
 
-            // Завершающий раунд: есть финальный текст от модели.
-            collectedText = collected
-            textWasCollected = textWasCollected || collected.isNotEmpty()
-            stopRequested = true
+            lastExecutedTools = executedNames.toList()
+
+            // Действие без данных (включил/открыл/поставил) — ответ модели уже
+            // прозвучит. Второй запрос к LLM только отнял бы ~700 мс у пользователя.
+            if (!dataNeeded) return reply.ifBlank { fallbackReply(executedNames) }
+
+            // Единственный доборочный раунд: чистый текст + компактные данные.
+            // Сырой JSON модели в историю НЕ попадает.
+            if (reply.isNotBlank()) messages += ChatMessage.assistant(reply)
+            messages += ChatMessage.user(
+                "[РЕЗУЛЬТАТЫ] ${feedBack.joinToString("; ")}\n" +
+                    "Скажи это коротко и по-человечески, без списков.",
+            )
         }
 
-        val finalText = extractReply(collectedText.toString()).ifEmpty {
-            lastNonEmptyReply.ifEmpty {
-                // Если были инструменты — краткая реплика "сделала" уместна.
-                // Если инструментов не было — значит модель молчит, это ошибка.
-                if (executedTools.isNotEmpty()) "сделала" else ""
-            }
-        }
-        return finalText
+        return reply.ifBlank { fallbackReply(executedNames) }
     }
 
     /**
@@ -357,15 +352,12 @@ class AIOrchestrator(
         emit: suspend (AiResponse) -> Unit,
     ): String {
         val answer = StringBuilder()
-        try {
-            llmEngine.generateResponse(commandText, history, options).collect { delta ->
-                answer.append(delta)
-                emit(AiResponse.ReplyDelta(delta, answer.toString()))
-            }
-        } catch (e: CancellationException) {
-            throw e
-        } catch (e: Throwable) {
-            throw e
+        // Без локальных try/catch — пусть исключения летят вверх в
+        // outer runPipeline, где их ждёт единая обработка ошибок с
+        // единообразным `Thinking(false)` и сообщением для UI.
+        llmEngine.generateResponse(commandText, history, options).collect { delta ->
+            answer.append(delta)
+            emit(AiResponse.ReplyDelta(delta, answer.toString()))
         }
 
         // Парсим JSON с командами (старая схема из AmaliaTools.systemPrompt).
@@ -397,6 +389,22 @@ class AIOrchestrator(
     }
 
     /**
+     * Отсеивает короткие вокальные «паразиты», которые Deepgram иногда
+     * фиксирует как полноценные слова: «э-м», «ну-у», «а-а», одиночные
+     * согласные. Однословные короткие (≤2 символов кириллицы и не цифры)
+     * считаются шумом; многословные никогда.
+     */
+    private fun isLikelyNoise(text: String): Boolean {
+        val words = text.trim().split("\\s+".toRegex())
+        if (words.size > 1) return false
+        val word = words.single()
+        if (word.matches(Regex("\\d+"))) return false // «7», «12» — числа, можно игнорировать, но они короткие
+        // Очень короткие однословные реплики без букв кириллицы/латиницы.
+        val letters = word.count { it.isLetter() }
+        return letters <= 2
+    }
+
+    /**
      * Парсит ответ LLM в legacy-формате: если есть JSON-обёртка {reply,commands},
      * возвращает её; иначе весь текст идёт как reply.
      */
@@ -415,35 +423,39 @@ class AIOrchestrator(
     }
 
     /**
-     * Сообщение ассистента с прикреплёнными tool_calls — LLM получит его
-     * на следующем раунде вместе с результатами инструментов.
+     * Ключ повторяемости вызова: имя + нормализованные аргументы.
      *
-     * В OpenAI-формате содержимое `[content]` пустое, а сами вызовы лежат
-     * в массиве `[tool_calls]`. Если модель успела начать текст до
-     * объявления tool_calls (стрим-гонка), [extraContent] сохраняется в
-     * обычном `content` сообщения, но отдельным assistant-сообщением
-     * идёт ВЫЗОВЫ: иначе OpenAPI считает формат невалидным.
+     * Порядок ключей в JSON модель гуляет от ответа к ответу, поэтому
+     * аргументы сортируются — иначе «{a,b}» и «{b,a}» считались бы разными
+     * действиями и цикл крутился бы вечно.
      */
-    private fun syntacticAssistantToolMessage(
-        calls: List<ToolCall>,
-        extraContent: String,
-    ): ChatMessage {
-        // Если есть и текстовая преамбула, и tool_calls — добавляем
-        // дополнительное user-сообщение «продолжай» с текстом, чтобы
-        // не терять сгенерированный текст (редкая гонка стримов).
-        return ChatMessage(
-            id = ChatMessage.newId(),
-            role = MessageRole.ASSISTANT,
-            content = extraContent,
-            timestamp = System.currentTimeMillis(),
-            toolCalls = calls,
-        )
+    private fun signatureOf(call: ToolCall): String {
+        if (call.argumentsMap.isEmpty()) return call.toolName
+        val args = call.argumentsMap.entries
+            .sortedBy { it.key }
+            .joinToString(",") { "${it.key}=${it.value}" }
+        return "${call.toolName}($args)"
     }
 
-    private fun legacyFallbackWhenNoText(): String =
-        // Аналог того, что в системном промпте делает настоящий LLM:
-        // короткая реплика после набора действий.
-        "сделала"
+    /**
+     * Реплика, когда модель вызвала действия, но не сказала ни слова.
+     *
+     * Варианты чередуются по числу инструментов: однообразное «сделала» на
+     * каждом цикле пользователь воспринимает как сломанный ответ.
+     */
+    private fun fallbackReply(executed: Set<String>): String = when {
+        executed.isEmpty() -> ""
+        executed.size == 1 -> "готово"
+        else -> "всё, ${executed.size} дела"
+    }
+
+    /**
+     * Защита от ситуации, когда служебный вызов (сжатие контекста) получил
+     * не JSON, а обрывок: вырезаем фигурные скобки, чтобы в речь не попало
+     * «кавычка реплай двоеточие».
+     */
+    private fun stripJson(raw: String): String =
+        raw.replace(Regex("[{}\\[\\]\"]"), " ").replace(Regex("\\s+"), " ").trim()
 
     /**
      * Вытаскивает поле "reply" из JSON-ответа модели.
@@ -453,36 +465,53 @@ class AIOrchestrator(
     private fun extractReply(raw: String): String {
         val trimmed = raw.trim()
         if (trimmed.isEmpty()) return ""
-        return runCatching {
+        val fromJson = runCatching {
             org.json.JSONObject(trimmed).optString("reply", "").trim()
-        }.getOrDefault("").ifEmpty {
-            // Модель ответила не JSON — берём как есть, но без фигурных скобок
-            if (trimmed.startsWith("{")) "" else trimmed
-        }
+        }.getOrDefault("")
+        if (fromJson.isNotBlank()) return fromJson
+        // Модель ответила не JSON — берём как есть, но без фигурных скобок
+        return if (trimmed.startsWith("{")) "" else trimmed
     }
 
     private companion object {
         const val ERROR_NO_SPEECH = "Не услышала ни слова. Нажми микрофон и скажи ещё раз."
         const val ERROR_EMPTY_COMMAND = "Пустая команда — нечего обрабатывать."
         const val ERROR_UNKNOWN = "Что-то пошло не так. Попробуй ещё раз."
-        const val FALLBACK_ANSWER = "Я не смогла сформулировать ответ. Попробуй переспросить."
 
         /**
-         * Защита от бесконечного цикла tool calls. На практике модель
-         * завершает цикл за 1-3 раунда; 10 раундов — щедрый лимит, после которого
-         * оркестратор возвращает собранный текст и TTS, чтобы UI не висел.
+         * Жёсткий потолок обращений к LLM за один цикл.
+         *
+         * Практика показывает: действие закрывается за 1 раунд, «посмотри и
+         * скажи» — за 2. Три — уже аномалия, которую надо обрывать, а не
+         * обслуживать: раньше лимит в 10 раундов и превращал один клик по
+         * подсказке в череду «сделала».
          */
-        const val MAX_TOOL_ROUNDS = 10
+        const val MAX_TOOL_ROUNDS = 3
+
+        /**
+         * Инструменты, чей результат обязан прозвучать в ответе.
+         *
+         * Для них оправдан второй запрос к модели. Всё остальное — действия,
+         * их результат модели не нужен: пользователь и так видит сводку.
+         */
+        val INFORMATIONAL_TOOLS = setOf(
+            "get_current_time",
+            "get_device_status",
+            "get_battery_level",
+            "get_location_status",
+            "get_weather",
+            "search_history",
+            "get_recent_conversations",
+        )
 
         /**
          * Минимум слов в транскрипте, чтобы отправить запрос к LLM.
-         * Одиночные звуки/шумы Deepgram иногда транскрибирует как одно слово
-         * ("э", "м", "ну") — они не несут смысла и только жгут rate limit.
+         *
+         * Значение 1 — потому что hands-free режим полагается на короткие
+         * односложные команды вроде «стоп», «тише», «отмени», и слишком
+         * жёсткий фильтр их съедает. Шум «э», «м», «а» отсеиваем отдельно
+         * по длине и содержанию символов в [isLikelyNoise] ниже.
          */
-        const val MIN_WORDS_TO_PROCESS = 2
+        const val MIN_WORDS_TO_PROCESS = 1
     }
-
-    // Подавляем предупреждение о неиспользуемых параметрах в legacy-пути
-    @Suppress("unused")
-    private fun transcriptHolder_UNUSED() = Unit
 }

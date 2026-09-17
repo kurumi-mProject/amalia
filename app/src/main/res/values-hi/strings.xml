@@ -194,4 +194,37 @@
     <string name="ai_engine_not_connected">कनेक्ट नहीं</string>
     <string name="ai_engine_connected">कनेक्टेड</string>
     <string name="ai_engine_settings_desc">इंजन डेवलपर सेटिंग्स में जुड़ते हैं</string>
+
+    <!-- === Амалия: действия, контекст, декор фона === -->
+    <string name="assistant_tools_more">%1$d और</string>
+    <string name="assistant_actions_title">क्या किया गया</string>
+    <string name="assistant_actions_ok">पूरा: %1$d</string>
+    <string name="assistant_actions_partial">पूरा: %1$d · विफल: %2$d</string>
+    <string name="assistant_context_compressed">संदर्भ संपीड़ित</string>
+    <string name="assistant_action_failed">नहीं हो सका</string>
+    <string name="assistant_mic_denied">माइक अनुमति के बिना मैं सुन नहीं सकती। ऐप सेटिंग में अनुमति दें।</string>
+    <string name="assistant_generic_error">कुछ गड़बड़ हो गई। फिर से कोशिश करो।</string>
+    <string name="suggestion_check">नतीजा जाँचो</string>
+    <string name="suggestion_undo">वापस लो</string>
+    <string name="history_context_summary">संदर्भ सारांश</string>
+    <string name="history_compressed_marker">अमालिया शुरुआत को सारांश के रूप में याद रखती है, शब्दशः नहीं</string>
+    <string name="history_actions_count">क्रियाएँ: %1$d</string>
+    <string name="appearance_motif">पृष्ठभूमि सजावट</string>
+    <string name="appearance_motif_desc">पंखुड़ियाँ, पत्ते, बर्फ, तारे या जुगनू — समय के साथ</string>
+    <string name="appearance_motif_density">सजावट की घनत्व</string>
+    <string name="motif_off">बिना सजावट</string>
+    <string name="motif_auto">समय अनुसार</string>
+    <string name="motif_sakura">साकुरा</string>
+    <string name="motif_maple">गिरते पत्ते</string>
+    <string name="motif_firefly">जुगनू</string>
+    <string name="motif_snow">बर्फ</string>
+    <string name="motif_stars">तारे</string>
+    <string name="privacy_resume_session">आख़िरी बातचीत जारी रखें</string>
+    <string name="privacy_resume_session_desc">रीस्टार्ट के बाद अमालिया संदर्भ याद रखती है</string>
+    <string name="privacy_memory">याद</string>
+    <string name="time_just_now">अभी</string>
+    <string name="time_minutes_ago">%1$d मिनट पहले</string>
+    <string name="time_hours_ago">%1$d घंटे पहले</string>
+    <string name="time_days_ago">%1$d दिन पहले</string>
+    <string name="history_resume">नई बातचीत में जारी रखें</string>
 </resources>

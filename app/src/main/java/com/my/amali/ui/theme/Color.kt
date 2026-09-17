@@ -110,28 +110,117 @@ data class GradientStop(
     val position: Float,
 )
 
+/**
+ * Палитра живого фона.
+ *
+ * @property auroras цвета дрейфующих пятен-аурор.
+ * @property motif декорации, которые автоматически «прилетают» под этот
+ *   настрой: у персикового дня — лепестки сакуры, у лавандовой ночи — звёзды.
+ *   Это не «ещё один слой», а визуальная причина, почему цвет вообще
+ *   меняется: пользователю очевидно, что тема следует за временем, а не глючит.
+ * @property motifAccent основной цвет частиц; если не задан — берётся
+ *   последний aurora-акцент.
+ */
 data class GradientPalette(
     val name: String,
     val stops: List<GradientStop>,
     val isDark: Boolean,
     /** Цвета «аурора»-пятен, которые медленно дрейфуют поверх базы. */
     val auroras: List<Color> = emptyList(),
+    val motif: AmaliaMotif = AmaliaMotif.OFF,
+    val motifAccent: Color = Color.Unspecified,
+    val motifAccentAlt: Color = Color.Unspecified,
 )
 
+/**
+ * Палитры живого фона.
+ *
+ * У каждой — свой [GradientPalette.motif]: палитра и декорации решаются
+ * ОДНИМ значением, поэтому фон и «что летает поверх» физически не могут
+ * разъехаться (было бы странно ронять снежинки на персиковое утро).
+ */
+
+// ── LIQUID GLASS: тёмная база, акценты меняются по времени суток ────────
+
+private val glassStops = listOf(
+    GradientStop(Color(0xFF08080C), 0f),
+    GradientStop(Color(0xFF0D0D14), 0.55f),
+    GradientStop(Color(0xFF06060A), 1f),
+)
+
+/** Ночь/база: индиго + лёд. */
 val GlassGradientPalette = GradientPalette(
     name = "Liquid Glass",
-    stops = listOf(
-        GradientStop(Color(0xFF08080C), 0f),
-        GradientStop(Color(0xFF0D0D14), 0.55f),
-        GradientStop(Color(0xFF06060A), 1f),
-    ),
+    stops = glassStops,
     isDark = true,
     auroras = listOf(
         Color(0xFF6E63F2),
         Color(0xFF3E6FA8),
         Color(0xFF79C7E8),
     ),
+    motif = AmaliaMotif.STARS,
+    motifAccent = StarCool,
+    motifAccentAlt = StarWarm,
 )
+
+/** Утро в стекле: холодный циан + шалфей. */
+val GlassGradientMorning = GradientPalette(
+    name = "Liquid Glass · Утро",
+    stops = listOf(
+        GradientStop(Color(0xFF07080C), 0f),
+        GradientStop(Color(0xFF0C1216), 0.55f),
+        GradientStop(Color(0xFF06070A), 1f),
+    ),
+    isDark = true,
+    auroras = listOf(
+        Color(0xFF6FA8A0),
+        Color(0xFF79C7E8),
+        Color(0xFF9AB06E),
+    ),
+    motif = AmaliaMotif.MAPLE,
+    motifAccent = MapleGreen,
+    motifAccentAlt = MapleAmber,
+)
+
+/** День в стекле: тот самый розовый — значит сакура. */
+val GlassGradientDay = GradientPalette(
+    name = "Liquid Glass · День",
+    stops = listOf(
+        GradientStop(Color(0xFF09070C), 0f),
+        GradientStop(Color(0xFF130C16), 0.55f),
+        GradientStop(Color(0xFF07060A), 1f),
+    ),
+    isDark = true,
+    auroras = listOf(
+        Color(0xFFE5A0BF),
+        Color(0xFF6E63F2),
+        Color(0xFFF3C6D6),
+    ),
+    motif = AmaliaMotif.SAKURA,
+    motifAccent = SakuraPetal,
+    motifAccentAlt = SakuraDeep,
+)
+
+/** Вечер в стекле: медь и янтарь → светлячки. */
+val GlassGradientEvening = GradientPalette(
+    name = "Liquid Glass · Вечер",
+    stops = listOf(
+        GradientStop(Color(0xFF0A0708), 0f),
+        GradientStop(Color(0xFF140D0C), 0.55f),
+        GradientStop(Color(0xFF070506), 1f),
+    ),
+    isDark = true,
+    auroras = listOf(
+        Color(0xFFB4794A),
+        Color(0xFF7A6142),
+        Color(0xFFD9A97F),
+    ),
+    motif = AmaliaMotif.FIREFLY,
+    motifAccent = FireflyLime,
+    motifAccentAlt = FireflyGold,
+)
+
+// ── БИОФИЛЬНАЯ: мягкий свет → тёплый сумрак ────────────────────────────
 
 val BioGradientMorning = GradientPalette(
     name = "Утренняя Листва",
@@ -146,6 +235,9 @@ val BioGradientMorning = GradientPalette(
         Color(0xFFD9E3CE),
         Color(0xFFE8DFD0),
     ),
+    motif = AmaliaMotif.MAPLE,
+    motifAccent = MapleGreen,
+    motifAccentAlt = MapleAmber,
 )
 
 val BioGradientDay = GradientPalette(
@@ -161,6 +253,9 @@ val BioGradientDay = GradientPalette(
         Color(0xFFE0BFB8),
         Color(0xFFF5E8D8),
     ),
+    motif = AmaliaMotif.SAKURA,
+    motifAccent = SakuraPetal,
+    motifAccentAlt = SakuraDeep,
 )
 
 val BioGradientEvening = GradientPalette(
@@ -176,6 +271,9 @@ val BioGradientEvening = GradientPalette(
         Color(0xFF7A6142),
         Color(0xFFD9A97F),
     ),
+    motif = AmaliaMotif.FIREFLY,
+    motifAccent = FireflyLime,
+    motifAccentAlt = FireflyGold,
 )
 
 val BioGradientNight = GradientPalette(
@@ -191,4 +289,7 @@ val BioGradientNight = GradientPalette(
         Color(0xFF6E63F2),
         Color(0xFFC8C8D8),
     ),
+    motif = AmaliaMotif.SNOW,
+    motifAccent = SnowPale,
+    motifAccentAlt = SnowCold,
 )

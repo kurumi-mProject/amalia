@@ -73,6 +73,7 @@ import com.my.amali.ui.components.PrimaryButton
 import com.my.amali.ui.components.VoiceWave
 import com.my.amali.ui.theme.AmaliaTheme
 import com.my.amali.ui.theme.AmaliaVisualTheme
+import com.my.amali.ui.theme.AmaliaMotif
 import com.my.amali.ui.theme.BioGradientMorning
 import com.my.amali.ui.theme.GlassGradientPalette
 import com.my.amali.ui.theme.GradientPalette
@@ -130,9 +131,13 @@ fun OnboardingScreen(
     }
 
     Box(modifier = modifier.fillMaxSize()) {
+        // Онбординг всегда в «стекле»: у пользователя ещё нет настроек,
+        // а первое впечатление должно быть одним и тем же на любом устройстве.
         GradientBackground(
-            visualTheme = AmaliaVisualTheme.LIQUID_GLASS,
             modifier = Modifier.fillMaxSize(),
+            palette = GlassGradientPalette,
+            motif = AmaliaMotif.AUTO,
+            motifDensity = 0.8f,
         )
         Column(
             modifier = Modifier

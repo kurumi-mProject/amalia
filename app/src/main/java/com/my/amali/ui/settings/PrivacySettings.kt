@@ -10,6 +10,7 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.DeleteSweep
+import androidx.compose.material.icons.rounded.History
 import androidx.compose.material.icons.rounded.Security
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
@@ -31,6 +32,7 @@ import com.my.amali.ui.components.GlassDivider
 import com.my.amali.ui.components.GlassGroup
 import com.my.amali.ui.components.SectionTitle
 import com.my.amali.ui.components.SettingsActionRow
+import com.my.amali.ui.components.SettingsToggleRow
 import com.my.amali.ui.components.SettingsValueRow
 import com.my.amali.ui.theme.Spacing
 
@@ -85,6 +87,18 @@ fun PrivacySettings(
                         onClick = { vm.setDataRetentionDays(days) },
                     )
                 }
+            }
+
+            SectionTitle(stringResource(R.string.privacy_memory))
+
+            GlassGroup {
+                SettingsToggleRow(
+                    icon = Icons.Rounded.History,
+                    title = stringResource(R.string.privacy_resume_session),
+                    subtitle = stringResource(R.string.privacy_resume_session_desc),
+                    checked = settings.resumeLastSession,
+                    onCheckedChange = { vm.setResumeLastSession(it) },
+                )
             }
 
             SectionTitle(stringResource(R.string.privacy_permissions))

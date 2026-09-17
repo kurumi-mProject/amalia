@@ -9,6 +9,7 @@ import androidx.datastore.preferences.core.intPreferencesKey
 import androidx.datastore.preferences.core.stringPreferencesKey
 import com.my.amali.domain.entity.AppLanguage
 import com.my.amali.domain.entity.UserSettings
+import com.my.amali.ui.theme.AmaliaMotif
 import com.my.amali.ui.theme.AmaliaVisualTheme
 import com.my.amali.ui.theme.DarkModePreference
 import kotlinx.coroutines.flow.Flow
@@ -37,6 +38,9 @@ class SettingsRepository(private val dataStore: DataStore<Preferences>) {
         val WAKE_WORD = booleanPreferencesKey("pref_wake_word")
         val DATA_RETENTION = intPreferencesKey("pref_data_retention_days")
         val LANGUAGE = stringPreferencesKey("pref_app_language")
+        val RESUME_SESSION = booleanPreferencesKey("pref_resume_session")
+        val MOTIF = stringPreferencesKey("pref_motif")
+        val MOTIF_DENSITY = floatPreferencesKey("pref_motif_density")
     }
 
     // ── Чтение ───────────────────────────────────────────────────────────
@@ -60,6 +64,7 @@ class SettingsRepository(private val dataStore: DataStore<Preferences>) {
         val language = this[Keys.LANGUAGE]
             ?.let { stored -> AppLanguage.fromCode(stored) }
             ?: UserSettings.DEFAULT.selectedLanguage
+        val motif = AmaliaMotif.fromName(this[Keys.MOTIF])
         return UserSettings(
             visualTheme = theme,
             darkModePref = dark,
@@ -76,6 +81,10 @@ class SettingsRepository(private val dataStore: DataStore<Preferences>) {
                 this[Keys.DATA_RETENTION] ?: UserSettings.DEFAULT.dataRetentionDays
             ),
             selectedLanguage = language,
+            resumeLastSession = this[Keys.RESUME_SESSION] ?: UserSettings.DEFAULT.resumeLastSession,
+            motif = motif,
+            motifDensity = (this[Keys.MOTIF_DENSITY] ?: UserSettings.DEFAULT.motifDensity)
+                .coerceIn(0f, 1f),
         )
     }
 
@@ -129,6 +138,21 @@ class SettingsRepository(private val dataStore: DataStore<Preferences>) {
     /** Срок хранения истории в днях; [UserSettings.RETENTION_FOREVER] — бессрочно. */
     suspend fun setDataRetentionDays(days: Int) {
         dataStore.edit { it[Keys.DATA_RETENTION] = UserSettings.normalizeRetention(days) }
+    }
+
+    /** Продолжать ли последний диалог при запуске, а не начинать новый. */
+    suspend fun setResumeLastSession(enabled: Boolean) {
+        dataStore.edit { it[Keys.RESUME_SESSION] = enabled }
+    }
+
+    /** Декоративный слой фона: сакура/листья/снег/звёзды/светлячки или ничего. */
+    suspend fun setMotif(motif: AmaliaMotif) {
+        dataStore.edit { it[Keys.MOTIF] = motif.name }
+    }
+
+    /** Густота декораций, [0.0, 1.0]. 0 фактически выключает слой. */
+    suspend fun setMotifDensity(value: Float) {
+        dataStore.edit { it[Keys.MOTIF_DENSITY] = value.coerceIn(0f, 1f) }
     }
 
     /** Сбрасывает все настройки к значениям по умолчанию. */

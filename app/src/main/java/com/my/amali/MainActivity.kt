@@ -103,6 +103,11 @@ class MainActivity : ComponentActivity() {
                         // Интенсивность фона следует настройке стекла, но
                         // никогда не гаснет полностью: минимум 35% свечения.
                         glassIntensity = 0.35f + settings.glassIntensity * 0.65f,
+                        motif = settings.motif,
+                        // Густота декораций следует за стеклом, но не гаснет
+                        // вместе с ним: «тихая» тема остаётся тихой целиком.
+                        motifDensity = (0.35f + settings.motifDensity * 0.65f) *
+                            (0.6f + settings.glassIntensity * 0.4f),
                     ),
                 ) {
                     AmaliaNavHost(startOnOnboarding = startOnOnboarding)

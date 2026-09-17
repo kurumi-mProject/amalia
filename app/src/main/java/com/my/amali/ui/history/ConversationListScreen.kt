@@ -14,11 +14,13 @@ import androidx.compose.foundation.interaction.collectIsPressedAsState
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
@@ -31,16 +33,19 @@ import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.rounded.Chat
+import androidx.compose.material.icons.rounded.AutoAwesome
 import androidx.compose.material.icons.rounded.Close
 import androidx.compose.material.icons.rounded.DeleteOutline
 import androidx.compose.material.icons.rounded.DeleteSweep
 import androidx.compose.material.icons.rounded.Search
 import androidx.compose.material.icons.rounded.SearchOff
+import androidx.compose.material.icons.rounded.Tune
 import androidx.compose.material3.Icon
 import androidx.compose.material3.LocalTextStyle
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.ReadOnlyComposable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -58,9 +63,12 @@ import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.role
 import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.text.SpanStyle
+import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.my.amali.R
@@ -72,17 +80,24 @@ import com.my.amali.ui.components.GlassIconButton
 import com.my.amali.ui.theme.Radius
 import com.my.amali.ui.theme.Spacing
 import com.my.amali.ui.theme.glassSurface
-import java.text.SimpleDateFormat
-import java.util.Date
-import java.util.Locale
+import com.my.amali.ui.theme.iconAccent
+import com.my.amali.ui.theme.paletteChip
 
 /**
  * Экран «История»: поиск, список разговоров, удаление.
  *
- * Каждый элемент — стеклянная карточка с аватаром-инициалом,
- * заголовком, превью последней реплики и временем. Время справа
- * сверху, как в мессенджерах: взгляд находит нужный разговор за
- * один проход по вертикали.
+ * ## Что здесь пошло дальше «просто списка карточек»
+ *
+ * 1. **Группировка по дням.** «Сегодня / Вчера / На этой неделе / Раньше» —
+ *    человек ищет разговор по моменту, а не по дате в правом углу.
+ * 2. **Относительное время.** Свежие диалоги показывают «5 мин назад»,
+ *    старые — дату. Один формат на весь список looked дешёво.
+ * 3. **Сводка действий.** Если в диалоге Амалия что-то делала на телефоне,
+ *    это видно прямо в карточке: «действий: 4». Иначе история выглядит как
+ *    пустая переписка, хотя половина ценности — в исполненных командах.
+ * 4. **Метка сжатого контекста.** Диалог, у которого есть резюме, помечен
+ *    звёздочкой: пользователь понимает, где память перешла в пересказ.
+ * 5. **Подсветка найденного** в заголовке и превью.
  */
 @Composable
 fun ConversationListScreen(
@@ -112,7 +127,7 @@ fun ConversationListScreen(
             }
         },
         modifier = modifier,
-    ) { padding ->
+    ) { _ ->
         Column(
             modifier = Modifier
                 .fillMaxSize()
@@ -152,22 +167,26 @@ fun ConversationListScreen(
                     modifier = Modifier.weight(1f),
                 )
 
-                else -> LazyColumn(
-                    modifier = Modifier
-                        .fillMaxSize()
-                        .weight(1f),
-                    verticalArrangement = Arrangement.spacedBy(Spacing.listGap),
-                    contentPadding = androidx.compose.foundation.layout.PaddingValues(
-                        top = Spacing.xxs,
-                        bottom = 104.dp,
-                    ),
-                ) {
-                    items(conversations, key = { it.id }) { conversation ->
-                        HistoryCard(
-                            conversation = conversation,
-                            onClick = { onOpenConversation(conversation.id) },
-                            onDelete = { pendingDelete = conversation },
-                        )
+                else -> {
+                    val rows = remember(conversations) { historyRows(conversations) }
+                    LazyColumn(
+                        modifier = Modifier
+                            .fillMaxSize()
+                            .weight(1f),
+                        verticalArrangement = Arrangement.spacedBy(Spacing.xs),
+                        contentPadding = PaddingValues(top = Spacing.xxs, bottom = 104.dp),
+                    ) {
+                        items(rows, key = { it.key }) { row ->
+                            when (row) {
+                                is HistoryRow.Header -> DayHeader(row.timestamp)
+                                is HistoryRow.Item -> HistoryCard(
+                                    conversation = row.conversation,
+                                    query = searchQuery,
+                                    onClick = { onOpenConversation(row.conversation.id) },
+                                    onDelete = { pendingDelete = row.conversation },
+                                )
+                            }
+                        }
                     }
                 }
             }
@@ -205,10 +224,63 @@ fun ConversationListScreen(
     }
 }
 
+// ════════════════════════════════════════════════════════════
+//  СЕГМЕНТЫ СПИСКА
+// ════════════════════════════════════════════════════════════
+
+/** Строка списка: заголовок дня или сам разговор. */
+private sealed interface HistoryRow {
+    val key: Any
+
+    data class Header(
+        override val key: String,
+        val timestamp: Long,
+    ) : HistoryRow
+
+    data class Item(
+        override val key: String,
+        val conversation: Conversation,
+    ) : HistoryRow
+}
+
+private fun historyRows(list: List<Conversation>): List<HistoryRow> {
+    val rows = mutableListOf<HistoryRow>()
+    var lastDay = Int.MIN_VALUE
+    list.forEach { conversation ->
+        val day = dayKey(conversation.updatedAt)
+        if (day != lastDay) {
+            lastDay = day
+            rows += HistoryRow.Header(
+                key = "header-$day",
+                timestamp = conversation.updatedAt,
+            )
+        }
+        rows += HistoryRow.Item(conversation.id, conversation)
+    }
+    return rows
+}
+
+@Composable
+private fun DayHeader(timestamp: Long) {
+    Text(
+        text = dayLabel(timestamp).uppercase(),
+        style = MaterialTheme.typography.labelSmall.copy(letterSpacing = 1.1.sp),
+        color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.75f),
+        modifier = Modifier.padding(
+            start = Spacing.xxs,
+            top = Spacing.sm,
+            bottom = 2.dp,
+        ),
+    )
+}
+
+// ════════════════════════════════════════════════════════════
+//  ПОИСК
+// ════════════════════════════════════════════════════════════
+
 /**
- * Стеклянное поле поиска: иконка-лупа, курсор акцентного цвета,
- * кнопка очистки появляется только при непустом запросе.
- * IME-действие — Search, клавиатура скрывается по подтверждению.
+ * Стеклянное поле поиска: лупа, акцентный курсор, кнопка очистки
+ * появляется только при непустом запросе. IME-действие — Search.
  */
 @Composable
 private fun GlassSearchField(
@@ -277,7 +349,7 @@ private fun GlassSearchField(
                     }
                     .semantics {
                         role = Role.Button
-                        contentDescription = "Очистить поиск"
+                        contentDescription = placeholder
                     },
                 contentAlignment = Alignment.Center,
             ) {
@@ -292,17 +364,23 @@ private fun GlassSearchField(
     }
 }
 
-/** Карточка одного разговора в списке. */
+// ════════════════════════════════════════════════════════════
+//  КАРТОЧКА РАЗГОВОРА
+// ════════════════════════════════════════════════════════════
+
 @Composable
 private fun HistoryCard(
     conversation: Conversation,
+    query: String,
     onClick: () -> Unit,
     onDelete: () -> Unit,
 ) {
-    val dateFormat = remember { SimpleDateFormat("dd MMM · HH:mm", Locale.getDefault()) }
-    val preview = conversation.lastMessage?.content.orEmpty()
     val initial = remember(conversation.title) {
         conversation.title.trim().firstOrNull()?.uppercase() ?: "·"
+    }
+    val preview = conversation.lastMessage?.content.orEmpty()
+    val actions = remember(conversation) {
+        conversation.messages.sumOf { it.actions.size }
     }
 
     val interaction = remember { MutableInteractionSource() }
@@ -330,25 +408,25 @@ private fun HistoryCard(
             },
         verticalAlignment = Alignment.Top,
     ) {
-        // Аватар-инициал: дешёвый, но узнаваемый визуальный якорь.
+        // Инициал на подложке из текущей палитры: карточка принадлежит
+        // тому же времени суток, что и фон за ней.
         Box(
             modifier = Modifier
                 .size(42.dp)
-                .clip(CircleShape)
-                .background(MaterialTheme.colorScheme.primary.copy(alpha = 0.16f)),
+                .paletteChip(CircleShape, strength = 1f),
             contentAlignment = Alignment.Center,
         ) {
             Text(
                 text = initial,
                 style = MaterialTheme.typography.titleMedium,
-                color = MaterialTheme.colorScheme.primary,
+                color = iconAccent(),
             )
         }
         Spacer(Modifier.width(Spacing.sm))
         Column(Modifier.weight(1f)) {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Text(
-                    text = conversation.title,
+                    text = highlight(conversation.title, query),
                     style = MaterialTheme.typography.bodyLarge,
                     color = MaterialTheme.colorScheme.onSurface,
                     maxLines = 1,
@@ -357,15 +435,16 @@ private fun HistoryCard(
                 )
                 Spacer(Modifier.width(Spacing.xs))
                 Text(
-                    text = dateFormat.format(Date(conversation.updatedAt)),
+                    text = relativeTime(conversation.updatedAt),
                     style = MaterialTheme.typography.labelSmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    maxLines = 1,
                 )
             }
             if (preview.isNotBlank()) {
                 Spacer(Modifier.height(2.dp))
                 Text(
-                    text = preview,
+                    text = highlight(preview, query),
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                     maxLines = 2,
@@ -374,11 +453,28 @@ private fun HistoryCard(
             }
             Spacer(Modifier.height(Spacing.xs))
             Row(verticalAlignment = Alignment.CenterVertically) {
-                Text(
+                MetaChip(
+                    icon = Icons.AutoMirrored.Rounded.Chat,
                     text = "${conversation.messages.size} ${stringResource(R.string.history_messages)}",
-                    style = MaterialTheme.typography.labelSmall,
-                    color = MaterialTheme.colorScheme.primary.copy(alpha = 0.85f),
                 )
+                if (actions > 0) {
+                    Spacer(Modifier.width(Spacing.xs))
+                    MetaChip(
+                        icon = Icons.Rounded.Tune,
+                        text = stringResource(R.string.history_actions_count, actions),
+                    )
+                }
+                if (conversation.hasCompressedContext) {
+                    Spacer(Modifier.width(Spacing.xs))
+                    // Маркер «помню пересказом»: без него длинная история
+                    // выглядит так, будто Амалия её забыла.
+                    Icon(
+                        imageVector = Icons.Rounded.AutoAwesome,
+                        contentDescription = stringResource(R.string.history_context_summary),
+                        tint = MaterialTheme.colorScheme.tertiary.copy(alpha = 0.85f),
+                        modifier = Modifier.size(13.dp),
+                    )
+                }
                 Spacer(Modifier.weight(1f))
                 Box(
                     modifier = Modifier
@@ -387,7 +483,7 @@ private fun HistoryCard(
                         .clickable(onClick = onDelete)
                         .semantics {
                             role = Role.Button
-                            contentDescription = "Удалить: ${conversation.title}"
+                            contentDescription = conversation.title
                         },
                     contentAlignment = Alignment.Center,
                 ) {
@@ -400,6 +496,61 @@ private fun HistoryCard(
                 }
             }
         }
+    }
+}
+
+/** Маленькая метрика в карточке: иконка + число. */
+@Composable
+private fun MetaChip(icon: androidx.compose.ui.graphics.vector.ImageVector, text: String) {
+    Row(
+        modifier = Modifier
+            .heightIn(min = 22.dp)
+            .clip(RoundedCornerShape(Radius.chip))
+            .background(MaterialTheme.colorScheme.onSurface.copy(alpha = 0.06f))
+            .padding(horizontal = Spacing.xs, vertical = 2.dp)
+            .semantics { contentDescription = text },
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Icon(
+            imageVector = icon,
+            contentDescription = null,
+            tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.8f),
+            modifier = Modifier.size(11.dp),
+        )
+        Spacer(Modifier.width(4.dp))
+        Text(
+            text = text,
+            style = MaterialTheme.typography.labelSmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis,
+        )
+    }
+}
+
+/**
+ * Подсветка найденного подзапроса.
+ *
+ * Поиск по истории без подсветки заставляет открывать каждый разговор, чтобы
+ * проверить, то ли это. Акцент — не только цветом: он ещё и полужирный, поэтому
+ * различим и при монохромном отображении.
+ */
+@Composable
+@ReadOnlyComposable
+private fun highlight(text: String, query: String) = buildAnnotatedString {
+    val trimmed = query.trim()
+    append(text)
+    if (trimmed.isEmpty()) return@buildAnnotatedString
+    val matched = text.indexOf(trimmed, ignoreCase = true)
+    if (matched >= 0) {
+        addStyle(
+            SpanStyle(
+                color = MaterialTheme.colorScheme.primary,
+                fontWeight = androidx.compose.ui.text.font.FontWeight.SemiBold,
+            ),
+            matched,
+            (matched + trimmed.length).coerceAtMost(text.length),
+        )
     }
 }
 

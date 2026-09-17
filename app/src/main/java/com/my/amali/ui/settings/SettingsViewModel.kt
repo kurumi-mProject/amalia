@@ -7,6 +7,7 @@ import com.my.amali.data.repository.ConversationRepository
 import com.my.amali.data.repository.SettingsRepository
 import com.my.amali.domain.entity.AppLanguage
 import com.my.amali.domain.entity.UserSettings
+import com.my.amali.ui.theme.AmaliaMotif
 import com.my.amali.ui.theme.AmaliaVisualTheme
 import com.my.amali.ui.theme.DarkModePreference
 import kotlinx.coroutines.flow.SharingStarted
@@ -53,6 +54,15 @@ class SettingsViewModel : ViewModel() {
         settingsRepository.setGlassIntensity(value)
     }
 
+    /** Декоративный слой фона (лепестки/листья/снег/звёзды/светлячки). */
+    fun setMotif(motif: AmaliaMotif) = viewModelScope.launch {
+        settingsRepository.setMotif(motif)
+    }
+
+    fun setMotifDensity(value: Float) = viewModelScope.launch {
+        settingsRepository.setMotifDensity(value)
+    }
+
     // ── Язык ─────────────────────────────────────────────────────────────
 
     fun setLanguage(language: AppLanguage) = viewModelScope.launch {
@@ -71,6 +81,11 @@ class SettingsViewModel : ViewModel() {
 
     fun setAutoListen(enabled: Boolean) = viewModelScope.launch {
         settingsRepository.setAutoListen(enabled)
+    }
+
+    /** Продолжать ли последний диалог после перезапуска приложения. */
+    fun setResumeLastSession(enabled: Boolean) = viewModelScope.launch {
+        settingsRepository.setResumeLastSession(enabled)
     }
 
     fun setWakeWordEnabled(enabled: Boolean) = viewModelScope.launch {

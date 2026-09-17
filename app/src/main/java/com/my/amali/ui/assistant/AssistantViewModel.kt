@@ -1,7 +1,9 @@
 package com.my.amali.ui.assistant
 
+import androidx.annotation.StringRes
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.my.amali.R
 import com.my.amali.core.di.ServiceLocator
 import com.my.amali.data.ai.AIOrchestrator
 import com.my.amali.data.ai.AiResponse
@@ -9,6 +11,8 @@ import com.my.amali.data.ai.AudioChunk
 import com.my.amali.data.ai.AudioPlayer
 import com.my.amali.data.ai.EngineOptions
 import com.my.amali.data.model.ChatMessage
+import com.my.amali.data.model.Conversation
+import com.my.amali.data.model.DeviceStatus
 import com.my.amali.data.model.MessageRole
 import com.my.amali.data.repository.ConversationRepository
 import com.my.amali.data.repository.SettingsRepository
@@ -24,8 +28,8 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.receiveAsFlow
 import kotlinx.coroutines.flow.stateIn
-import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withTimeoutOrNull
 
 /**
  * Состояние главного экрана ассистента.
@@ -40,7 +44,11 @@ import kotlinx.coroutines.launch
  * @property activeTools список инструментов, выполняющихся прямо сейчас.
  *   Появляется во время фазы «думаю» и исчезает после возврата результатов.
  * @property lastToolReports список завершённых инструментов последнего цикла —
- *   для короткой сводки «что сделала Амалия».
+ *   для сводки «что сделала Амалия». UI сворачивает её в одну строку.
+ * @property contextCompressed true → часть диалога модель уже помнит
+ *   пересказом, а не дословно. UI показывает это отдельным маркером:
+ *   без него «память короткая» выглядит как баг, а не как осознанный режим.
+ * @property contextMessageCount сколько реплик сейчас уходит в модель дословно.
  */
 data class AssistantUiState(
     val voiceState: VoiceState = VoiceState.Idle,
@@ -57,6 +65,8 @@ data class AssistantUiState(
     val handsFree: Boolean = false,
     val activeTools: List<ToolActivity> = emptyList(),
     val lastToolReports: List<ToolReport> = emptyList(),
+    val contextCompressed: Boolean = false,
+    val contextMessageCount: Int = 0,
 ) {
     /** Идёт активный цикл — кнопка работает как «Стоп». */
     val isBusy: Boolean
@@ -78,11 +88,15 @@ data class ToolActivity(
 
 /**
  * Результат выполненного инструмента для сводки «что сделано».
+ *
+ * @property performedAtMillis когда закончил — нужно, чтобы UI мог скрывать
+ *   устаревшую сводку, не заваливая карточку ответа.
  */
 data class ToolReport(
     val name: String,
     val ok: Boolean,
     val summary: String,
+    val performedAtMillis: Long = System.currentTimeMillis(),
 )
 
 /**
@@ -92,17 +106,20 @@ data class ToolReport(
  *  1. **Один диалог на сессию.** Реплики дописываются в тот же разговор,
  *     поэтому история не превращается в кашу из односообщенных диалогов,
  *     а модель видит контекст предыдущих вопросов.
- *  2. **Живая память.** В LLM уходит реальная история сессии
- *     (до [HISTORY_LIMIT] сообщений), а не последняя пара реплик.
+ *  2. **Живая память с пересказом.** В LLM уходит хвост диалога, а всё, что
+ *     старше, — сжатое резюме ([Conversation.contextSummary]). Резюме
+ *     ограничено по размеру и перезаписывается, а не накапливается.
  *  3. **Нет гонки состояний.** Все переходы идут через один
  *     [conversationJob]; повторное нажатие микрофона гасит предыдущий цикл.
- *  4. **Звук не рвётся.** Аудио-чанки уходят в отдельный проигрыватель
- *     через канал, который закрывается в `finally` — раньше при ошибке
- *     канал оставался открытым и корутина висела навсегда.
+ *  4. **Звук не рвётся.** Аудио-чанки уходят в проигрыватель через канал,
+ *     который закрывается в `finally` — раньше при ошибке канал оставался
+ *     открытым и корутина висела навсегда.
  *  5. **Hands-free.** При включённом авто-слушании после ответа микрофон
  *     включается сам — получается настоящий диалог, а не пинг-понг кнопкой.
- *  6. **Functions AI can call.** `ToolRunning`/`ToolCompleted` события
- *     проброшены в UI: пользователь видит, что Амалия делает действие.
+ *  6. **Functions AI can call.** `ToolRunning`/`ToolCompleted` проброшены в UI:
+ *     пользователь видит, что Амалия делает действие, а не молчит.
+ *  7. **Подсказки — из ресурсов.** Раньше они были хардкодом на русском и
+ *     ломали локализацию на всех языках кроме одного.
  */
 class AssistantViewModel(
     private val orchestrator: AIOrchestrator = ServiceLocator.aiOrchestrator,
@@ -110,7 +127,9 @@ class AssistantViewModel(
     private val settingsRepo: SettingsRepository = ServiceLocator.settingsRepository,
 ) : ViewModel() {
 
-    private val _uiState = MutableStateFlow(AssistantUiState(suggestions = DEFAULT_SUGGESTIONS))
+    private val _uiState = MutableStateFlow(
+        AssistantUiState(suggestions = defaultSuggestions()),
+    )
     val uiState: StateFlow<AssistantUiState> = _uiState.asStateFlow()
 
     private val settings: StateFlow<UserSettings> = settingsRepo.settings
@@ -122,9 +141,15 @@ class AssistantViewModel(
 
     /** Сообщения текущей сессии — контекст для модели и для истории. */
     private val sessionMessages = mutableListOf<ChatMessage>()
-    
-    /** Краткое резюме истории (обновляется каждые 10 сообщений). */
+
+    /** Краткое резюме начала диалога; null пока сжимать нечего. */
     private var conversationSummary: String? = null
+
+    /** Сколько первых сообщений [sessionMessages] уже закрыто резюме. */
+    private var summarizedCount = 0
+
+    /** Идёт ли сейчас генерация резюме (не запускаем две одновременно). */
+    private var summaryInProgress = false
 
     /** Идентификатор разговора, в который дописывается сессия. */
     private var sessionConversationId: String? = null
@@ -134,8 +159,24 @@ class AssistantViewModel(
 
     init {
         viewModelScope.launch {
-            val count = runCatching { conversationRepo.count() }.getOrDefault(0)
-            _uiState.update { it.copy(conversationCount = count) }
+            val conversations = runCatching { conversationRepo.recentSnapshot(1) }.getOrDefault(emptyList())
+            val count = conversations.size
+            val existing = conversations.firstOrNull()
+            // Продолжаем вчерашний диалог, а не начинаем новый с нуля:
+            // приложение перезапускается — память остаётся.
+            if (existing != null && settings.value.resumeLastSession) {
+                sessionConversationId = existing.id
+                sessionMessages += existing.messages.takeLast(SESSION_TRIM)
+                conversationSummary = existing.contextSummary
+                summarizedCount = existing.summarizedCount
+            }
+            _uiState.update {
+                it.copy(
+                    conversationCount = count,
+                    contextCompressed = !conversationSummary.isNullOrBlank(),
+                    contextMessageCount = historyForModel().size,
+                )
+            }
         }
     }
 
@@ -153,8 +194,8 @@ class AssistantViewModel(
 
     /**
      * Вызывается при касании кнопки микрофона (до отпускания).
-     * Открывает WS соединение к Deepgram заранее, пока палец ещё на кнопке.
-     * К моменту onClick (~150-300ms) соединение уже готово — нет задержки.
+     * Открывает WS-соединение к Deepgram заранее, пока палец ещё на кнопке.
+     * К моменту onClick (~150-300 мс) соединение уже готово — нет задержки.
      */
     fun warmupStt() {
         if (_uiState.value.isBusy) return
@@ -187,6 +228,11 @@ class AssistantViewModel(
     fun startConversation(prompt: String) {
         val clean = prompt.trim()
         if (clean.isEmpty()) return
+        // «Повтори» — это не запрос к модели, а повтор последнего вопроса.
+        if (clean == localized(R.string.suggestion_repeat) || clean == localized(R.string.assistant_repeat)) {
+            repeatLast()
+            return
+        }
         launchCycle(prompt = clean)
     }
 
@@ -199,8 +245,8 @@ class AssistantViewModel(
             _uiState.update {
                 it.copy(
                     voiceState = VoiceState.Error,
-                    errorMessage = MIC_DENIED,
-                    suggestions = DEFAULT_SUGGESTIONS,
+                    errorMessage = localized(R.string.assistant_mic_denied),
+                    suggestions = defaultSuggestions(),
                 )
             }
         }
@@ -218,7 +264,7 @@ class AssistantViewModel(
                 isSpeaking = false,
                 errorMessage = null,
                 replyProgress = if (it.amaliaReply.isBlank()) 0f else 1f,
-                suggestions = DEFAULT_SUGGESTIONS,
+                suggestions = defaultSuggestions(),
                 handsFree = false,
                 micPermissionRequired = false,
                 activeTools = emptyList(),
@@ -244,11 +290,13 @@ class AssistantViewModel(
         player.stopImmediately()
         sessionMessages.clear()
         sessionConversationId = null
+        conversationSummary = null
+        summarizedCount = 0
         _uiState.update {
             AssistantUiState(
                 isFirstLaunch = false,
                 conversationCount = it.conversationCount,
-                suggestions = DEFAULT_SUGGESTIONS,
+                suggestions = defaultSuggestions(),
             )
         }
     }
@@ -257,7 +305,7 @@ class AssistantViewModel(
     fun repeatLast() {
         val lastUser = sessionMessages.lastOrNull { it.role == MessageRole.USER }?.content
             ?: _uiState.value.userTranscript
-        if (lastUser.isNotBlank()) startConversation(lastUser)
+        if (lastUser.isNotBlank()) launchCycle(prompt = lastUser)
     }
 
     override fun onCleared() {
@@ -289,24 +337,25 @@ class AssistantViewModel(
                 errorMessage = null,
                 audioLevel = 0f,
                 isFirstLaunch = false,
-                suggestions = ACTIVE_SUGGESTIONS,
+                suggestions = listOf(localized(R.string.assistant_stop)),
                 handsFree = handsFree,
                 micPermissionRequired = false,
                 activeTools = emptyList(),
                 lastToolReports = emptyList(),
+                contextMessageCount = historyForModel().size,
             )
         }
 
         conversationJob = viewModelScope.launch {
             val deviceStatus = runCatching {
                 ServiceLocator.systemControllers.refresh()
-            }.getOrDefault(com.my.amali.data.model.DeviceStatus.Offline)
+            }.getOrDefault(DeviceStatus.Offline)
             val options = EngineOptions.from(settings.value).copy(
                 deviceStatus = deviceStatus,
-                conversationSummary = conversationSummary
+                conversationSummary = conversationSummary,
             )
             val audioChannel = Channel<AudioChunk>(capacity = Channel.UNLIMITED)
-            val historySnapshot = sessionMessages.takeLast(HISTORY_LIMIT).toList()
+            val historySnapshot = historyForModel()
 
             // Проигрыватель живёт параллельно: звук начинает играть сразу,
             // не дожидаясь конца генерации ответа.
@@ -324,6 +373,7 @@ class AssistantViewModel(
 
             var userText = prompt.orEmpty()
             var replyText = ""
+            val reports = mutableListOf<ToolReport>()
             var failed = false
 
             try {
@@ -376,22 +426,25 @@ class AssistantViewModel(
                             )
                         }
 
-                        is AiResponse.ToolCompleted -> _uiState.update { state ->
+                        is AiResponse.ToolCompleted -> {
+                            // Сборка отчёта — ВНЕ update{}: лямбда состояния
+                            // может быть повторена при гонке CAS, и тогда
+                            // действие записалось бы в список дважды.
                             val summary = if (event.ok) {
                                 humanSuccessSummary(event.toolName, event.output)
                             } else {
-                                event.errorMessage ?: "не получилось"
+                                event.errorMessage ?: localized(R.string.assistant_action_failed)
                             }
-                            val newActive = state.activeTools.filter { it.name != event.toolName }
-                            val newReports = state.lastToolReports + ToolReport(
-                                name = event.toolName,
-                                ok = event.ok,
-                                summary = summary,
-                            )
-                            state.copy(
-                                activeTools = newActive,
-                                lastToolReports = newReports.take(MAX_REPORTS),
-                            )
+                            val report = ToolReport(event.toolName, event.ok, summary)
+                            reports += report
+                            _uiState.update { state ->
+                                state.copy(
+                                    activeTools = state.activeTools.filter {
+                                        it.name != event.toolName
+                                    },
+                                    lastToolReports = state.lastToolReports + report,
+                                )
+                            }
                         }
 
                         is AiResponse.ReplyDelta -> {
@@ -438,7 +491,7 @@ class AssistantViewModel(
                                     errorMessage = event.message,
                                     isSpeaking = false,
                                     audioLevel = 0f,
-                                    suggestions = DEFAULT_SUGGESTIONS,
+                                    suggestions = defaultSuggestions(),
                                     handsFree = false,
                                 )
                             }
@@ -452,10 +505,10 @@ class AssistantViewModel(
                 _uiState.update {
                     it.copy(
                         voiceState = VoiceState.Error,
-                        errorMessage = e.message ?: UNKNOWN_ERROR,
+                        errorMessage = e.message ?: localized(R.string.assistant_generic_error),
                         isSpeaking = false,
                         audioLevel = 0f,
-                        suggestions = DEFAULT_SUGGESTIONS,
+                        suggestions = defaultSuggestions(),
                         handsFree = false,
                     )
                 }
@@ -466,11 +519,13 @@ class AssistantViewModel(
             playJob.join()
 
             if (failed) {
-                _uiState.update { it.copy(audioLevel = 0f, isSpeaking = false, activeTools = emptyList()) }
+                _uiState.update {
+                    it.copy(audioLevel = 0f, isSpeaking = false, activeTools = emptyList())
+                }
                 return@launch
             }
 
-            persistTurn(userText, replyText)
+            persistTurn(userText, replyText, reports.map { it.summary })
 
             _uiState.update {
                 it.copy(
@@ -478,23 +533,35 @@ class AssistantViewModel(
                     audioLevel = 0f,
                     isSpeaking = false,
                     replyProgress = 1f,
-                    suggestions = FOLLOW_UP_SUGGESTIONS,
+                    suggestions = followUpSuggestions(reports.isNotEmpty()),
                     activeTools = emptyList(),
+                    lastToolReports = reports.takeLast(MAX_REPORTS),
                 )
             }
 
-            // Прячем сводку tools после паузы — даём пользователю прочитать.
-            if (_uiState.value.lastToolReports.isNotEmpty()) {
+            // Прячем сводку действий, когда она уже не к месту: ответ следующий —
+            // действия прежних реплик больше не относятся к делу.
+            if (reports.isNotEmpty()) {
                 launch {
                     delay(TOOL_REPORT_DISPLAY_MS)
-                    _uiState.update { it.copy(lastToolReports = emptyList()) }
+                    if (_uiState.value.voiceState == VoiceState.Idle) {
+                        _uiState.update { it.copy(lastToolReports = emptyList()) }
+                    }
                 }
             }
 
             // Hands-free: продолжаем диалог без нажатий.
-            if (handsFree && settings.value.autoListen && ServiceLocator.hasMicPermission()) {
-                kotlinx.coroutines.delay(HANDS_FREE_GAP_MS)
-                if (_uiState.value.voiceState == VoiceState.Idle) {
+            //
+            // Берём handsFree из CURRENT-состояния, а не из локального
+            // снимка: пользователь мог нажать «Стоп» во время ответа
+            // (cancelConversation() сбрасывает handsFree=false), и тогда
+            // локальный снимок устарел → микрофон перезапускался бы
+            // после паузы против воли пользователя.
+            val currentHandsFree = _uiState.value.handsFree
+            val autoListenEnabled = settings.value.autoListen
+            if (currentHandsFree && autoListenEnabled && ServiceLocator.hasMicPermission()) {
+                delay(HANDS_FREE_GAP_MS)
+                if (_uiState.value.voiceState == VoiceState.Idle && _uiState.value.handsFree) {
                     launchCycle(prompt = null)
                 }
             }
@@ -506,73 +573,144 @@ class AssistantViewModel(
      * Вся сессия живёт в одном разговоре, поэтому в истории видно диалог,
      * а не набор обрывков.
      */
-    private suspend fun persistTurn(userText: String, replyText: String) {
+    private suspend fun persistTurn(userText: String, replyText: String, actions: List<String>) {
         if (userText.isBlank() || replyText.isBlank()) return
 
         val userMessage = ChatMessage.user(userText)
-        val assistantMessage = ChatMessage(
-            id = ChatMessage.newId(),
-            role = MessageRole.ASSISTANT,
-            content = replyText,
-            timestamp = System.currentTimeMillis(),
-        )
+        val assistantMessage = ChatMessage.assistant(replyText, actions)
         sessionMessages += userMessage
         sessionMessages += assistantMessage
         if (sessionMessages.size > SESSION_TRIM) {
             repeat(sessionMessages.size - SESSION_TRIM) { sessionMessages.removeAt(0) }
+            summarizedCount = 0
         }
-        
-        // Каждые 10 сообщений — генерируем резюме для сжатия контекста
-        if (sessionMessages.size >= 10 && sessionMessages.size % 10 == 0) {
-            generateSummary()
-        }
+
+        val turn = listOf(userMessage, assistantMessage)
 
         runCatching {
             val id = sessionConversationId
             if (id == null) {
                 val created = conversationRepo.create(
-                    com.my.amali.data.model.Conversation.deriveTitle(userText)
+                    Conversation.deriveTitle(userText),
                 )
                 sessionConversationId = created.id
-                conversationRepo.appendMessage(created.id, userMessage)
-                conversationRepo.appendMessage(created.id, assistantMessage)
-                val count = conversationRepo.count()
-                _uiState.update { it.copy(conversationCount = count) }
+                conversationRepo.appendMessages(created.id, turn)
+                _uiState.update { it.copy(conversationCount = conversationRepo.count()) }
             } else {
-                conversationRepo.appendMessage(id, userMessage)
-                conversationRepo.appendMessage(id, assistantMessage)
+                conversationRepo.appendMessages(id, turn)
             }
         }
+
+        // Каждые SUMMARY_EVERY сообщений — пересказываем начало диалога.
+        if (sessionMessages.size - summarizedCount >= SUMMARY_EVERY) {
+            refreshSummary()
+        }
     }
+
+    /**
+     * Обновляет резюме диалога.
+     *
+     * Три вещи, из-за которых раньше «сжатие» было вреднее, чем помощь:
+     *  1. резюме **дописывалось** в одно поле без предела → контекст рос,
+     *     а не сжимался. Теперь每次 новый пересказ перезаписывает прежний;
+     *  2. генерация стартовала в `viewModelScope.launch` и не дожидалась
+     *     результата → следующий цикл уходил в модель со старым резюме
+     *     (или вообще без него). Теперь вызов ждём, но с таймаутом: медленное
+     *     резюме не имеет права задерживать разговор;
+     *  3. результат не сохранялся → после перезапуска приложения «память»
+     *     обнулялась. Теперь резюме живёт в [Conversation.contextSummary].
+     */
+    private suspend fun refreshSummary() {
+        if (summaryInProgress) return
+        summaryInProgress = true
+        try {
+            val pending = sessionMessages.drop(summarizedCount)
+            if (pending.isEmpty()) return
+            val previous = conversationSummary
+            val prompt = buildString {
+                append(
+                    if (previous.isNullOrBlank()) {
+                        "Сожми этот диалог в 3 коротких предложения: только темы, факты и решения."
+                    } else {
+                        "Прежнее резюме: $previous\nДополни его новыми репликами и верни ОДНО резюме " +
+                            "в 3 коротких предложения."
+                    },
+                )
+                append('\n')
+                pending.forEach { msg ->
+                    when (msg.role) {
+                        MessageRole.USER -> append("П: ${msg.content}\n")
+                        MessageRole.ASSISTANT -> append("А: ${msg.content}\n")
+                        else -> Unit
+                    }
+                }
+            }
+
+            val generated = StringBuilder()
+            withTimeoutOrNull(SUMMARY_TIMEOUT_MS) {
+                runCatching {
+                    orchestrator.textOnlyResponse(prompt, emptyList(), EngineOptions.from(settings.value))
+                        .collect { piece -> generated.append(piece) }
+                }
+            }
+
+            val newSummary = generated.toString().trim().take(SUMMARY_MAX_CHARS)
+            if (newSummary.isNotBlank()) {
+                conversationSummary = newSummary
+                summarizedCount = sessionMessages.size
+                _uiState.update {
+                    it.copy(
+                        contextCompressed = true,
+                        contextMessageCount = historyForModel().size,
+                    )
+                }
+                val id = sessionConversationId
+                if (id != null) {
+                    runCatching { conversationRepo.setSummary(id, newSummary, summarizedCount) }
+                }
+            }
+        } finally {
+            summaryInProgress = false
+        }
+    }
+
+    /**
+     * Хвост диалога, который уходит в модель.
+     *
+     * Когда есть резюме, дословных сообщений нужно заметно меньше: модель уже
+     * знает, о чём речь. Короткий промпт — это не только экономия токенов, но и
+     * ощутимо более быстрый первый токен.
+     */
+    private fun historyForModel(): List<ChatMessage> =
+        sessionMessages.takeLast(
+            if (conversationSummary.isNullOrBlank()) HISTORY_LIMIT else HISTORY_LIMIT_WITH_SUMMARY,
+        )
 
     // ── Подписи для UI ───────────────────────────────────────────────────
 
     /**
-     * Превращает имя инструмента + аргументы в короткую русскую подпись для UI.
+     * Превращает имя инструмента + аргументы в короткую подпись для UI.
      *
      * Примеры:
-     *   set_wifi({enabled=true}) → "включаю Wi-Fi"
-     *   set_brightness({percent=30}) → "ставлю яркость 30%"
-     *   set_timer({seconds=300}) → "ставлю таймер 5 мин"
-     *   web_search({query="..."}) → "ищу в интернете…"
+     *   set_wifi({enabled=true}) → «включаю Wi-Fi»
+     *   set_brightness({percent=30}) → «ставлю яркость 30%»
+     *   web_search({query="…"}) → «ищу в интернете…»
+     *
+     * Подписи живут в коде, а не в ресурсах, и это осознанно: они относятся
+     * к персоне Амалии (русский голос, русские инфинитивы), а не к локализации
+     * интерфейса. Ответ модели при этом идёт на языке пользователя.
      */
     private fun humanLabelFor(toolName: String, args: Map<String, Any?>): String {
         fun str(a: Any?): String = a?.toString().orEmpty()
+        fun on(key: String): Boolean = (args[key] as? Boolean) == true
         return when (toolName) {
-            "set_wifi" -> {
-                val on = (args["enabled"] as? Boolean) == true
-                if (on) "включаю Wi-Fi" else "выключаю Wi-Fi"
-            }
-            "set_bluetooth" -> {
-                val on = (args["enabled"] as? Boolean) == true
-                if (on) "включаю Bluetooth" else "выключаю Bluetooth"
-            }
+            "set_wifi" -> if (on("enabled")) "включаю Wi-Fi" else "выключаю Wi-Fi"
+            "set_bluetooth" -> if (on("enabled")) "включаю Bluetooth" else "выключаю Bluetooth"
             "set_brightness" -> "ставлю яркость ${args["percent"] ?: "?"}%"
             "set_volume" -> "ставлю громкость ${args["percent"] ?: "?"}%"
-            "set_flashlight" -> {
-                val on = (args["enabled"] as? Boolean) == true
-                if (on) "включаю фонарик" else "выключаю фонарик"
-            }
+            "volume_up" -> "прибавляю громкость"
+            "volume_down" -> "убавляю громкость"
+            "set_flashlight" -> if (on("enabled")) "включаю фонарик" else "выключаю фонарик"
             "set_timer" -> {
                 val seconds = (args["seconds"] as? Number)?.toInt() ?: 0
                 if (seconds >= 60) "ставлю таймер на ${seconds / 60} мин"
@@ -584,7 +722,7 @@ class AssistantViewModel(
             }
             "open_app" -> "открываю ${str(args["name"]).ifEmpty { "приложение" }}"
             "open_settings" -> "открываю настройки"
-            "web_search" -> "ищу «${str(args["query"])}»"
+            "web_search" -> "ищу «${str(args["query"]).take(28)}»"
             "make_call" -> "набираю номер"
             "send_sms" -> "пишу SMS"
             "take_photo" -> "открываю камеру"
@@ -598,23 +736,21 @@ class AssistantViewModel(
             "get_recent_conversations" -> "смотрю историю"
             "clear_history" -> "очищаю историю"
             "change_language" -> "меняю язык на ${str(args["language"])}"
-            "toggle_auto_listen" -> {
-                val on = (args["enabled"] as? Boolean) == true
-                if (on) "включаю автослушание" else "выключаю автослушание"
-            }
+            "toggle_auto_listen" ->
+                if (on("enabled")) "включаю автослушание" else "выключаю автослушание"
             else -> "выполняю $toolName"
         }
     }
 
     /**
-     * Русская сводка результата, которая показывается пользователю
-     * под ответом Амалии.
+     * Сводка результата — она же попадает в историю как «что сделано»,
+     * поэтому восстановленный диалог показывает действия, а не только текст.
      */
     private fun humanSuccessSummary(toolName: String, output: String): String = when (toolName) {
         "set_wifi" -> if (output.contains("true")) "Wi-Fi включён" else "Wi-Fi выключен"
         "set_bluetooth" -> if (output.contains("true")) "Bluetooth включён" else "Bluetooth выключен"
         "set_brightness" -> "яркость установлена"
-        "set_volume" -> "громкость установлена"
+        "set_volume", "volume_up", "volume_down" -> "громкость изменена"
         "set_flashlight" -> if (output.contains("true")) "фонарик включён" else "фонарик выключен"
         "set_timer" -> "таймер поставлен"
         "set_alarm" -> "будильник поставлен"
@@ -624,81 +760,76 @@ class AssistantViewModel(
         "make_call" -> "набор открыт"
         "send_sms" -> "SMS открыт"
         "take_photo", "open_youtube" -> "готово"
-        "get_current_time" -> "время узнала"
+        "get_current_time" -> "время названо"
         "get_device_status" -> "статус проверен"
-        "get_battery_level" -> "батарею посмотрела"
-        "get_location_status" -> "локацию проверила"
-        "get_weather" -> "погоду узнала"
-        "search_history" -> "историю поискала"
-        "get_recent_conversations" -> "историю посмотрела"
+        "get_battery_level" -> "батарея проверена"
+        "get_location_status" -> "локация проверена"
+        "get_weather" -> "погода получена"
+        "search_history" -> "история найдена"
+        "get_recent_conversations" -> "история просмотрена"
         "clear_history" -> "история очищена"
         "change_language" -> "язык изменён"
         "toggle_auto_listen" -> "настройка изменена"
         else -> "готово"
     }
-    
+
+    // ── Строки ───────────────────────────────────────────────────────────
+
+    private fun localized(@StringRes id: Int): String =
+        runCatching { ServiceLocator.appContextValue.getString(id) }.getOrDefault("")
+
+    private fun defaultSuggestions(): List<String> = listOf(
+        localized(R.string.suggestion_hello),
+        localized(R.string.suggestion_about),
+        localized(R.string.suggestion_time),
+    )
+
     /**
-     * Генерирует краткое резюме истории (3-5 предложений) чтобы не переполнять контекст.
-     * Вызывается каждые 10 сообщений.
+     * Подсказки после ответа.
+     *
+     * Разные для «просто поговорили» и «она что-то сделала»: после действий
+     * просят проверить результат или откатить, а не «расскажи подробнее».
      */
-    private fun generateSummary() {
-        viewModelScope.launch {
-            val prompt = buildString {
-                append("Сожми следующую историю диалога в 3-5 кратких предложений. ")
-                append("Сохрани только ключевые темы и факты:\n\n")
-                sessionMessages.takeLast(10).forEach { msg ->
-                    when (msg.role) {
-                        MessageRole.USER -> append("Пользователь: ${msg.content}\n")
-                        MessageRole.ASSISTANT -> append("Ассистент: ${msg.content}\n")
-                        else -> {}
-                    }
-                }
-            }
-
-            val collected = StringBuilder()
-            runCatching {
-                orchestrator.llmEngine.generateResponse(
-                    prompt = prompt,
-                    history = emptyList(),
-                    options = EngineOptions.from(settings.value),
-                ).collect { delta ->
-                    collected.append(delta)
-                }
-            }
-
-            val newSummary = collected.toString().trim()
-            if (newSummary.isNotBlank()) {
-                conversationSummary = if (conversationSummary != null) {
-                    "${conversationSummary}\n$newSummary"
-                } else {
-                    newSummary
-                }
-            }
-        }
+    private fun followUpSuggestions(hadActions: Boolean): List<String> = if (hadActions) {
+        listOf(
+            localized(R.string.suggestion_check),
+            localized(R.string.suggestion_undo),
+            localized(R.string.suggestion_more),
+        )
+    } else {
+        listOf(
+            localized(R.string.suggestion_repeat),
+            localized(R.string.suggestion_more),
+            localized(R.string.suggestion_thanks),
+        )
     }
 
     private companion object {
-        val DEFAULT_SUGGESTIONS = listOf("Привет", "Что ты умеешь?", "Который час?")
-        val ACTIVE_SUGGESTIONS = listOf("Стоп")
-        val FOLLOW_UP_SUGGESTIONS = listOf("Повтори", "Расскажи подробнее", "Спасибо")
-
-        const val MIC_DENIED =
-            "Без доступа к микрофону я не слышу. Разреши доступ в настройках приложения."
-        const val UNKNOWN_ERROR = "Что-то пошло не так. Попробуй ещё раз."
-
         /** Сколько сообщений сессии уходит в модель как контекст. */
         const val HISTORY_LIMIT = 12
+
+        /** Когда есть резюме диалога — дословных реплик нужно гораздо меньше. */
+        const val HISTORY_LIMIT_WITH_SUMMARY = 6
 
         /** Максимальный размер памяти сессии. */
         const val SESSION_TRIM = 40
 
+        /** Каждые N новых сообщений — пересказываем начало диалога. */
+        const val SUMMARY_EVERY = 10
+
+        /** Потолок длины резюме: оно обязано оставаться коротким. */
+        const val SUMMARY_MAX_CHARS = 600
+
+        /** Резюме не имеет права задерживать разговор. */
+        const val SUMMARY_TIMEOUT_MS = 4_000L
+
         /** Пауза между ответом и новым слушанием в hands-free режиме. */
-        const val HANDS_FREE_GAP_MS = 1500L
+        const val HANDS_FREE_GAP_MS = 1_500L
 
         /** Сколько последних сводок инструментов держать в UI. */
-        const val MAX_REPORTS = 3
+        const val MAX_REPORTS = 8
 
         /** Как долго показывать сводку «что сделано» в UI. */
-        const val TOOL_REPORT_DISPLAY_MS = 5_000L
+        const val TOOL_REPORT_DISPLAY_MS = 12_000L
     }
 }

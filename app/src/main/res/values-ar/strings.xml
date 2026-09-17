@@ -194,4 +194,37 @@
     <string name="ai_engine_not_connected">غير متصل</string>
     <string name="ai_engine_connected">متصل</string>
     <string name="ai_engine_settings_desc">تُوصل المحركات في إعدادات المطور</string>
+
+    <!-- === Амалия: действия, контекст, декор фона === -->
+    <string name="assistant_tools_more">%1$d أخرى</string>
+    <string name="assistant_actions_title">ما تم تنفيذه</string>
+    <string name="assistant_actions_ok">تم: %1$d</string>
+    <string name="assistant_actions_partial">تم: %1$d · فشل: %2$d</string>
+    <string name="assistant_context_compressed">السياق مضغوط</string>
+    <string name="assistant_action_failed">لم ينجح</string>
+    <string name="assistant_mic_denied">بدون إذن الميكروفون لا أسمع. اسمح به في إعدادات التطبيق.</string>
+    <string name="assistant_generic_error">حدث خطأ ما. حاول مرة أخرى.</string>
+    <string name="suggestion_check">تحقق من النتيجة</string>
+    <string name="suggestion_undo">تراجع</string>
+    <string name="history_context_summary">ملخص السياق</string>
+    <string name="history_compressed_marker">أماليا تتذكر البداية كملخص، وليست حرفياً</string>
+    <string name="history_actions_count">إجراءات: %1$d</string>
+    <string name="appearance_motif">زخرفة الخلفية</string>
+    <string name="appearance_motif_desc">بتلات أو أوراق أو ثلج أو نجوم أو فراغات مضيئة حسب الوقت</string>
+    <string name="appearance_motif_density">كثافة الزخرفة</string>
+    <string name="motif_off">بدون زخرفة</string>
+    <string name="motif_auto">حسب الوقت</string>
+    <string name="motif_sakura">بتلات الكرز</string>
+    <string name="motif_maple">أوراق متساقطة</string>
+    <string name="motif_firefly">فراغات مضيئة</string>
+    <string name="motif_snow">ثلج</string>
+    <string name="motif_stars">نجوم</string>
+    <string name="privacy_resume_session">متابعة آخر محادثة</string>
+    <string name="privacy_resume_session_desc">بعد إعادة التشغيل تتذكر أماليا سياق الحديث</string>
+    <string name="privacy_memory">الذاكرة</string>
+    <string name="time_just_now">الآن</string>
+    <string name="time_minutes_ago">قبل %1$d دقيقة</string>
+    <string name="time_hours_ago">قبل %1$d ساعة</string>
+    <string name="time_days_ago">قبل %1$d يوم</string>
+    <string name="history_resume">متابعة في محادثة جديدة</string>
 </resources>

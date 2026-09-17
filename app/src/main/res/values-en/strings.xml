@@ -195,4 +195,37 @@
     <string name="ai_engine_not_connected">Not connected</string>
     <string name="ai_engine_connected">Connected</string>
     <string name="ai_engine_settings_desc">Engines are connected in the developer settings</string>
+
+    <!-- === Амалия: действия, контекст, декор фона === -->
+    <string name="assistant_tools_more">%1$d more</string>
+    <string name="assistant_actions_title">What was done</string>
+    <string name="assistant_actions_ok">Done: %1$d</string>
+    <string name="assistant_actions_partial">Done: %1$d · failed: %2$d</string>
+    <string name="assistant_context_compressed">context compressed</string>
+    <string name="assistant_action_failed">didn\'t work</string>
+    <string name="assistant_mic_denied">Without microphone access I can\'t hear. Allow it in app settings.</string>
+    <string name="assistant_generic_error">Something went wrong. Try again.</string>
+    <string name="suggestion_check">Check the result</string>
+    <string name="suggestion_undo">Undo</string>
+    <string name="history_context_summary">Context summary</string>
+    <string name="history_compressed_marker">Amalia remembers the beginning as a summary, not verbatim</string>
+    <string name="history_actions_count">actions: %1$d</string>
+    <string name="appearance_motif">Background decor</string>
+    <string name="appearance_motif_desc">Petals, leaves, snow, stars or fireflies — in step with the time of day</string>
+    <string name="appearance_motif_density">Decor density</string>
+    <string name="motif_off">No decor</string>
+    <string name="motif_auto">By time of day</string>
+    <string name="motif_sakura">Sakura</string>
+    <string name="motif_maple">Falling leaves</string>
+    <string name="motif_firefly">Fireflies</string>
+    <string name="motif_snow">Snow</string>
+    <string name="motif_stars">Stars</string>
+    <string name="privacy_resume_session">Resume the last conversation</string>
+    <string name="privacy_resume_session_desc">After a restart Amalia keeps the conversation context</string>
+    <string name="privacy_memory">Memory</string>
+    <string name="time_just_now">just now</string>
+    <string name="time_minutes_ago">%1$d min ago</string>
+    <string name="time_hours_ago">%1$d h ago</string>
+    <string name="time_days_ago">%1$d d ago</string>
+    <string name="history_resume">Continue in a new chat</string>
 </resources>

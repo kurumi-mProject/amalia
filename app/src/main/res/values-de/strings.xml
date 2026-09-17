@@ -194,4 +194,37 @@
     <string name="ai_engine_not_connected">Nicht verbunden</string>
     <string name="ai_engine_connected">Verbunden</string>
     <string name="ai_engine_settings_desc">Engines werden in den Entwicklereinstellungen verbunden</string>
+
+    <!-- === Амалия: действия, контекст, декор фона === -->
+    <string name="assistant_tools_more">%1$d weitere</string>
+    <string name="assistant_actions_title">Was getan wurde</string>
+    <string name="assistant_actions_ok">Erledigt: %1$d</string>
+    <string name="assistant_actions_partial">Erledigt: %1$d · fehlerhaft: %2$d</string>
+    <string name="assistant_context_compressed">Kontext verdichtet</string>
+    <string name="assistant_action_failed">fehlgeschlagen</string>
+    <string name="assistant_mic_denied">Ohne Mikrofonzugriff höre ich nichts. Erlaube ihn in den Einstellungen.</string>
+    <string name="assistant_generic_error">Etwas ist schiefgelaufen. Versuch es erneut.</string>
+    <string name="suggestion_check">Ergebnis prüfen</string>
+    <string name="suggestion_undo">Abbrechen</string>
+    <string name="history_context_summary">Kontextzusammenfassung</string>
+    <string name="history_compressed_marker">Amalia erinnert den Anfang als Zusammenfassung, nicht wörtlich</string>
+    <string name="history_actions_count">Aktionen: %1$d</string>
+    <string name="appearance_motif">Hintergrund-Dekor</string>
+    <string name="appearance_motif_desc">Blüten, Blätter, Schnee, Sterne oder Glühwürmchen zur Tageszeit</string>
+    <string name="appearance_motif_density">Dichte des Dekors</string>
+    <string name="motif_off">Ohne Dekor</string>
+    <string name="motif_auto">Nach Tageszeit</string>
+    <string name="motif_sakura">Kirschblüte</string>
+    <string name="motif_maple">Laubfall</string>
+    <string name="motif_firefly">Glühwürmchen</string>
+    <string name="motif_snow">Schnee</string>
+    <string name="motif_stars">Sterne</string>
+    <string name="privacy_resume_session">Letzte Unterhaltung fortsetzen</string>
+    <string name="privacy_resume_session_desc">Nach dem Neustart behält Amalia den Kontext</string>
+    <string name="privacy_memory">Erinnerung</string>
+    <string name="time_just_now">gerade eben</string>
+    <string name="time_minutes_ago">vor %1$d Min</string>
+    <string name="time_hours_ago">vor %1$d Std</string>
+    <string name="time_days_ago">vor %1$d T</string>
+    <string name="history_resume">In neuem Chat fortsetzen</string>
 </resources>

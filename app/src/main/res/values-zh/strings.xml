@@ -194,4 +194,37 @@
     <string name="ai_engine_not_connected">未连接</string>
     <string name="ai_engine_connected">已连接</string>
     <string name="ai_engine_settings_desc">引擎在开发者设置中连接</string>
+
+    <!-- === Амалия: действия, контекст, декор фона === -->
+    <string name="assistant_tools_more">还有 %1$d 项</string>
+    <string name="assistant_actions_title">已完成的操作</string>
+    <string name="assistant_actions_ok">已完成：%1$d</string>
+    <string name="assistant_actions_partial">已完成：%1$d · 失败：%2$d</string>
+    <string name="assistant_context_compressed">上下文已压缩</string>
+    <string name="assistant_action_failed">没有成功</string>
+    <string name="assistant_mic_denied">没有麦克风权限我听不到。请在应用设置中允许。</string>
+    <string name="assistant_generic_error">出错了，再试一次。</string>
+    <string name="suggestion_check">检查结果</string>
+    <string name="suggestion_undo">撤销</string>
+    <string name="history_context_summary">上下文摘要</string>
+    <string name="history_compressed_marker">阿玛利亚以摘要而非逐字记住对话开头</string>
+    <string name="history_actions_count">操作：%1$d</string>
+    <string name="appearance_motif">背景装饰</string>
+    <string name="appearance_motif_desc">随时段飘落花瓣、落叶、雪、星星或萤火虫</string>
+    <string name="appearance_motif_density">装饰密度</string>
+    <string name="motif_off">无装饰</string>
+    <string name="motif_auto">随时段</string>
+    <string name="motif_sakura">樱花</string>
+    <string name="motif_maple">落叶</string>
+    <string name="motif_firefly">萤火虫</string>
+    <string name="motif_snow">雪</string>
+    <string name="motif_stars">星星</string>
+    <string name="privacy_resume_session">继续上一段对话</string>
+    <string name="privacy_resume_session_desc">重启后阿玛利亚仍保留对话上下文</string>
+    <string name="privacy_memory">记忆</string>
+    <string name="time_just_now">刚刚</string>
+    <string name="time_minutes_ago">%1$d 分钟前</string>
+    <string name="time_hours_ago">%1$d 小时前</string>
+    <string name="time_days_ago">%1$d 天前</string>
+    <string name="history_resume">在新对话中继续</string>
 </resources>

@@ -226,7 +226,7 @@ class GroqLLM : LanguageModel {
         // но жгут токены. Сначала отбрасываем старые user/assistant,
         // но tool-результаты ВСЕГДА оставляем (они короткие и критичны).
         val priors = messages.filter { it.role != MessageRole.SYSTEM }
-        val trimmed = trimHistoryKeepingToolResults(priors, MAX_HISTORY_MESSAGES)
+        val trimmed = priors.takeLast(MAX_HISTORY_MESSAGES)
 
         trimmed.forEach { msg ->
             val obj = JSONObject()
@@ -271,54 +271,10 @@ class GroqLLM : LanguageModel {
         return arr
     }
 
-    /**
-     * Обрезает историю, сохраняя парность tool-result ↔ вызов.
-     *
-     * Если history длиннее лимита, удаляем самые старые пары
-     * «user → assistant». Tool-результаты храним вместе с
-     * assistant-сообщениями, к которым они относятся, чтобы LLM
-     * не получила бессвязный набор результатов без запросов.
-     */
-    private fun trimHistoryKeepingToolResults(
-        messages: List<ChatMessage>,
-        limit: Int,
-    ): List<ChatMessage> {
-        if (messages.size <= limit) return messages
-        // Хвост: последние [limit] сообщений, но если в них попали tool-результаты,
-        // добавим родительский assistant-запрос сверху, если он не попал.
-        val tail = messages.takeLast(limit)
-        val result = mutableListOf<ChatMessage>()
-        tail.forEachIndexed { index, message ->
-            if (message.role == MessageRole.TOOL) {
-                // Найдём ближайший сверху assistant, у которого есть matching tool_calls,
-                // — но в нашей реализации ChatMessage.toolCalls пока пустое.
-                // Поэтому просто добавляем как есть.
-                result += message
-            } else {
-                result += message
-            }
-        }
-        return result
-    }
-
-    /**
-     * Собирает массив `tools` для Groq: каждый [ToolDefinition] превращается в
-     * `{type: "function", function: {name, description, parameters}}`.
-     */
-    private fun buildToolsArray(tools: List<ToolDefinition>): JSONArray {
-        val arr = JSONArray()
-        tools.forEach { tool ->
-            arr.put(JSONObject().apply {
-                put("type", "function")
-                put("function", JSONObject().apply {
-                    put("name", tool.name)
-                    put("description", tool.description)
-                    put("parameters", tool.jsonSchema())
-                })
-            })
-        }
-        return arr
-    }
+    // Инструменты намеренно НЕ уходят в поле `tools` запроса: контракт живёт в
+    // системном промпте ({reply, tools} в content + response_format=json_object).
+    // Это выбор в пользу скорости — 26 JSON-схем добавили бы ~2000 токенов к
+    // каждому запросу и заметно отодвинули бы первый токен.
 
     // ── HTTP / SSE ───────────────────────────────────────────────────────
 
@@ -335,28 +291,6 @@ class GroqLLM : LanguageModel {
         throw EngineException("Нет интернета — не могу подумать над ответом.", e)
     } catch (e: IOException) {
         throw EngineException("Groq недоступен: ${e.message ?: "ошибка сети"}", e)
-    }
-
-    /**
-     * Стримит delta-сообщения SSE: пропускает пустые, незавершённые
-     * и `[DONE]` маркеры, выполняет [onDelta] для каждого распарсенного
-     * `choices[0].delta`.
-     */
-    private suspend inline fun streamDelta(
-        source: okio.BufferedSource,
-        crossinline onDelta: suspend (JSONObject) -> Unit,
-    ) {
-        while (true) {
-            val line = source.readUtf8Line() ?: break
-            if (line.isEmpty() || !line.startsWith(SSE_PREFIX)) continue
-            val data = line.removePrefix(SSE_PREFIX).trim()
-            if (data == SSE_DONE) break
-            val root = runCatching { JSONObject(data) }.getOrNull() ?: continue
-            val err = root.optJSONObject("error")?.optString("message")
-            if (!err.isNullOrBlank()) throw EngineException("Groq: $err")
-            root.optJSONArray("choices")?.optJSONObject(0)?.optJSONObject("delta")
-                ?.let { onDelta(it) }
-        }
     }
 
     /**
@@ -381,72 +315,6 @@ class GroqLLM : LanguageModel {
                     ?.takeIf { it.isNotEmpty() }
                     ?.let { onContent(it) }
             }
-        }
-    }
-
-    /**
-     * Дочитывает финальный фрейм SSE с `finish_reason`.
-     *
-     * OpenAI/Groq шлют финальный фрейм ПОСЛЕ всех дельт: `delta` пустое,
-     * но в `choices[0].finish_reason` стоит `"stop"`, `"tool_calls"` и т.д.
-     */
-    private fun streamFinalFrame(source: okio.BufferedSource): JSONObject? {
-        while (true) {
-            val line = source.readUtf8Line() ?: return null
-            if (line.isEmpty() || !line.startsWith(SSE_PREFIX)) continue
-            val data = line.removePrefix(SSE_PREFIX).trim()
-            if (data == SSE_DONE) return null
-            runCatching {
-                val root = JSONObject(data)
-                val reason = root.optJSONArray("choices")
-                    ?.optJSONObject(0)
-                    ?.optInt("finish_reason", -1)
-                    ?: -1
-                if (reason != -1) return root
-            }
-        }
-    }
-
-    /** Состояние стриминга tool_calls по индексам. */
-    private class ToolStreamingState {
-        private val slots: MutableMap<Int, MutableSlot> = LinkedHashMap()
-
-        fun slot(index: Int): MutableSlot = slots.getOrPut(index) { MutableSlot() }
-
-        fun finalize(emit: (ToolCall) -> Unit) {
-            slots.entries
-                .sortedBy { it.key }
-                .forEach { (_, slot) ->
-                    val id = slot.id?.takeIf { it.isNotEmpty() }
-                    val name = slot.name?.takeIf { it.isNotEmpty() }
-                    if (id != null && name != null) {
-                        emit(buildCall(id, name, slot.arguments.toString()))
-                    }
-                }
-        }
-
-        fun finalizeToList(): List<ToolCall> {
-            val result = mutableListOf<ToolCall>()
-            finalize { result += it }
-            return result
-        }
-
-        private fun buildCall(id: String, name: String, argumentsJson: String): ToolCall {
-            val argsMap: Map<String, Any?> = runCatching {
-                val obj = JSONObject(argumentsJson)
-                obj.keys().asSequence().associateWith { key -> obj.opt(key) }
-            }.getOrDefault(emptyMap())
-            return ToolCall(id = id, toolName = name, argumentsMap = argsMap)
-        }
-    }
-
-    private class MutableSlot {
-        var id: String? = null
-        var name: String? = null
-        val arguments: StringBuilder = StringBuilder()
-
-        fun appendArguments(chunk: String) {
-            arguments.append(chunk)
         }
     }
 
@@ -493,9 +361,16 @@ $summarySection
 - Идёт в синтез речи: без эмодзи, без звёздочек, без капса
 - Числа словами: "тридцать", не "30"
 - Максимум 2-3 фразы
-- После действий — коротко: "окей", "сделала", "готово" — НЕ перечисляй что сделала
+- После действий — одна короткая реплика, но РАЗНАЯ: "окей", "готово", "сделано", "ловим", "есть". Не начинай два ответа подряд с одного слова
+- НЕ перечисляй, что сделала — приложение показывает это сама
+- Если инструментов в этом ответе нет, reply обязан быть содержательным, а не "сделала"
 - Язык: только ${options.languageName}
 - Ты не помощник — говори как человек, не как сервис
+
+# ИНСТРУМЕНТЫ: ПОВТОРЫ
+Инструмент уже вызывался в этом диалоге — не зови его повторно с теми же
+аргументами, если пользователь об этом прямо не просил. Состояние устройства
+уже есть в # УСТРОЙСТВО СЕЙЧАС: сверься с ним вместо нового вызова.
 
 # ИНСТРУМЕНТЫ
 set_wifi(enabled:bool) set_bluetooth(enabled:bool) set_brightness(percent:0-100) set_volume(percent:0-100) volume_up(step?:int) volume_down(step?:int)

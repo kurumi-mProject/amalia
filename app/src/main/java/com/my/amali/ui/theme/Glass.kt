@@ -79,16 +79,23 @@ val LocalGlassStyle = staticCompositionLocalOf {
 }
 
 /**
- * Визуальный контекст приложения: какую палитру фона рисовать и насколько
- * сильным делать стекло. Провайдится один раз в MainActivity из настроек
- * пользователя, поэтому любой экран может нарисовать корректный фон,
- * не получая настройки через параметры.
+ * Визуальный контекст приложения: какую палитру фона рисовать, насколько
+ * сильным делать стекло и какие декорации сыпать поверх. Провайдится один
+ * раз в MainActivity из настроек пользователя, поэтому любой экран может
+ * нарисовать корректный фон, не получая настройки через параметры.
+ *
+ * @property motif декоративный слой поверх ауроры ([AmaliaMotif.AUTO] — по
+ *   времени суток, [AmaliaMotif.OFF] — чистый фон).
+ * @property motifDensity 0..1 — густота декораций; привязана к интенсивности
+ *   стекла, чтобы «тихая» тема оставалась тихой целиком.
  */
 data class AmaliaVisuals(
     val visualTheme: AmaliaVisualTheme = AmaliaVisualTheme.LIQUID_GLASS,
     val darkModePref: DarkModePreference = DarkModePreference.SYSTEM,
     val useBioTime: Boolean = false,
     val glassIntensity: Float = 0.75f,
+    val motif: AmaliaMotif = AmaliaMotif.AUTO,
+    val motifDensity: Float = 1f,
 )
 
 val LocalAmaliaVisuals = staticCompositionLocalOf { AmaliaVisuals() }
@@ -188,3 +195,44 @@ fun Modifier.accentGlow(
 @Composable
 @ReadOnlyComposable
 fun isLightSurface(): Boolean = MaterialTheme.colorScheme.surface.luminance() > 0.45f
+
+/**
+ * Подложка под иконкой/аватаром: мягкий градиент из двух акцентных тонов
+ * ТЕКУЩЕЙ палитры плюс тонкий контур тем же тоном.
+ *
+ * Нужна ровно для того, чтобы кругляши кнопок и аватары не оставались
+ * «вечное стекло», когда фон и текст уже уехали в вечер или ночь: иконка
+ * начинает принадлежать той же палитре, что и всё остальное.
+ *
+ * @param shape форма подложки.
+ * @param strength сила тонировки (1 — нормально, больше — для активных).
+ * @param outlined рисовать ли световой контур.
+ */
+@Composable
+@ReadOnlyComposable
+fun Modifier.paletteChip(
+    shape: Shape,
+    strength: Float = 1f,
+    outlined: Boolean = true,
+): Modifier {
+    val palette = LocalAmaliaPalette.current
+    val tones = palette.auroras.ifEmpty { palette.stops.map { it.color } }
+    val from = tones.getOrElse(0) { MaterialTheme.colorScheme.primary }
+    val to = tones.getOrElse(1 % tones.size) { from }
+    val a = strength.coerceIn(0f, 1.6f)
+
+    val filled = background(
+        Brush.linearGradient(
+            listOf(
+                from.copy(alpha = 0.26f * a),
+                to.copy(alpha = 0.11f * a),
+            ),
+        ),
+        shape,
+    )
+    return if (!outlined) {
+        filled
+    } else {
+        filled.border(0.7.dp, from.copy(alpha = 0.30f * a), shape)
+    }
+}

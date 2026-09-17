@@ -194,4 +194,37 @@
     <string name="ai_engine_not_connected">未接続</string>
     <string name="ai_engine_connected">接続済み</string>
     <string name="ai_engine_settings_desc">エンジンは開発者設定で接続します</string>
+
+    <!-- === Амалия: действия, контекст, декор фона === -->
+    <string name="assistant_tools_more">他 %1$d 件</string>
+    <string name="assistant_actions_title">実行した内容</string>
+    <string name="assistant_actions_ok">完了: %1$d</string>
+    <string name="assistant_actions_partial">完了: %1$d · 失敗: %2$d</string>
+    <string name="assistant_context_compressed">文脈を圧縮中</string>
+    <string name="assistant_action_failed">うまくいきませんでした</string>
+    <string name="assistant_mic_denied">マイクの許可がないと聞こえません。アプリ設定で許可してください。</string>
+    <string name="assistant_generic_error">うまくいきませんでした。もう一度どうぞ。</string>
+    <string name="suggestion_check">結果を確認</string>
+    <string name="suggestion_undo">取り消し</string>
+    <string name="history_context_summary">文脈の要約</string>
+    <string name="history_compressed_marker">アマリアは冒頭を逐語ではなく要約で覚えています</string>
+    <string name="history_actions_count">操作: %1$d</string>
+    <string name="appearance_motif">背景の装飾</string>
+    <string name="appearance_motif_desc">時刻に応じて花びら・葉・雪・星・ホタル</string>
+    <string name="appearance_motif_density">装飾の密度</string>
+    <string name="motif_off">装飾なし</string>
+    <string name="motif_auto">時刻まかせ</string>
+    <string name="motif_sakura">桜</string>
+    <string name="motif_maple">紅葉</string>
+    <string name="motif_firefly">ホタル</string>
+    <string name="motif_snow">雪</string>
+    <string name="motif_stars">星</string>
+    <string name="privacy_resume_session">前の会話を続ける</string>
+    <string name="privacy_resume_session_desc">再起動後もアマリアは文脈を覚えている</string>
+    <string name="privacy_memory">記憶</string>
+    <string name="time_just_now">たった今</string>
+    <string name="time_minutes_ago">%1$d分前</string>
+    <string name="time_hours_ago">%1$d時間前</string>
+    <string name="time_days_ago">%1$d日前</string>
+    <string name="history_resume">新しい会話で続ける</string>
 </resources>

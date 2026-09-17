@@ -7,10 +7,19 @@ import androidx.compose.material3.darkColorScheme
 import androidx.compose.material3.lightColorScheme
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.runtime.ReadOnlyComposable
 import androidx.compose.runtime.SideEffect
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.produceState
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.staticCompositionLocalOf
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.blend
+import androidx.compose.ui.graphics.luminance
 import androidx.compose.ui.platform.LocalView
 import androidx.core.view.WindowCompat
+import kotlinx.coroutines.delay
+import java.util.Calendar
 
 // ════════════════════════════════════════════════════════════
 //  ENUM: Визуальный стиль
@@ -138,6 +147,20 @@ private val BioDarkScheme = darkColorScheme(
 //  THEME COMPOSABLE
 // ════════════════════════════════════════════════════════════
 
+/**
+ * Главная тема приложения.
+ *
+ * Ключевое решение: акцентные цвета **следуют за палитрой фона**, а не живут
+ * отдельно. Раньше «время суток» меняло только градиент за спиной, из-за чего
+ * интерфейс выглядел перекрашенным наполовину: тёмная амура + всегда один и
+ * тот же индиго акцент. Теперь `primary/secondary/tertiary` подмешивают себе
+ * aurora-тона текущей палитры, поэтому и текст, и иконки, и волна, и кнопки
+ * дышат одним временем суток.
+ *
+ * Подмешивание умеренное (≈30%) и обязательно калибруется по контрасту:
+ * на светлой подложке слишком светлый акцент был бы нечитаем, поэтому для
+ * светлых схем тон затемняется.
+ */
 @Composable
 fun AmaliaTheme(
     darkModePref: DarkModePreference = DarkModePreference.SYSTEM,
@@ -152,12 +175,8 @@ fun AmaliaTheme(
         DarkModePreference.ALWAYS_LIGHT -> false
     }
 
-    val bioTime = if (useBioTime && visualTheme == AmaliaVisualTheme.BIOPHILIC) {
-        val hour = java.util.Calendar.getInstance().get(java.util.Calendar.HOUR_OF_DAY)
-        BioTimeOfDay.fromHour(hour)
-    } else {
-        null
-    }
+    val hour = currentTimeHour(useBioTime)
+    val bioTime = if (useBioTime) BioTimeOfDay.fromHour(hour) else null
 
     val effectiveDark = when (visualTheme) {
         AmaliaVisualTheme.LIQUID_GLASS -> true
@@ -166,10 +185,13 @@ fun AmaliaTheme(
         } ?: isDark
     }
 
-    val colorScheme = when (visualTheme) {
+    val palette = currentGradientPalette(visualTheme, darkModePref, useBioTime, hour)
+
+    val baseScheme = when (visualTheme) {
         AmaliaVisualTheme.LIQUID_GLASS -> GlassDarkScheme
         AmaliaVisualTheme.BIOPHILIC -> if (effectiveDark) BioDarkScheme else BioLightScheme
     }
+    val colorScheme = tintScheme(baseScheme, palette, effectiveDark)
 
     // Стекло тёмной темы — дымчатое и контурное; светлой — молочное и мягкое.
     val glassStyle = when {
@@ -218,7 +240,10 @@ fun AmaliaTheme(
         }
     }
 
-    CompositionLocalProvider(LocalGlassStyle provides glassStyle) {
+    CompositionLocalProvider(
+        LocalGlassStyle provides glassStyle,
+        LocalAmaliaPalette provides palette,
+    ) {
         MaterialTheme(
             colorScheme = colorScheme,
             typography = typography,
@@ -228,21 +253,113 @@ fun AmaliaTheme(
     }
 }
 
+/**
+ * Час, который использует тема.
+ *
+ * Значение опрашивается раз в минуту и обновляется только когда час реально
+ * сменился — иначе каждая минута перезапускала бы всю композицию экрана.
+ * Когда адаптация по времени выключена, таймер не заводится вовсе.
+ */
+@Composable
+private fun currentTimeHour(enable: Boolean): Int {
+    val tracked by produceState(initialValue = hourNow(), key1 = enable) {
+        if (!enable) return@produceState
+        while (true) {
+            delay(MINUTE_POLL_MS)
+            val next = hourNow()
+            if (next != value) value = next
+        }
+    }
+    return if (enable) tracked else hourNow()
+}
+
+private fun hourNow(): Int = Calendar.getInstance().get(Calendar.HOUR_OF_DAY)
+
+private const val MINUTE_POLL_MS = 60_000L
+
+/**
+ * Подмешивает aurora-тона палитры в акценты схемы.
+ *
+ * @param scheme базовая схема темы.
+ * @param palette палитра, чьи цвета тянем в акценты.
+ * @param isDark тёмная ли схема — влияет на направление коррекции контраста.
+ */
+private fun tintScheme(
+    scheme: androidx.compose.material3.ColorScheme,
+    palette: GradientPalette,
+    isDark: Boolean,
+): androidx.compose.material3.ColorScheme {
+    val tones = palette.auroras.ifEmpty { palette.stops.map { it.color } }
+    if (tones.isEmpty()) return scheme
+
+    val warm = tones.getOrElse(0) { scheme.primary }
+    val cool = tones.getOrElse(1 % tones.size) { scheme.secondary }
+    val spark = tones.getOrElse(2 % tones.size) { scheme.tertiary }
+
+    fun fit(accent: Color): Color {
+        val mixed = scheme.primary.blend(accent, TINT_RATIO)
+        return if (isDark) {
+            if (mixed.luminance() < MIN_DARK_LUMINANCE) {
+                mixed.blend(Color.White, LIFT_RATIO)
+            } else {
+                mixed
+            }
+        } else {
+            if (mixed.luminance() > MAX_LIGHT_LUMINANCE) {
+                mixed.blend(Color.Black, DEEPEN_RATIO)
+            } else {
+                mixed
+            }
+        }
+    }
+
+    val primary = fit(warm)
+    val secondary = fit(cool)
+    val tertiary = fit(spark)
+
+    return scheme.copy(
+        primary = primary,
+        primaryContainer = primary.blend(scheme.surface, 0.72f),
+        onPrimaryContainer = scheme.onSurface,
+        secondary = secondary,
+        secondaryContainer = secondary.blend(scheme.surface, 0.82f),
+        onSecondary = scheme.background,
+        tertiary = tertiary,
+        onTertiary = scheme.background,
+        surfaceTint = secondary,
+    )
+}
+
 // ════════════════════════════════════════════════════════════
 //  УТИЛИТЫ
 // ════════════════════════════════════════════════════════════
 
-/** Палитра живого фона под текущие настройки. */
+/**
+ * Палитра живого фона под текущие настройки.
+ *
+ * [hour] передаётся явно, чтобы тема и фон расходились одним источником
+ * времени: иначе фон и акценты могли «разъехаться» на границу часа.
+ */
 fun currentGradientPalette(
     visualTheme: AmaliaVisualTheme,
     darkModePref: DarkModePreference = DarkModePreference.SYSTEM,
     useBioTime: Boolean = false,
+    hour: Int = Calendar.getInstance().get(Calendar.HOUR_OF_DAY),
 ): GradientPalette {
-    if (visualTheme == AmaliaVisualTheme.LIQUID_GLASS) return GlassGradientPalette
+    val timeOfDay = if (useBioTime) BioTimeOfDay.fromHour(hour) else null
 
-    if (useBioTime) {
-        val hour = java.util.Calendar.getInstance().get(java.util.Calendar.HOUR_OF_DAY)
-        return when (BioTimeOfDay.fromHour(hour)) {
+    if (visualTheme == AmaliaVisualTheme.LIQUID_GLASS) {
+        return when (timeOfDay) {
+            BioTimeOfDay.MORNING -> GlassGradientMorning
+            BioTimeOfDay.DAY -> GlassGradientDay
+            BioTimeOfDay.EVENING -> GlassGradientEvening
+            BioTimeOfDay.NIGHT -> GlassGradientPalette
+            null -> GlassGradientPalette
+        }
+    }
+
+    if (timeOfDay != null) {
+        return when (timeOfDay) {
             BioTimeOfDay.MORNING -> BioGradientMorning
             BioTimeOfDay.DAY -> BioGradientDay
             BioTimeOfDay.EVENING -> BioGradientEvening
@@ -252,6 +369,36 @@ fun currentGradientPalette(
 
     return when (darkModePref) {
         DarkModePreference.ALWAYS_DARK -> BioGradientNight
-        else -> BioGradientDay
+        DarkModePreference.ALWAYS_LIGHT -> BioGradientDay
+        DarkModePreference.SYSTEM -> BioGradientDay
     }
 }
+
+/** Палитра, под которую сейчас нарисованы фон и акценты. */
+val LocalAmaliaPalette = staticCompositionLocalOf<GradientPalette> { GlassGradientPalette }
+
+/** Актуальная палитра — для иконок, аватаров и превью. */
+val currentPalette: GradientPalette
+    @Composable @ReadOnlyComposable
+    get() = LocalAmaliaPalette.current
+
+/**
+ * Цвет подсветки под иконкой/аватаром: следует за палитрой, а не за
+ * «вечным» primary, поэтому стеклянные кнопки не выглядят приклеенными
+ * к фону другого времени суток.
+ */
+@Composable
+@ReadOnlyComposable
+fun iconAccent(): Color {
+    val palette = LocalAmaliaPalette.current
+    val tone = palette.motifAccent.takeIf { it != Color.Unspecified }
+        ?: palette.auroras.firstOrNull()
+        ?: MaterialTheme.colorScheme.primary
+    return tone.blend(MaterialTheme.colorScheme.primary, if (palette.isDark) 0.35f else 0.5f)
+}
+
+private const val TINT_RATIO = 0.30f
+private const val MIN_DARK_LUMINANCE = 0.42f
+private const val MAX_LIGHT_LUMINANCE = 0.62f
+private const val LIFT_RATIO = 0.28f
+private const val DEEPEN_RATIO = 0.30f

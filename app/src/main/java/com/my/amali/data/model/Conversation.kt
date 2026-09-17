@@ -10,6 +10,11 @@ import kotlinx.serialization.Serializable
  * @property messages messages in chronological order.
  * @property createdAt creation time in epoch milliseconds.
  * @property updatedAt last modification time in epoch milliseconds.
+ * @property contextSummary сжатое резюме начала диалога, которое модель
+ *   подставляет вместо старых реплик. null — пока нечего сжимать.
+ * @property summarizedCount сколько первых сообщений диалога закрыто этим
+ *   резюме. Нужно UI, чтобы нарисовать метку «сжато» ровно там, где контекст
+ *   начался не дословно, а пересказом.
  */
 @Serializable
 data class Conversation(
@@ -17,8 +22,27 @@ data class Conversation(
     val title: String,
     val messages: List<ChatMessage> = emptyList(),
     val createdAt: Long,
-    val updatedAt: Long
+    val updatedAt: Long,
+    val contextSummary: String? = null,
+    val summarizedCount: Int = 0,
 ) {
+    /** Сколько реплик сейчас дословно видно в истории (не закрыто резюме). */
+    val visibleTailCount: Int
+        get() = (messages.size - summarizedCount).coerceAtLeast(0)
+
+    /** Есть ли что показывать как «сжатый контекст». */
+    val hasCompressedContext: Boolean
+        get() = !contextSummary.isNullOrBlank() && summarizedCount > 0
+
+    /** Резюме в одну строку для превью и карточек. */
+    val summaryPreview: String
+        get() = contextSummary?.trim()?.replace(Regex("\\s+"), " ").orEmpty()
+
+    /** Возвращает копию с новым резюме диалога. */
+    fun withSummary(summary: String?, covered: Int): Conversation = copy(
+        contextSummary = summary?.takeIf { it.isNotBlank() },
+        summarizedCount = covered.coerceIn(0, messages.size),
+    )
     /** Whether this conversation contains any messages. */
     val isEmpty: Boolean
         get() = messages.isEmpty()

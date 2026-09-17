@@ -1,11 +1,15 @@
 package com.my.amali.ui.settings
 
+import androidx.compose.animation.core.Spring
+import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.spring
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.annotation.StringRes
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
@@ -13,6 +17,9 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.lazy.LazyRow
+import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -37,16 +44,20 @@ import androidx.compose.ui.semantics.role
 import androidx.compose.ui.semantics.selected
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.draw.scale
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.my.amali.R
 import com.my.amali.ui.components.AmaliaScreen
 import com.my.amali.ui.components.GlassDivider
+import com.my.amali.ui.components.MotifSwatch
 import com.my.amali.ui.components.GlassGroup
 import com.my.amali.ui.components.GlassSlider
 import com.my.amali.ui.components.SectionTitle
 import com.my.amali.ui.components.SettingsToggleRow
+import com.my.amali.ui.theme.AmaliaMotif
 import com.my.amali.ui.theme.AmaliaVisualTheme
 import com.my.amali.ui.theme.BioGradientMorning
 import com.my.amali.ui.theme.DarkModePreference
@@ -56,6 +67,7 @@ import com.my.amali.ui.theme.Radius
 import com.my.amali.ui.theme.Spacing
 import com.my.amali.ui.theme.accentGlow
 import com.my.amali.ui.theme.glassSurface
+import com.my.amali.ui.theme.previewColors
 
 /**
  * Экран «Внешний вид».
@@ -137,7 +149,41 @@ fun AppearanceSettings(
                     subtitle = stringResource(R.string.appearance_bio_time_desc),
                     checked = settings.useBioTime,
                     onCheckedChange = { vm.setUseBioTime(it) },
-                    enabled = settings.visualTheme == AmaliaVisualTheme.BIOPHILIC,
+                )
+            }
+
+            SectionTitle(stringResource(R.string.appearance_motif))
+
+            Text(
+                text = stringResource(R.string.appearance_motif_desc),
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.padding(
+                    start = Spacing.xxs,
+                    bottom = Spacing.xs,
+                ),
+            )
+
+            // Живой фон этого экрана перекрашивается сразу: выбор мотива
+            // видно не в миниатюре, а на всём интерфейсе.
+            LazyRow(horizontalArrangement = Arrangement.spacedBy(Spacing.xs)) {
+                items(AmaliaMotif.choices, key = { it.name }) { motif ->
+                    MotifChip(
+                        motif = motif,
+                        selected = settings.motif == motif,
+                        onClick = { vm.setMotif(motif) },
+                    )
+                }
+            }
+
+            if (settings.motif != AmaliaMotif.OFF) {
+                Spacer(Modifier.height(Spacing.xs))
+                GlassSlider(
+                    label = stringResource(R.string.appearance_motif_density),
+                    description = stringResource(R.string.appearance_motif_desc),
+                    valueText = "${(settings.motifDensity * 100).toInt()}%",
+                    value = settings.motifDensity,
+                    onValueChange = { vm.setMotifDensity(it) },
                 )
             }
 
@@ -248,6 +294,99 @@ private fun ThemeCard(
                 .padding(vertical = Spacing.sm, horizontal = Spacing.xs),
         )
     }
+}
+
+/**
+ * Chip выбора декора фона: миниатюра мотива + подпись.
+ *
+ * Миниатюра статична ([MotifSwatch]) — шесть анимированных канвасов в списке
+ * съели бы кадры ради превью, которое смотрят две секунды.
+ */
+@Composable
+private fun MotifChip(
+    motif: AmaliaMotif,
+    selected: Boolean,
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    val label = stringResource(motifLabelRes(motif))
+    val (from, to) = remember(motif) { motif.previewColors() }
+    val shape = RoundedCornerShape(Radius.md)
+    val scale by animateFloatAsState(
+        targetValue = if (selected) 1f else 0.97f,
+        animationSpec = spring(stiffness = Spring.StiffnessMediumLow),
+        label = "motifChip",
+    )
+
+    Column(
+        modifier = modifier
+            .width(96.dp)
+            .scale(scale)
+            .clip(shape)
+            .background(
+                Brush.verticalGradient(
+                    listOf(from.copy(alpha = 0.22f), to.copy(alpha = 0.10f)),
+                ),
+            )
+            .border(
+                width = if (selected) 1.4.dp else 0.8.dp,
+                color = if (selected) {
+                    MaterialTheme.colorScheme.primary
+                } else {
+                    MaterialTheme.colorScheme.outline.copy(alpha = 0.45f)
+                },
+                shape = shape,
+            )
+            .clickable(onClick = onClick)
+            .padding(top = Spacing.xs)
+            .semantics {
+                role = Role.RadioButton
+                this.selected = selected
+                contentDescription = label
+            },
+        horizontalAlignment = Alignment.CenterHorizontally,
+    ) {
+        MotifSwatch(
+            motif = motif,
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(46.dp),
+        )
+        Spacer(Modifier.height(Spacing.xxs))
+        Row(
+            modifier = Modifier.padding(horizontal = Spacing.xs),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            if (selected) {
+                Icon(
+                    imageVector = Icons.Rounded.Check,
+                    contentDescription = null,
+                    tint = MaterialTheme.colorScheme.primary,
+                    modifier = Modifier.size(12.dp),
+                )
+                Spacer(Modifier.width(4.dp))
+            }
+            Text(
+                text = label,
+                style = MaterialTheme.typography.labelMedium,
+                color = MaterialTheme.colorScheme.onSurface,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+            )
+        }
+        Spacer(Modifier.height(Spacing.xs))
+    }
+}
+
+@StringRes
+private fun motifLabelRes(motif: AmaliaMotif): Int = when (motif) {
+    AmaliaMotif.OFF -> R.string.motif_off
+    AmaliaMotif.AUTO -> R.string.motif_auto
+    AmaliaMotif.SAKURA -> R.string.motif_sakura
+    AmaliaMotif.MAPLE -> R.string.motif_maple
+    AmaliaMotif.FIREFLY -> R.string.motif_firefly
+    AmaliaMotif.SNOW -> R.string.motif_snow
+    AmaliaMotif.STARS -> R.string.motif_stars
 }
 
 /**

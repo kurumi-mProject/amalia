@@ -1,5 +1,6 @@
 package com.my.amali.domain.entity
 
+import com.my.amali.ui.theme.AmaliaMotif
 import com.my.amali.ui.theme.AmaliaVisualTheme
 import com.my.amali.ui.theme.DarkModePreference
 
@@ -21,6 +22,10 @@ import com.my.amali.ui.theme.DarkModePreference
  * @property dataRetentionDays conversation retention window; one of 7, 30, 90,
  *   or -1 meaning "keep forever".
  * @property selectedLanguage language used for STT/TTS and UI localization.
+ * @property resumeLastSession continue the most recent conversation on launch
+ *   instead of a blank one, so the compressed context survives a restart.
+ * @property motif decorative layer over the living background: falling petals,
+ *   leaves, snow, stars or fireflies. [AmaliaMotif.OFF] keeps the screen bare.
  */
 data class UserSettings(
     val visualTheme: AmaliaVisualTheme = AmaliaVisualTheme.LIQUID_GLASS,
@@ -32,8 +37,14 @@ data class UserSettings(
     val autoListen: Boolean = false,
     val wakeWordEnabled: Boolean = false,
     val dataRetentionDays: Int = 30,
-    val selectedLanguage: AppLanguage = AppLanguage.SYSTEM
+    val selectedLanguage: AppLanguage = AppLanguage.SYSTEM,
+    val resumeLastSession: Boolean = true,
+    val motif: AmaliaMotif = AmaliaMotif.AUTO,
+    val motifDensity: Float = 0.85f
 ) {
+    /** Returns a copy with [motifDensity] clamped to the valid [0.0, 1.0] range. */
+    fun withClampedMotif(): UserSettings = copy(motifDensity = motifDensity.coerceIn(0f, 1f))
+
     /** Returns a copy with [glassIntensity] clamped to the valid [0.0, 1.0] range. */
     fun withClampedGlass(): UserSettings = copy(glassIntensity = glassIntensity.coerceIn(0f, 1f))
 

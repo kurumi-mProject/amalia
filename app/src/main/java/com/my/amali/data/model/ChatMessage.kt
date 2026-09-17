@@ -19,6 +19,12 @@ import kotlinx.serialization.Transient
  *   вызовов инструментов, которые модель сделала В ЭТОМ сообщении.
  *   Поле transient: не попадает в персистентную историю, но пробрасывается
  *   в LLM на следующем раунде multi-turn цикла.
+ * @property actions человекочитаемая сводка того, что Амалия сделала в этом
+ *   ответе («Wi-Fi включён», «яркость 30%»). В отличие от [toolCalls] поле
+ *   СЕРИАЛИЗУЕТСЯ: история обязана показывать действия, а не только текст,
+ *   иначе восстановленный диалог выглядит как обрывок.
+ * @property contextTurnedIntoSummary true для служебной реплики-маркера: всё,
+ *   что было до неё, модель сейчас видит как сжатое резюме, а не дословно.
  */
 @Serializable
 data class ChatMessage(
@@ -28,6 +34,8 @@ data class ChatMessage(
     val timestamp: Long,
     val isStreaming: Boolean = false,
     val toolCallId: String? = null,
+    val actions: List<String> = emptyList(),
+    val contextTurnedIntoSummary: Boolean = false,
     @Transient
     val toolCalls: List<com.my.amali.data.ai.ToolCall> = emptyList(),
 ) {
@@ -49,6 +57,10 @@ data class ChatMessage(
 
     /** Returns a copy marked as fully received (streaming finished). */
     fun asCompleted(): ChatMessage = copy(isStreaming = false)
+
+    /** Возвращает копию с прикреплённой сводкой действий для истории. */
+    fun withActions(actions: List<String>): ChatMessage =
+        copy(actions = actions.filter { it.isNotBlank() }.distinct())
 
     /**
      * Возвращает копию с прикреплёнными вызовами инструментов и пустым content
@@ -75,6 +87,21 @@ data class ChatMessage(
             content = "",
             timestamp = System.currentTimeMillis(),
             isStreaming = true,
+        )
+
+        /**
+         * Готовая реплика ассистента.
+         *
+         * Used by the orchestrator to put **human text only** into the LLM
+         * history: сырой JSON-контракт модели в историю не попадает никогда.
+         */
+        fun assistant(content: String, actions: List<String> = emptyList()): ChatMessage = ChatMessage(
+            id = newId(),
+            role = MessageRole.ASSISTANT,
+            content = content,
+            timestamp = System.currentTimeMillis(),
+            isStreaming = false,
+            actions = actions,
         )
 
         /** Creates a system-level message (e.g. persona instructions). */

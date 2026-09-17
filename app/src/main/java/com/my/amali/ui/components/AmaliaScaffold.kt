@@ -49,6 +49,7 @@ import com.my.amali.ui.theme.LocalAmaliaVisuals
 import com.my.amali.ui.theme.Radius
 import com.my.amali.ui.theme.Spacing
 import com.my.amali.ui.theme.glassSurface
+import com.my.amali.ui.theme.paletteChip
 
 /**
  * AmaliaScreen — единая оболочка любого экрана приложения.
@@ -79,11 +80,10 @@ fun AmaliaScreen(
 
     Box(modifier = modifier.fillMaxSize()) {
         GradientBackground(
-            visualTheme = visuals.visualTheme,
-            darkModePref = visuals.darkModePref,
-            useBioTime = visuals.useBioTime,
-            intensity = visuals.glassIntensity,
             modifier = Modifier.fillMaxSize(),
+            intensity = visuals.glassIntensity,
+            motif = visuals.motif,
+            motifDensity = visuals.motifDensity,
         )
         Column(Modifier.fillMaxSize()) {
             AmaliaHeader(
@@ -218,6 +218,13 @@ fun GlassIconButton(
                 .glassSurface(shape = CircleShape),
             contentAlignment = Alignment.Center,
         ) {
+            // Цветовой «зрачок» под глифом: иконка принадлежит палитре времени
+            // суток, а не висит белым пятном на цветном фоне.
+            Box(
+                modifier = Modifier
+                    .size(30.dp)
+                    .paletteChip(shape = CircleShape, strength = if (badge) 1.25f else 0.9f, outlined = false),
+            )
             Icon(
                 imageVector = icon,
                 contentDescription = null,

@@ -218,4 +218,37 @@
     <string name="ai_engine_not_connected">Не подключено</string>
     <string name="ai_engine_connected">Подключено</string>
     <string name="ai_engine_settings_desc">Настройте движки для STT, TTS и LLM. Сейчас работают демо-заглушки.</string>
+
+    <!-- === Амалия: действия, контекст, декор фона === -->
+    <string name="assistant_tools_more">%1$d ещё</string>
+    <string name="assistant_actions_title">Что сделано</string>
+    <string name="assistant_actions_ok">Выполнено: %1$d</string>
+    <string name="assistant_actions_partial">Выполнено: %1$d · с ошибкой: %2$d</string>
+    <string name="assistant_context_compressed">контекст сжат</string>
+    <string name="assistant_action_failed">не получилось</string>
+    <string name="assistant_mic_denied">Без доступа к микрофону я не слышу. Разреши доступ в настройках приложения.</string>
+    <string name="assistant_generic_error">Что-то пошло не так. Попробуй ещё раз.</string>
+    <string name="suggestion_check">Проверь результат</string>
+    <string name="suggestion_undo">Отмени</string>
+    <string name="history_context_summary">Резюме контекста</string>
+    <string name="history_compressed_marker">Начало диалога Амалия помнит пересказом, а не дословно</string>
+    <string name="history_actions_count">действий: %1$d</string>
+    <string name="appearance_motif">Декор фона</string>
+    <string name="appearance_motif_desc">Лепестки, листья, снег, звёзды или светлячки — в такт времени суток</string>
+    <string name="appearance_motif_density">Густота декораций</string>
+    <string name="motif_off">Без декора</string>
+    <string name="motif_auto">По времени</string>
+    <string name="motif_sakura">Сакура</string>
+    <string name="motif_maple">Листопад</string>
+    <string name="motif_firefly">Светлячки</string>
+    <string name="motif_snow">Снег</string>
+    <string name="motif_stars">Звёзды</string>
+    <string name="privacy_resume_session">Продолжать последний диалог</string>
+    <string name="privacy_resume_session_desc">После перезапуска Амалия помнит контекст разговора</string>
+    <string name="privacy_memory">Память</string>
+    <string name="time_just_now">только что</string>
+    <string name="time_minutes_ago">%1$d мин назад</string>
+    <string name="time_hours_ago">%1$d ч назад</string>
+    <string name="time_days_ago">%1$d дн назад</string>
+    <string name="history_resume">Продолжить в новом диалоге</string>
 </resources>

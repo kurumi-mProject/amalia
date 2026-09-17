@@ -43,10 +43,7 @@ class ConversationRepository(
     /** Поток всех разговоров, новые сверху. */
     val conversations: Flow<List<Conversation>> = dataStore.data
         .catch { emit(androidx.datastore.preferences.core.emptyPreferences()) }
-        .map { prefs ->
-            val raw = prefs[Keys.CONVERSATIONS] ?: return@map emptyList()
-            runCatching { json.decodeFromString(serializer, raw) }.getOrDefault(emptyList())
-        }
+        .map { prefs -> decode(prefs[Keys.CONVERSATIONS]).sortedByDescending { it.updatedAt } }
 
     /** Возвращает разговор по id или null, если он не найден. */
     suspend fun get(id: String): Conversation? =
@@ -56,21 +53,27 @@ class ConversationRepository(
     suspend fun count(): Int = conversationsList().size
 
     /**
+     * N самых свежих разговоров одним снимком.
+     *
+     * Нужен, чтобы при старте продолжить последний диалог и не подписываться
+     * на весь поток истории ради одной записи.
+     */
+    suspend fun recentSnapshot(limit: Int): List<Conversation> =
+        conversationsList().take(limit.coerceAtLeast(1))
+
+    /** Сколько всего сохранённых реплик (для строки приватности). */
+    suspend fun messageCount(): Int = conversationsList().sumOf { it.messages.size }
+
+    /**
      * Снимок текущей истории.
      *
-     * Используется [Flow.first], а не `collect`: DataStore-поток бесконечен,
+     * Используется [first], а не `collect`: DataStore-поток бесконечен,
      * поэтому `collect` с `return@collect` не завершался и вызов висел вечно
      * (из-за этого счётчик разговоров в шапке всегда оставался нулевым).
      */
-    private suspend fun conversationsList(): List<Conversation> {
-        val raw = dataStore.data.first()[Keys.CONVERSATIONS] ?: ""
-        val parsed = if (raw.isEmpty()) {
-            emptyList()
-        } else {
-            runCatching { json.decodeFromString(serializer, raw) }.getOrDefault(emptyList())
-        }
-        return parsed.sortedByDescending { conversation -> conversation.updatedAt }
-    }
+    private suspend fun conversationsList(): List<Conversation> =
+        decode(dataStore.data.first()[Keys.CONVERSATIONS])
+            .sortedByDescending { it.updatedAt }
 
     // ── Запись ───────────────────────────────────────────────────────────
 
@@ -88,66 +91,70 @@ class ConversationRepository(
     }
 
     /** Добавляет или обновляет разговор (upsert по id). */
-    suspend fun upsert(conversation: Conversation) {
-        dataStore.edit { prefs ->
-            val raw = prefs[Keys.CONVERSATIONS] ?: ""
-            val current = if (raw.isEmpty()) {
-                emptyList()
-            } else {
-                runCatching { json.decodeFromString(serializer, raw) }.getOrDefault(emptyList())
-            }
-            val updated = (current.filterNot { it.id == conversation.id } + conversation)
-                .sortedByDescending { it.updatedAt }
-            prefs[Keys.CONVERSATIONS] = json.encodeToString(serializer, updated)
-        }
+    suspend fun upsert(conversation: Conversation) = mutate { list ->
+        (list.filterNot { it.id == conversation.id } + conversation)
+            .sortedByDescending { it.updatedAt }
     }
 
     /** Добавляет сообщение в конец разговора; создаёт разговор при отсутствии. */
-    suspend fun appendMessage(conversationId: String, message: ChatMessage) {
-        dataStore.edit { prefs ->
-            val raw = prefs[Keys.CONVERSATIONS] ?: ""
-            val current = if (raw.isEmpty()) {
-                emptyList()
-            } else {
-                runCatching { json.decodeFromString(serializer, raw) }.getOrDefault(emptyList())
-            }
-            val existing = current.firstOrNull { it.id == conversationId }
-            val updated = (existing ?: Conversation(
+    suspend fun appendMessage(conversationId: String, message: ChatMessage) =
+        appendMessages(conversationId, listOf(message))
+
+    /**
+     * Добавляет сразу несколько сообщений ОДНОЙ записью в DataStore.
+     *
+     * Раньше пара «вопрос-ответ» уходала двумя-тремя отдельными `edit{}`, и
+     * каждый вызов перечитывал и переписывал весь JSON истории. На длинной
+     * истории это десятки миллисекунд на раунд диалога — ровно там, где
+     * пользователь ждёт звук. Теперь одно чтение и одна запись на цикл.
+     */
+    suspend fun appendMessages(conversationId: String, messages: List<ChatMessage>) {
+        if (messages.isEmpty()) return
+        mutate { list ->
+            val existing = list.firstOrNull { it.id == conversationId }
+            val seed = existing ?: Conversation(
                 id = conversationId,
-                title = message.content.take(MAX_TITLE_LENGTH).ifBlank { "…" },
-                createdAt = message.timestamp,
-                updatedAt = message.timestamp,
-            )).withMessage(message)
-            val next = (current.filterNot { it.id == conversationId } + updated)
+                title = Conversation.deriveTitle(messages.first().content),
+                createdAt = messages.first().timestamp,
+                updatedAt = messages.first().timestamp,
+            )
+            val updated = seed.copy(
+                messages = seed.messages + messages,
+                updatedAt = messages.last().timestamp,
+            )
+            (list.filterNot { it.id == conversationId } + updated)
                 .sortedByDescending { it.updatedAt }
-            prefs[Keys.CONVERSATIONS] = json.encodeToString(serializer, next)
+        }
+    }
+
+    /**
+     * Сохраняет сжатое резюме контекста разговора.
+     *
+     * [covered] — сколько первых сообщений закрыто пересказом. UI рисует по
+     * этому метку, а модель получает резюме вместо дословных старых реплик.
+     */
+    suspend fun setSummary(conversationId: String, summary: String?, covered: Int) {
+        mutate { list ->
+            val target = list.firstOrNull { it.id == conversationId } ?: return@mutate list
+            val updated = target.withSummary(summary, covered)
+            (list.filterNot { it.id == conversationId } + updated)
+                .sortedByDescending { it.updatedAt }
         }
     }
 
     /** Заменяет последний ответ ассистента в разговоре (для стриминга). */
     suspend fun updateLastAssistantText(conversationId: String, text: String) {
-        dataStore.edit { prefs ->
-            val raw = prefs[Keys.CONVERSATIONS] ?: ""
-            val current = runCatching { json.decodeFromString(serializer, raw) }
-                .getOrDefault(emptyList())
-            val updated = current
-                .firstOrNull { it.id == conversationId }
-                ?.withUpdatedLastAssistantText(text) ?: return@edit
-            val next = (current.filterNot { it.id == conversationId } + updated)
+        mutate { list ->
+            val updated = list.firstOrNull { it.id == conversationId }
+                ?.withUpdatedLastAssistantText(text) ?: return@mutate list
+            (list.filterNot { it.id == conversationId } + updated)
                 .sortedByDescending { it.updatedAt }
-            prefs[Keys.CONVERSATIONS] = json.encodeToString(serializer, next)
         }
     }
 
     /** Удаляет разговор по id. */
     suspend fun delete(id: String) {
-        dataStore.edit { prefs ->
-            val raw = prefs[Keys.CONVERSATIONS] ?: ""
-            val current = runCatching { json.decodeFromString(serializer, raw) }
-                .getOrDefault(emptyList())
-            prefs[Keys.CONVERSATIONS] =
-                json.encodeToString(serializer, current.filterNot { it.id == id })
-        }
+        mutate { list -> list.filterNot { it.id == id } }
     }
 
     /** Полностью очищает историю. */
@@ -157,7 +164,24 @@ class ConversationRepository(
         }
     }
 
-    private companion object {
-        const val MAX_TITLE_LENGTH = 48
+    // ── Внутреннее ───────────────────────────────────────────────────────
+
+    /**
+     * Единая точка мутации истории: одно чтение → одна трансформация →
+     * одна запись. Все публичные методы проходят через неё, поэтому формат
+     * хранения и сортировка не разъезжаются.
+     */
+    private suspend fun mutate(block: (List<Conversation>) -> List<Conversation>) {
+        dataStore.edit { prefs ->
+            val current = decode(prefs[Keys.CONVERSATIONS])
+            prefs[Keys.CONVERSATIONS] = json.encodeToString(serializer, block(current))
+        }
     }
+
+    private fun decode(raw: String?): List<Conversation> =
+        if (raw.isNullOrEmpty()) {
+            emptyList()
+        } else {
+            runCatching { json.decodeFromString(serializer, raw) }.getOrDefault(emptyList())
+        }
 }
