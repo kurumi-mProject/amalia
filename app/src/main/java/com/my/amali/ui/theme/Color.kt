@@ -436,15 +436,20 @@ private fun blendLadder(ladder: List<GradientPalette>, cct: Int): GradientPalett
         stops = blendStops(lower.stops, upper.stops, t),
         isDark = anchor.isDark,
         cct = cct,
-        melanopicDer = lerp(lower.melanopicDer, upper.melanopicDer, t),
+        melanopicDer = lerpFloat(lower.melanopicDer, upper.melanopicDer, t),
         auroras = blendColors(lower.auroras, upper.auroras, t),
         // Мотив берём у ближайшей палитры целиком: частично смешанный
         // «снег с лепестками» — это уже не мотив, а визуальный шум.
         motif = anchor.motif,
         motifAccent = anchor.motifAccent,
         motifAccentAlt = anchor.motifAccentAlt,
-        shadow = lerp(lower.shadow, upper.shadow, t),
-        sheen = lerp(lower.sheen, upper.sheen, t),
+        // Явно вызываем Color-перегрузку, а не полагаемся на вывод типа:
+        // в `androidx.compose.ui.graphics` есть и `lerp(Color, Color, Float)`,
+        // и `lerp(Shadow, Shadow, Float)`. При смешанных аргументах вывод
+        // типа выбирает не ту перегрузку и компилятор ругается на
+        // «none of the candidates is applicable».
+        shadow = lerpColor(lower.shadow, upper.shadow, t),
+        sheen = lerpFloat(lower.sheen, upper.sheen, t),
     )
 }
 
@@ -476,3 +481,24 @@ private fun blendColors(a: List<Color>, b: List<Color>, t: Float): List<Color> {
         lerp(a.getOrElse(i) { a.last() }, b.getOrElse(i) { b.last() }, t)
     }
 }
+
+/**
+ * Линейная интерполяция чисел с ограничением доли в [0, 1].
+ *
+ * Нужна вместо `androidx.compose.ui.graphics.lerp`: у той перегрузки
+ * объявлены только для `Color` и `Shadow`, и вызов с `Float`-аргументами
+ * не компилируется (компилятор видит «нет подходящего кандидата»). Собственный
+ * `lerpFloat` убирает двусмысленность и делает намерение явным.
+ */
+private fun lerpFloat(from: Float, to: Float, t: Float): Float =
+    from + (to - from) * t.coerceIn(0f, 1f)
+
+/**
+ * Линейная интерполяция цветов.
+ *
+ * Обёртка над `lerp` с явным типом `Color`: без неё компилятор не может
+ * выбрать перегрузку, когда рядом объявлена `lerp(Shadow, Shadow, Float)`,
+ * и падает с «none of the following candidates is applicable».
+ */
+private fun lerpColor(from: Color, to: Color, t: Float): Color =
+    androidx.compose.ui.graphics.lerp(from, to, t.coerceIn(0f, 1f))

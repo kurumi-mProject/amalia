@@ -1053,3 +1053,84 @@ class AmaliaTools(
         return AmaliaTool(def, handler)
     }
 }
+
+/**
+ * ════════════════════════════════════════════════════════════════════════
+ *  МОСТ «ControlResult → ToolOutcome»
+ * ════════════════════════════════════════════════════════════════════════
+ *
+ * Это единственное место, где результат управления устройством превращается
+ * в текст для модели — и именно поэтому здесь решается вся совместимость.
+ *
+ * ## Что было сломано
+ *
+ * Прежние обработчики Wi-Fi и Bluetooth возвращали `ToolOutcome.failed(...)`
+ * всякий раз, когда прямое переключение недоступно. На Android 13+ это
+ * **всегда**. В итоге на современных телефонах модель получала ошибку и
+ * отвечала пользователю «не поддерживается» — хотя система полностью
+ * способна выполнить команду, просто через панель.
+ *
+ * ## Правило этого моста
+ *
+ * Три уровня доступа дают три разных ответа модели:
+ *
+ *  — DIRECT → `status: ok` с фактическим состоянием; модель говорит «включила»;
+ *  — PANEL / SCREEN → **тоже `status: ok`**, но с `user_action_required: true`.
+ *    Это принципиально: действие **выполнено** — открыт нужный системный
+ *    экран, а не провалено. Модель обязана сказать «открыла панель, нажми
+ *    плитку», и именно такой ответ доходит до пользователя;
+ *  — Unsupported → единственный честный `error`, и только когда действие
+ *    объективно невозможно (нет вспышки, старая версия ОС).
+ *
+ * Поле `user_action_required` — не украшение: по нему модель выбирает
+ * правильную формулировку, не догадываясь о деталях платформы.
+ *
+ * @param successKey имя поля, в котором вернём фактическое/запрошенное состояние.
+ * @param requested какое состояние хотел пользователь.
+ * @param appliedHint короткая ремарка для прямого успеха.
+ * @param extraPairs дополнительные поля JSON для модели.
+ * @param successValueOverride значение для [successKey], если нужно вернуть
+ *   не boolean (например, процент громкости), а исходный смысл операции.
+ */
+private fun ControlResult.asToolOutcome(
+    successKey: String,
+    requested: Boolean,
+    appliedHint: String,
+    extraPairs: Array<Pair<String, Any?>> = emptyArray(),
+    successValueOverride: Any? = null,
+): ToolOutcome = when (this) {
+    is ControlResult.Applied -> {
+        val state = successValueOverride ?: state
+        // Отказ системы при формально применённом значении (например,
+        // авто-яркость перебила ручную установку) — это ошибка, а не успех.
+        if (state == false && successValueOverride == null) {
+            ToolOutcome.failed(
+                "$appliedHint Не удалось применить: система вернула прежнее значение.",
+            )
+        } else {
+            ToolOutcome.json(
+                "status" to "ok",
+                successKey to state,
+                "control_level" to level.name.lowercase(),
+                "user_action_required" to false,
+                "note" to (hint ?: appliedHint),
+                *extraPairs,
+            )
+        }
+    }
+
+    is ControlResult.Delegated -> ToolOutcome.json(
+        // Действие НЕ провалено: системный экран открыт, сценарий продолжается.
+        // Единственное отличие от Applied — пользователю нужен один тап.
+        "status" to "ok",
+        successKey to (successValueOverride ?: requested),
+        "control_level" to level.name.lowercase(),
+        "user_action_required" to (level == ControlAccess.SCREEN),
+        "note" to (hint ?: "Действие передано системному экрану."),
+        *extraPairs,
+    )
+
+    is ControlResult.Unsupported -> ToolOutcome.failed(
+        hint.ifBlank { "Действие невозможно на этом устройстве." },
+    )
+}

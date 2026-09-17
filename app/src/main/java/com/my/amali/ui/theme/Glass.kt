@@ -129,18 +129,24 @@ fun Modifier.glassSurface(
     val highlightAlpha = if (elevated) style.highlight * 1.6f else style.highlight
     val glowAlpha = if (elevated) style.glow * 1.4f else style.glow
 
+    // Палитру читаем ЗДЕСЬ, а не внутри `drawWithCache` ниже.
+    // `LocalAmaliaPalette.current` — композабельное чтение, а блок
+    // `drawWithCache` исполняется на этапе отрисовки, уже вне композиции,
+    // поэтому обращение к CompositionLocal внутри него не компилируется.
+    val palette = LocalAmaliaPalette.current
+    val sheenTone = if (palette.isWarm) {
+        palette.auroras.lastOrNull() ?: lightSource
+    } else {
+        lightSource
+    }
+
     return this
         .clip(shape)
         .background(surface.copy(alpha = fill.coerceIn(0f, 1f)))
         .drawWithCache {
             // Диагональный блик — «преломление» на верхней грани стекла.
             // Тонируется текущим светом: тёплый вечер не ловит белый блик.
-            val p = LocalAmaliaPalette.current
-            val tone = if (p.isWarm) {
-                p.auroras.lastOrNull() ?: lightSource
-            } else {
-                lightSource
-            }
+            val tone = sheenTone
             val sheen = Brush.linearGradient(
                 colorStops = arrayOf(
                     0f to tone.copy(alpha = highlightAlpha),
@@ -249,33 +255,6 @@ fun Modifier.amaliaShadow(elevation: Float = 0.3f, shape: Shape): Modifier {
             drawCircle(contact, radius = contactRadius, center = Offset(size.width / 2f, centerY))
         }
     }
-}
-
-/**
- * Верхний блик стекла, тонированный текущим светом.
- *
- * Тёплый вечер ловит тёплый блик, холодное утро — холодный. Раньше блик был
- * всегда белым, и на янтарном фоне выглядел как наклейка.
- *
- * @param alpha сила блика 0..1.
- */
-fun Modifier.amaliaSheen(alpha: Float = 0.5f, shape: Shape): Modifier = this.drawWithCache {
-    val palette = LocalAmaliaPalette.current
-    val tone = if (palette.isWarm) {
-        palette.auroras.lastOrNull() ?: Color.White
-    } else {
-        palette.auroras.getOrNull(1) ?: Color.White
-    }
-    val brush = Brush.linearGradient(
-        colorStops = arrayOf(
-            0f to tone.copy(alpha = palette.sheen * alpha),
-            0.42f to tone.copy(alpha = palette.sheen * alpha * 0.22f),
-            1f to Color.Transparent,
-        ),
-        start = Offset.Zero,
-        end = Offset(size.width * 0.9f, size.height * 1.4f),
-    )
-    onDrawBehind { drawRect(brush) }
 }
 
 /** Текущая тема светлая? Нужно для выбора направления бликов. */

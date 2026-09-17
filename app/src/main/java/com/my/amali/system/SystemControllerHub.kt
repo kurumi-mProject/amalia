@@ -19,6 +19,7 @@ import android.os.Build
 import android.os.PowerManager
 import android.provider.Settings as SystemSettings
 import androidx.core.content.ContextCompat
+import com.my.amali.data.model.ControlAccessLevel
 import com.my.amali.data.model.DeviceFeature
 import com.my.amali.data.model.DeviceStatus
 import kotlinx.coroutines.Dispatchers
@@ -200,7 +201,7 @@ class SystemControllerHub(private val context: Context) {
         val volume = readVolumePercent()
         val battery = readBattery()
 
-        val location = readLocationEnabled()
+        val location = isLocationEnabled()
         val contacts = hasPermission(Manifest.permission.READ_CONTACTS)
         val notifications = areNotificationsEnabled()
         val internet = readInternetAvailable()
@@ -227,8 +228,8 @@ class SystemControllerHub(private val context: Context) {
             hasNotificationPermission = notifications,
             internetAvailable = internet,
             flashlightOn = flashlight,
-            wifiAccess = accessLevelFor(DeviceFeature.WIFI),
-            bluetoothAccess = accessLevelFor(DeviceFeature.BLUETOOTH),
+            wifiAccess = accessLevelFor(DeviceFeature.WIFI).toStatusLevel(),
+            bluetoothAccess = accessLevelFor(DeviceFeature.BLUETOOTH).toStatusLevel(),
         ).also { snapshot -> _status.value = snapshot }
     }
 
@@ -241,7 +242,7 @@ class SystemControllerHub(private val context: Context) {
      * для старых систем, где `NetworkCapabilities` может ещё не обновиться.
      */
     private fun readWifiEnabled(): Boolean {
-        val viaConnectivity = runCatching {
+        val viaConnectivity: Boolean? = runCatching {
             val network = connectivityManager?.activeNetwork ?: return@runCatching null
             val caps = connectivityManager.getNetworkCapabilities(network)
                 ?: return@runCatching null
@@ -249,11 +250,12 @@ class SystemControllerHub(private val context: Context) {
         }.getOrNull()
         if (viaConnectivity == true) return true
 
-        val viaWifiManager = runCatching {
+        val viaWifiManager: Boolean? = runCatching {
             @Suppress("DEPRECATION")
             wifiManager?.isWifiEnabled
         }.getOrNull()
-        return viaWifiManager ?: (viaConnectivity == true)
+        // Оба пути не дали ответа — считаем выключенным, а не падаем.
+        return viaWifiManager ?: viaConnectivity ?: false
     }
 
     /** Bluetooth включён? На API 31+ адаптер читается без `BLUETOOTH_CONNECT`. */
@@ -524,12 +526,13 @@ class SystemControllerHub(private val context: Context) {
                 "Фонарик через API доступен с Android 6.0. Открываю камеру.",
             )
         }
-        val cameraId = runCatching {
-            cameraManager?.cameraIdList?.firstOrNull { id ->
-                val chars = cameraManager.getCameraCharacteristics(id)
-                chars.get(android.hardware.camera2.CameraCharacteristics.FLASH_INFO_AVAILABLE)
+        val cameraId: String? = runCatching {
+            val ids = cameraManager?.cameraIdList ?: return@runCatching null
+            ids.firstOrNull { id ->
+                val chars = cameraManager?.getCameraCharacteristics(id)
+                chars?.get(android.hardware.camera2.CameraCharacteristics.FLASH_INFO_AVAILABLE)
                     == true
-            } ?: cameraManager?.cameraIdList?.firstOrNull()
+            } ?: ids.firstOrNull()
         }.getOrNull()
 
         if (cameraId == null) {
@@ -756,6 +759,29 @@ enum class ControlAccess {
 
     /** Открывается полный экран настроек: пользователь делает всё сам. */
     SCREEN,
+}
+
+/**
+ * Перевод внутреннего уровня доступа в модель данных для UI.
+ *
+ * ## Почему это два разных перечисления, а не одно
+ *
+ * `ControlAccess` живёт в системном слое и описывает, **что приложение
+ * умеет прямо сейчас** на этом устройстве. `ControlAccessLevel` живёт в
+ * слое данных (`DeviceStatus`) и описывает, **что увидит пользователь** в
+ * интерфейсе.
+ *
+ * Их нельзя слить: системный слой может обрести четвёртый режим (например,
+ * «через шину производителя»), а слой данных обязан остаться стабильным —
+ * он сериализуется в снимок состояния и читается UI. Но текущее
+ * соответствие один-в-один, и этот метод — единственное место, где оно
+ * зафиксировано. Если завтра появится новый режим, компилятор заставит
+ * обработать его здесь, а не разложит `when` по десяти экранам.
+ */
+fun ControlAccess.toStatusLevel(): ControlAccessLevel = when (this) {
+    ControlAccess.DIRECT -> ControlAccessLevel.DIRECT
+    ControlAccess.PANEL -> ControlAccessLevel.PANEL
+    ControlAccess.SCREEN -> ControlAccessLevel.SCREEN
 }
 
 /**

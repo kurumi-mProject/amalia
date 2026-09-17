@@ -61,10 +61,14 @@ import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.my.amali.R
 import com.my.amali.data.apps.InstalledApp
+import com.my.amali.data.repository.PinnedApp
+import com.my.amali.data.repository.PinnedAppStatus
 import com.my.amali.ui.components.AmaliaScreen
 import com.my.amali.ui.components.GlassCard
+import com.my.amali.ui.components.GlassDialogShell
 import com.my.amali.ui.components.GlassGroup
 import com.my.amali.ui.components.SectionTitle
 import com.my.amali.ui.theme.Radius
@@ -194,7 +198,9 @@ fun AppPickerSettings(
 
             // ── Загрузка ────────────────────────────────────────────────
             if (state.isLoading) {
-                items(6, key = { "skeleton-$it" }) {
+                // `items(count)` не имеет параметра `key`, поэтому скелетоны
+                // идут без него: у них нет данных, по которым ключ строился бы.
+                items(SKELETON_ROWS) {
                     AppRowSkeleton()
                 }
                 return@LazyColumn
@@ -488,13 +494,13 @@ private fun AppPickerRow(
  */
 @Composable
 private fun PinnedAppRow(
-    app: com.my.amali.data.repository.PinnedApp,
-    status: com.my.amali.data.repository.PinnedAppStatus,
+    app: PinnedApp,
+    status: PinnedAppStatus,
     onRemove: () -> Unit,
     onAddAlias: (InstalledApp) -> Unit,
     modifier: Modifier = Modifier,
 ) {
-    val available = status == com.my.amali.data.repository.PinnedAppStatus.AVAILABLE
+    val available = status == PinnedAppStatus.AVAILABLE
     val shape = RoundedCornerShape(Radius.sm)
 
     Row(
@@ -518,11 +524,11 @@ private fun PinnedAppRow(
             Spacer(Modifier.height(1.dp))
             Text(
                 text = when (status) {
-                    com.my.amali.data.repository.PinnedAppStatus.AVAILABLE ->
+                    PinnedAppStatus.AVAILABLE ->
                         app.packageName
-                    com.my.amali.data.repository.PinnedAppStatus.NO_LAUNCHER ->
+                    PinnedAppStatus.NO_LAUNCHER ->
                         stringResource(R.string.apps_status_no_launcher)
-                    com.my.amali.data.repository.PinnedAppStatus.MISSING ->
+                    PinnedAppStatus.MISSING ->
                         stringResource(R.string.apps_status_missing)
                 },
                 style = MaterialTheme.typography.labelSmall,
@@ -778,7 +784,7 @@ private fun AliasDialog(
     var draft by remember { mutableStateOf("") }
     val canSave = draft.isNotBlank()
 
-    com.my.amali.ui.components.GlassDialogShell(
+    GlassDialogShell(
         title = stringResource(R.string.apps_alias_title, app.label),
         onDismiss = onDismiss,
     ) {
@@ -907,6 +913,14 @@ private fun DialogTextButton(text: String, onClick: () -> Unit, muted: Boolean) 
  * не понимает, что от него хотят. Готовый пример из лексикона снимает
  * вопрос и заодно показывает формулировку, которую ждёт система.
  */
+/**
+ * Сколько строк-скелетонов показывать во время сканирования.
+ *
+ * Шесть — примерно столько строк помещается на экран на типичном телефоне,
+ * поэтому список выглядит «полным», но не намекает на несуществующий объём.
+ */
+private const val SKELETON_ROWS = 6
+
 private fun aliasPlaceholderFor(label: String): String {
     val lower = label.lowercase()
     return when {

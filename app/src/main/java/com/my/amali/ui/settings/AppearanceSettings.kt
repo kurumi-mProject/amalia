@@ -56,6 +56,7 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.my.amali.R
 import com.my.amali.ui.components.AmaliaScreen
+import com.my.amali.ui.components.GlassCard
 import com.my.amali.ui.components.GlassDivider
 import com.my.amali.ui.components.MotifLayer
 import com.my.amali.ui.components.MotifSwatch
@@ -76,6 +77,7 @@ import com.my.amali.ui.theme.paletteChip
 import com.my.amali.ui.theme.Spacing
 import com.my.amali.ui.theme.accentGlow
 import com.my.amali.ui.theme.bodyTextContrast
+import com.my.amali.ui.theme.currentPalette
 import com.my.amali.ui.theme.glassSurface
 import com.my.amali.ui.theme.iconAccent
 import com.my.amali.ui.theme.previewColors

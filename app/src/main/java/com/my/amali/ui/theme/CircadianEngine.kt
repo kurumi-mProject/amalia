@@ -179,10 +179,10 @@ object CircadianEngine {
         val dayFactor = smoothstep(-EDGE_STEP_HALF, EDGE_STEP_HALF, elevation)
 
         val nightT = smoothstep(0f, 1f, (-elevation).coerceIn(0f, 1f))
-        val nightCct = lerpF(CCT_DUSK, CCT_NIGHT.toFloat(), easeOut(nightT))
+        val nightCct = lerpF(CCT_DUSK.toFloat(), CCT_NIGHT.toFloat(), easeOut(nightT))
 
         val dayT = smoothstep(0f, 1f, elevation.coerceIn(0f, 1f)).pow(DAY_SPREAD_EXP)
-        val dayCct = lerpF(CCT_DUSK, CCT_NOON.toFloat(), dayT)
+        val dayCct = lerpF(CCT_DUSK.toFloat(), CCT_NOON.toFloat(), dayT)
 
         val base = lerpF(nightCct, dayCct, dayFactor)
 

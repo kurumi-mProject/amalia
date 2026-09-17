@@ -270,13 +270,22 @@ class SystemIntentExecutor(
      * `ACTION_BLUETOOTH` появилась только в Android 13, поэтому ниже неё
      * честный фоллбэк в полноценный экран Bluetooth.
      */
-    private fun bluetoothPanelOrScreen(): Intent =
+    private fun bluetoothPanelOrScreen(): Intent {
+        // `Settings.Panel.ACTION_BLUETOOTH` существует только с API 33, причём
+        // компилируется оно лишь при compileSdk ≥ 33. Обращение к нему через
+        // константу ломает сборку на старых SDK-стабах, поэтому строка
+        // берётся через `Settings.Panel` напрямую как литерал: значение
+        // стабильно и объявлено платформой как "android.settings.BLUETOOTH".
         if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.TIRAMISU) {
-            intent(Settings.Panel.ACTION_BLUETOOTH)
-        } else {
-            hub.openBluetoothSettings()
-            intent(Settings.ACTION_BLUETOOTH_SETTINGS)
+            val panel = Intent("android.settings.BLUETOOTH")
+                .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+            if (panel.resolveActivity(context.packageManager) != null) {
+                return panel
+            }
         }
+        hub.openBluetoothSettings()
+        return intent(Settings.ACTION_BLUETOOTH_SETTINGS)
+    }
 
     /**
      * Поисковый интент с фоллбэком в браузер.
