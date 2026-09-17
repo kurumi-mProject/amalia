@@ -40,6 +40,10 @@
     <string name="assistant_error">erreur</string>
     <string name="assistant_welcome_hint">Appuie et parle</string>
     <string name="assistant_welcome_desc">Je suis Amalia, ton assistante vocale. Maintiens le bouton pour parler.</string>
+    <string name="assistant_welcome_chips">Essaie de dire</string>
+    <string name="assistant_new_session">Nouvelle conversation</string>
+    <string name="assistant_conversations_count">conversations : %1$d</string>
+    <string name="assistant_ready">Prête</string>
     <string name="assistant_repeat">répéter</string>
     <string name="assistant_copy">copier</string>
     <string name="assistant_share">partager</string>
@@ -97,6 +101,7 @@
 
     <string name="voice_tts_engine">Moteur vocal</string>
     <string name="voice_tts_engine_mock">Moteur de test</string>
+    <string name="voice_tts_fallback_note">Si le cloud ne répond pas, la voix du système parle</string>
     <string name="voice_speech_rate">Débit de parole</string>
     <string name="voice_speech_pitch">Tonalité</string>
     <string name="voice_voice_id">Voix</string>
@@ -157,6 +162,13 @@
     <string name="permission_permanently_denied">Permission refusée. Active-la dans les réglages système.</string>
 
     <string name="history_title">Historique</string>
+    <string name="history_search">Rechercher dans les conversations</string>
+    <string name="history_no_results_desc">Essaie une autre recherche ou efface-la</string>
+    <string name="history_no_results">Rien trouvé</string>
+    <string name="history_messages">messages : %1$d</string>
+    <string name="history_delete_confirm">Supprimer la conversation ?</string>
+    <string name="assistant_connecting">un instant, connexion…</string>
+    <string name="appearance_glass_always_dark">Liquid Glass est toujours sombre : c'est ainsi que le verre et sa lueur fonctionnent correctement.</string>
     <string name="history_empty">Pas encore de conversations</string>
     <string name="history_empty_desc">Parle à Amalia et tes conversations apparaîtront ici.</string>
     <string name="history_today">Aujourd\'hui</string>

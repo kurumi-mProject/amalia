@@ -157,7 +157,7 @@ object ServiceLocator {
             AIOrchestrator(
                 sttEngine = DeepgramSTT(appContext),
                 llmEngine = GroqLLM(),
-                ttsEngine = FishAudioTTS(),
+                ttsEngine = ttsEngine,
                 registry = toolRegistry,
                 commandExecutor = deviceCommandExecutor,
             )
@@ -169,6 +169,24 @@ object ServiceLocator {
                 registry = toolRegistry,
             )
         }
+    }
+
+    /**
+     * Синтез речи с двумя движками: облачный голос Амалии (Fish Audio) и
+     * системный голос Android как страховка.
+     *
+     * Разделение появилось после реальных отказов облака: при нулевом балансе
+     * платная модель отвечает `402` на каждую фразу, а бесплатная синтезирует
+     * короткую фразу около 38 секунд. В обоих случаях ассистент молчал, хотя
+     * текст ответа уже был готов. Теперь [ResilientTtsEngine] ждёт первый звук
+     * ограниченное время и при неудаче переключается на системный голос —
+     * ответ звучит всегда, а не «когда-нибудь».
+     */
+    val ttsEngine: ResilientTtsEngine by lazy {
+        ResilientTtsEngine(
+            primary = FishAudioTTS(),
+            fallback = SystemTtsEngine(appContext),
+        )
     }
 
     /** Выдан ли прямо сейчас доступ к микрофону. */

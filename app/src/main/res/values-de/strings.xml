@@ -40,6 +40,10 @@
     <string name="assistant_error">Fehler</string>
     <string name="assistant_welcome_hint">Tippen und sprechen</string>
     <string name="assistant_welcome_desc">Ich bin Amalia, deine Sprachassistentin. Halte den Knopf, um zu sprechen.</string>
+    <string name="assistant_welcome_chips">Sag zum Beispiel</string>
+    <string name="assistant_new_session">Neues Gespräch</string>
+    <string name="assistant_conversations_count">Gespräche: %1$d</string>
+    <string name="assistant_ready">Bereit</string>
     <string name="assistant_repeat">wiederholen</string>
     <string name="assistant_copy">kopieren</string>
     <string name="assistant_share">teilen</string>
@@ -97,6 +101,7 @@
 
     <string name="voice_tts_engine">Sprach-Engine</string>
     <string name="voice_tts_engine_mock">Test-Engine</string>
+    <string name="voice_tts_fallback_note">Antwortet die Cloud nicht, spricht die Systemstimme</string>
     <string name="voice_speech_rate">Sprechtempo</string>
     <string name="voice_speech_pitch">Stimmlage</string>
     <string name="voice_voice_id">Stimme</string>
@@ -157,6 +162,13 @@
     <string name="permission_permanently_denied">Berechtigung verweigert. In den Systemeinstellungen aktivieren.</string>
 
     <string name="history_title">Verlauf</string>
+    <string name="history_search">Gespräche durchsuchen</string>
+    <string name="history_no_results_desc">Versuche eine andere Suche oder lösche sie</string>
+    <string name="history_no_results">Nichts gefunden</string>
+    <string name="history_messages">Nachrichten: %1$d</string>
+    <string name="history_delete_confirm">Gespräch löschen?</string>
+    <string name="assistant_connecting">einen Moment, verbinde…</string>
+    <string name="appearance_glass_always_dark">Liquid Glass ist immer dunkel: nur so funktionieren Glas und Leuchten richtig.</string>
     <string name="history_empty">Noch keine Gespräche</string>
     <string name="history_empty_desc">Sprich mit Amalia, und deine Gespräche erscheinen hier.</string>
     <string name="history_today">Heute</string>

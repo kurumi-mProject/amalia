@@ -41,6 +41,10 @@
     <string name="assistant_error">error</string>
     <string name="assistant_welcome_hint">Tap and speak</string>
     <string name="assistant_welcome_desc">I\'m Amalia — your voice assistant. Hold the button to start talking.</string>
+    <string name="assistant_welcome_chips">Try saying</string>
+    <string name="assistant_new_session">New conversation</string>
+    <string name="assistant_conversations_count">conversations: %1$d</string>
+    <string name="assistant_ready">Ready</string>
     <string name="assistant_repeat">repeat</string>
     <string name="assistant_copy">copy</string>
     <string name="assistant_share">share</string>
@@ -98,6 +102,7 @@
 
     <string name="voice_tts_engine">Speech engine</string>
     <string name="voice_tts_engine_mock">Mock engine</string>
+    <string name="voice_tts_fallback_note">If the cloud does not respond, the system voice speaks</string>
     <string name="voice_speech_rate">Speech rate</string>
     <string name="voice_speech_pitch">Speech pitch</string>
     <string name="voice_voice_id">Voice</string>
@@ -158,6 +163,12 @@
     <string name="permission_permanently_denied">Permission denied. Enable it in system settings.</string>
 
     <string name="history_title">History</string>
+    <string name="history_search">Search conversations</string>
+    <string name="history_no_results_desc">Try another query or clear the search</string>
+    <string name="history_no_results">Nothing found</string>
+    <string name="history_messages">messages: %1$d</string>
+    <string name="history_delete_confirm">Delete conversation?</string>
+    <string name="appearance_glass_always_dark">Liquid Glass is always dark: that is how the glass and its glow work correctly.</string>
     <string name="history_empty">No conversations yet</string>
     <string name="history_empty_desc">Talk to Amalia and your conversations will appear here.</string>
     <string name="history_today">Today</string>

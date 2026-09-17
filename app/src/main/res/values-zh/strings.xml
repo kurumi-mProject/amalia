@@ -40,6 +40,10 @@
     <string name="assistant_error">错误</string>
     <string name="assistant_welcome_hint">按下并说话</string>
     <string name="assistant_welcome_desc">我是阿玛莉亚，你的语音助手。按住按钮开始对话。</string>
+    <string name="assistant_welcome_chips">试着说</string>
+    <string name="assistant_new_session">新对话</string>
+    <string name="assistant_conversations_count">对话: %1$d</string>
+    <string name="assistant_ready">准备好了</string>
     <string name="assistant_repeat">重复</string>
     <string name="assistant_copy">复制</string>
     <string name="assistant_share">分享</string>
@@ -97,6 +101,7 @@
 
     <string name="voice_tts_engine">语音引擎</string>
     <string name="voice_tts_engine_mock">测试引擎</string>
+    <string name="voice_tts_fallback_note">如果云端没有响应，将由系统语音朗读</string>
     <string name="voice_speech_rate">语速</string>
     <string name="voice_speech_pitch">音调</string>
     <string name="voice_voice_id">声音</string>
@@ -157,6 +162,13 @@
     <string name="permission_permanently_denied">权限被拒绝。请在系统设置中开启。</string>
 
     <string name="history_title">历史</string>
+    <string name="history_search">搜索对话</string>
+    <string name="history_no_results_desc">试试其他关键词，或清除搜索</string>
+    <string name="history_no_results">未找到任何内容</string>
+    <string name="history_messages">消息: %1$d</string>
+    <string name="history_delete_confirm">删除对话？</string>
+    <string name="assistant_connecting">请稍等，正在连接…</string>
+    <string name="appearance_glass_always_dark">Liquid Glass 始终为深色：这样玻璃与其光效才能正确呈现。</string>
     <string name="history_empty">还没有对话</string>
     <string name="history_empty_desc">和阿玛莉亚聊聊，对话会显示在这里。</string>
     <string name="history_today">今天</string>

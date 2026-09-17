@@ -52,6 +52,10 @@ import kotlinx.coroutines.withTimeoutOrNull
  *   пересказом, а не дословно. UI показывает это отдельным маркером:
  *   без него «память короткая» выглядит как баг, а не как осознанный режим.
  * @property contextMessageCount сколько реплик сейчас уходит в модель дословно.
+ * @property micPermissionDenied true → пользователь отказал в доступе к
+ *   микрофону. UI в этом случае показывает не только «Повторить», но и
+ *   «Открыть настройки»: системный диалог второй раз не появится, и без
+ *   этой кнопки человек упирается в кнопку, которая больше не работает.
  */
 data class AssistantUiState(
     val voiceState: VoiceState = VoiceState.Idle,
@@ -65,6 +69,7 @@ data class AssistantUiState(
     val conversationCount: Int = 0,
     val suggestions: List<String> = emptyList(),
     val micPermissionRequired: Boolean = false,
+    val micPermissionDenied: Boolean = false,
     val handsFree: Boolean = false,
     val activeTools: List<ToolActivity> = emptyList(),
     val lastToolReports: List<ToolReport> = emptyList(),
@@ -243,12 +248,18 @@ class AssistantViewModel(
     fun onMicPermissionResult(granted: Boolean) {
         _uiState.update { it.copy(micPermissionRequired = false) }
         if (granted) {
+            // Разрешение выдано — сразу начинаем слушать: пользователь уже
+            // выразил намерение тапом по микрофону, второй тап ему не нужен.
+            _uiState.update { it.copy(micPermissionDenied = false) }
             launchCycle(prompt = null)
         } else {
             _uiState.update {
                 it.copy(
                     voiceState = VoiceState.Error,
                     errorMessage = localized(R.string.assistant_mic_denied),
+                    // Флаг для UI: показать «Открыть настройки». Сам экран
+                    // не угадывает причину по тексту ошибки.
+                    micPermissionDenied = true,
                     suggestions = defaultSuggestions(),
                 )
             }
@@ -270,6 +281,7 @@ class AssistantViewModel(
                 suggestions = defaultSuggestions(),
                 handsFree = false,
                 micPermissionRequired = false,
+                micPermissionDenied = false,
                 activeTools = emptyList(),
             )
         }
@@ -343,6 +355,7 @@ class AssistantViewModel(
                 suggestions = listOf(localized(R.string.assistant_stop)),
                 handsFree = handsFree,
                 micPermissionRequired = false,
+                micPermissionDenied = false,
                 activeTools = emptyList(),
                 lastToolReports = emptyList(),
                 contextMessageCount = historyForModel().size,

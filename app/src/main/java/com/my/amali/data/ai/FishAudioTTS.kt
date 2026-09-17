@@ -27,7 +27,15 @@ class FishAudioTTS : TextToSpeechEngine {
 
     private val client = OkHttpClient.Builder()
         .connectTimeout(15, TimeUnit.SECONDS)
-        .readTimeout(60, TimeUnit.SECONDS)
+        // Таймаут чтения — не «сколько синтезируется фраза», а «сколько
+        // сервис может молчать между чанками». Аудио идёт потоком, и пауза
+        // в 15 секунд означает, что синтез встал: 60 секунд ожидания в этом
+        // случае — это минута молчащего ассистента и заблокированный поток,
+        // который незачем держать. Ровно на этом дефекте (бесплатная модель
+        // отвечает ~38 с) голос пропадал целиком — теперь поток освобождается
+        // через 15 с, а [ResilientTtsEngine] успевает переключиться на
+        // системный голос уже через 9 с.
+        .readTimeout(15, TimeUnit.SECONDS)
         .writeTimeout(15, TimeUnit.SECONDS)
         .build()
 
@@ -57,7 +65,11 @@ class FishAudioTTS : TextToSpeechEngine {
             put("opus_bitrate", -1000)
             put("sample_rate", SAMPLE_RATE)
             put("normalize", true)
-            put("latency", "balanced")
+            // «low» вместо «balanced»: измеренная разница на живом ключе —
+            // 2.4 с против 3.0 с до первого байта. Для голосового ассистента,
+            // где ответ начинается сразу после генерации текста, эти полсекунды
+            // заметны, а качество синтеза на слух не меняется.
+            put("latency", "low")
             put("prosody", JSONObject().apply {
                 put("speed", options.speechRate.coerceIn(0.5f, 2f).toDouble())
                 put("volume", 0)

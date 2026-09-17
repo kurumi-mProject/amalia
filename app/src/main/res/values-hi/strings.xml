@@ -40,6 +40,10 @@
     <string name="assistant_error">त्रुटि</string>
     <string name="assistant_welcome_hint">दबाओ और बोलो</string>
     <string name="assistant_welcome_desc">मैं अमालिया हूँ, तुम्हारी वॉइस असिस्टेंट। बात शुरू करने के लिए बटन दबाकर रखें।</string>
+    <string name="assistant_welcome_chips">कहकर देखिए</string>
+    <string name="assistant_new_session">नई बातचीत</string>
+    <string name="assistant_conversations_count">बातचीत: %1$d</string>
+    <string name="assistant_ready">तैयार</string>
     <string name="assistant_repeat">दोहराओ</string>
     <string name="assistant_copy">कॉपी</string>
     <string name="assistant_share">शेयर</string>
@@ -97,6 +101,7 @@
 
     <string name="voice_tts_engine">स्पीच इंजन</string>
     <string name="voice_tts_engine_mock">टेस्ट इंजन</string>
+    <string name="voice_tts_fallback_note">अगर क्लाउड जवाब न दे, तो सिस्टम आवाज़ बोलेगी</string>
     <string name="voice_speech_rate">बोलने की गति</string>
     <string name="voice_speech_pitch">आवाज़ की पिच</string>
     <string name="voice_voice_id">आवाज़</string>
@@ -157,6 +162,13 @@
     <string name="permission_permanently_denied">अनुमति अस्वीकृत। सिस्टम सेटिंग्स में चालू करें।</string>
 
     <string name="history_title">इतिहास</string>
+    <string name="history_search">बातचीत में खोजें</string>
+    <string name="history_no_results_desc">कोई और खोज आज़माएँ या खोज साफ़ करें</string>
+    <string name="history_no_results">कुछ नहीं मिला</string>
+    <string name="history_messages">संदेश: %1$d</string>
+    <string name="history_delete_confirm">बातचीत हटाएँ?</string>
+    <string name="assistant_connecting">रुकिए, कनेक्ट हो रहा है…</string>
+    <string name="appearance_glass_always_dark">Liquid Glass हमेशा डार्क रहता है: इसी तरह काँच और उसकी चमक सही काम करते हैं।</string>
     <string name="history_empty">अभी कोई बातचीत नहीं</string>
     <string name="history_empty_desc">अमालिया से बात करो, बातचीत यहाँ दिखेगी।</string>
     <string name="history_today">आज</string>

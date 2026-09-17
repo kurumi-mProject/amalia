@@ -40,6 +40,10 @@
     <string name="assistant_error">エラー</string>
     <string name="assistant_welcome_hint">押して話す</string>
     <string name="assistant_welcome_desc">私はアマリア、あなたの音声アシスタント。ボタンを押し続けて話しかけて。</string>
+    <string name="assistant_welcome_chips">話しかけてみて</string>
+    <string name="assistant_new_session">新しい会話</string>
+    <string name="assistant_conversations_count">会話: %1$d</string>
+    <string name="assistant_ready">準備完了</string>
     <string name="assistant_repeat">繰り返す</string>
     <string name="assistant_copy">コピー</string>
     <string name="assistant_share">共有</string>
@@ -97,6 +101,7 @@
 
     <string name="voice_tts_engine">音声エンジン</string>
     <string name="voice_tts_engine_mock">テストエンジン</string>
+    <string name="voice_tts_fallback_note">クラウドが応答しない場合は端末の音声で読み上げます</string>
     <string name="voice_speech_rate">話す速さ</string>
     <string name="voice_speech_pitch">声のピッチ</string>
     <string name="voice_voice_id">声</string>
@@ -157,6 +162,13 @@
     <string name="permission_permanently_denied">権限が拒否されました。システム設定で有効にしてください。</string>
 
     <string name="history_title">履歴</string>
+    <string name="history_search">会話を検索</string>
+    <string name="history_no_results_desc">別のキーワードで試すか、検索をクリアしてください</string>
+    <string name="history_no_results">見つかりませんでした</string>
+    <string name="history_messages">メッセージ: %1$d</string>
+    <string name="history_delete_confirm">会話を削除しますか？</string>
+    <string name="assistant_connecting">少々お待ちください、接続中…</string>
+    <string name="appearance_glass_always_dark">Liquid Glass は常にダークです。そうすることでガラスと光が正しく機能します。</string>
     <string name="history_empty">まだ会話がありません</string>
     <string name="history_empty_desc">アマリアと話すと会話がここに表示されます。</string>
     <string name="history_today">今日</string>

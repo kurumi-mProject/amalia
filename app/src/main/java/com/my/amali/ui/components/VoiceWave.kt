@@ -28,8 +28,10 @@ import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.lerp
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
+import com.my.amali.R
 import com.my.amali.domain.entity.VoiceState
 import kotlin.math.PI
 import kotlin.math.abs
@@ -136,7 +138,18 @@ fun VoiceWave(
         label = "waveCore",
     )
 
-    val description = state.label
+    // Подпись для TalkBack берётся из ресурсов, а не из VoiceState.label:
+    // в enum-е она захардкожена по-русски, и в девяти локалях приложения
+    // незрячий пользователь слышал русское слово вместо своего языка.
+    val description = stringResource(
+        when (state) {
+            VoiceState.Idle -> R.string.assistant_ready
+            VoiceState.Listening -> R.string.assistant_listening
+            VoiceState.Thinking -> R.string.assistant_thinking
+            VoiceState.Speaking -> R.string.assistant_speaking
+            VoiceState.Error -> R.string.assistant_error
+        },
+    )
     // Кэшируем Path-объекты: аллокации на каждый кадр не нужны.
     val paths = remember { List(4) { Path() } }
 

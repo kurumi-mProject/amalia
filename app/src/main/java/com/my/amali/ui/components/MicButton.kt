@@ -2,6 +2,7 @@ package com.my.amali.ui.components
 
 import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.core.LinearEasing
+import androidx.compose.animation.core.RepeatMode
 import androidx.compose.animation.core.Spring
 import androidx.compose.animation.core.animateFloat
 import androidx.compose.animation.core.animateFloatAsState
@@ -35,6 +36,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.scale
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Brush
@@ -43,27 +45,69 @@ import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.disabled
 import androidx.compose.ui.semantics.role
 import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.semantics.stateDescription
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import com.my.amali.ui.theme.accentGlow
 
+// ════════════════════════════════════════════════════════════
+//  ГЕОМЕТРИЯ ОРБА
+//  Одна шкала, из которой выводится всё остальное: кольца,
+//  блики и орбита не могут «разъехаться» друг с другом.
+// ════════════════════════════════════════════════════════════
+
+/** Полный размер сенсорного поля — сюда попадает большой палец. */
+private val OrbTouchSize = 172.dp
+
+/** Диаметр светящегося ореола вокруг ядра. */
+private val OrbHaloSize = 150.dp
+
+/** Диаметр стеклянного кольца-оправы. */
+private val OrbRingSize = 128.dp
+
+/** Диаметр ядра — «капли» с микрофоном. */
+private val OrbCoreSize = 104.dp
+
 /**
- * MicButton — главный CTA приложения: стеклянная капля с микрофоном.
+ * MicButton — главный CTA приложения: живой голосовой орб Амалии.
  *
- * Конструкция (снизу вверх):
- *  1. живое свечение акцента под кнопкой — усиливается в активном режиме;
- *  2. два расходящихся кольца-пульса (только когда идёт разговор);
- *  3. тонкое вращающееся кольцо-«орбита» — показывает, что система живая;
- *  4. стеклянное тело: радиальный градиент + верхний блик + контур;
- *  5. иконка Mic/Stop с плавной подменой.
+ * ═══════════════════════════════════════════════════════════
+ *  КОНСТРУКЦИЯ (снизу вверх)
+ * ═══════════════════════════════════════════════════════════
  *
- * Тач-зона 88dp — заметно больше минимума 48dp, попадать большим пальцем
- * легко даже одной рукой.
+ *  1. **дыхание покоя** — ореол мягко дышит, пока никто не говорит;
+ *  2. **аудио-ореол** — радиальное свечение, которое растёт от уровня звука:
+ *     кнопка физически «слышит» пользователя;
+ *  3. **кольца-пульсы** — два расходящихся кольца в активном режиме;
+ *  4. **орбита** — тонкая светящаяся дуга, вращается всегда: система жива;
+ *  5. **стеклянная оправа** — тонкое кольцо, отделяющее орб от фона;
+ *  6. **ядро** — градиентная капля с верхним бликом и нижней тенью;
+ *  7. **иконка** — Mic ↔ Stop с пружинной подменой.
+ *
+ * ═══════════════════════════════════════════════════════════
+ *  ПОЧЕМУ ТАК
+ * ═══════════════════════════════════════════════════════════
+ *
+ * — **Ядро 104dp и сенсорное поле 172dp.** Это главное действие экрана,
+ *   и оно обязано быть крупнее всех остальных элементов. Тач-зона почти
+ *   вдвое больше минимума 48dp: попадать большим пальцем легко даже
+ *   одной рукой, без перехвата.
+ * — **Свечение вместо тени.** Material-тень под кнопкой всегда чёрная и
+ *   на тёплом фоне читается как грязь; здесь глубина сделана светом
+ *   акцента — так кнопка выглядит частью палитры времени суток.
+ * — **Уровень звука управляет размером ореола, а не ядра.** Ядро не
+ *   «прыгает» под палец, поэтому кнопку не нужно догонять; живой отклик
+ *   при этом остаётся.
  *
  * @param isActive идёт запись/разговор.
- * @param stateLabel человекочитаемое состояние для TalkBack.
- * @param level уровень звука 0..1 — слегка «раздувает» кнопку в такт голосу.
+ * @param stateLabel человекочитаемое состояние для TalkBack («Слушаю»).
+ * @param onClick старт/остановка цикла.
+ * @param enabled кнопка доступна (нет блокирующих разрешений).
+ * @param level уровень звука 0..1 — громкость микрофона или речи.
+ * @param onPress касание до отпускания: прогревает соединение STT.
  */
 @Composable
 fun MicButton(
@@ -78,38 +122,53 @@ fun MicButton(
     val interaction = remember { MutableInteractionSource() }
     val pressed by interaction.collectIsPressedAsState()
 
-    // Вызываем onPress в момент касания — до отпускания пальца
+    // Прогрев STT вызывается в момент касания — до отпускания пальца.
     LaunchedEffect(pressed) {
         if (pressed) onPress()
     }
 
     val pulse = rememberInfiniteTransition(label = "micPulse")
+
+    /** Расходящееся кольцо: 0 → 1 за 2.4 с. */
     val ring by pulse.animateFloat(
         initialValue = 0f,
         targetValue = 1f,
-        animationSpec = infiniteRepeatable(tween(2_200, easing = LinearEasing)),
+        animationSpec = infiniteRepeatable(tween(2_400, easing = LinearEasing)),
         label = "ring",
     )
+    /** Вращение орбиты: 8 с на оборот — заметно, но не отвлекает. */
     val orbit by pulse.animateFloat(
         initialValue = 0f,
         targetValue = 360f,
-        animationSpec = infiniteRepeatable(tween(7_000, easing = LinearEasing)),
+        animationSpec = infiniteRepeatable(tween(8_000, easing = LinearEasing)),
         label = "orbit",
     )
+    /** Дыхание покоя: 5.6 с на цикл, ±1.5 % — «живое», а не «анимированное». */
     val breath by pulse.animateFloat(
         initialValue = 0.985f,
-        targetValue = 1.02f,
+        targetValue = 1.015f,
         animationSpec = infiniteRepeatable(
-            tween(5_000, easing = LinearEasing),
-            repeatMode = androidx.compose.animation.core.RepeatMode.Reverse,
+            tween(5_600, easing = LinearEasing),
+            repeatMode = RepeatMode.Reverse,
         ),
         label = "breath",
+    )
+
+    // Уровень сглаживается пружиной: сырой RMS дрожит покадрово, и без
+    // сглаживания ореол «дёргался» бы на каждом слоге.
+    val smoothed by animateFloatAsState(
+        targetValue = level.coerceIn(0f, 1f),
+        animationSpec = spring(
+            dampingRatio = Spring.DampingRatioNoBouncy,
+            stiffness = Spring.StiffnessLow,
+        ),
+        label = "micLevel",
     )
 
     val scale by animateFloatAsState(
         targetValue = when {
             pressed -> 0.94f
-            isActive -> 1.03f + level.coerceIn(0f, 1f) * 0.05f
+            isActive -> 1.03f + smoothed * 0.04f
             else -> breath
         },
         animationSpec = spring(
@@ -119,7 +178,7 @@ fun MicButton(
         label = "micScale",
     )
     val glowAlpha by animateFloatAsState(
-        targetValue = if (isActive) 0.42f else 0.22f,
+        targetValue = if (isActive) 0.40f + smoothed * 0.22f else 0.20f + smoothed * 0.10f,
         animationSpec = tween(420),
         label = "micGlow",
     )
@@ -128,102 +187,172 @@ fun MicButton(
     val accentSoft = MaterialTheme.colorScheme.secondary
     val cool = MaterialTheme.colorScheme.tertiary
     val onAccent = MaterialTheme.colorScheme.onPrimary
+    val dimmed = !enabled
 
     Box(
         modifier = modifier
-            .size(88.dp)
-            .semantics {
+            .size(OrbTouchSize)
+            .clickable(
+                enabled = enabled,
+                interactionSource = interaction,
+                indication = null,
+                onClick = onClick,
+            )
+            .semantics(mergeDescendants = true) {
                 role = Role.Button
                 contentDescription = stateLabel
+                stateDescription = stateLabel
+                if (dimmed) {
+                    // Выключенная кнопка обязана быть «выключенной» и для TalkBack.
+                    disabled()
+                }
             },
         contentAlignment = Alignment.Center,
     ) {
-        // 1. Свечение под кнопкой.
+        // 1–2. Ореол: дыхание покоя плюс отклик на уровень звука.
+        val haloScale = 0.86f + smoothed * 0.14f
         Box(
             modifier = Modifier
-                .size(88.dp)
-                .accentGlow(color = primary, alpha = glowAlpha, spread = 2.1f),
+                .size(OrbHaloSize)
+                .scale(if (isActive) haloScale else breath)
+                .accentGlow(
+                    color = if (isActive) accentSoft else primary,
+                    alpha = glowAlpha,
+                    spread = 2.0f,
+                ),
         )
 
-        // 2. Пульсирующие кольца в активном состоянии.
+        // 3. Кольца-пульсы — только когда идёт разговор.
         if (isActive) {
-            PulseRing(progress = ring, color = accentSoft)
-            PulseRing(progress = (ring + 0.5f) % 1f, color = cool)
+            PulseRing(progress = ring, color = accentSoft, baseSize = OrbRingSize)
+            PulseRing(progress = (ring + 0.5f) % 1f, color = cool, baseSize = OrbRingSize)
         }
 
-        // 3. Орбита: тонкая дуга, медленно вращается.
-        Canvas(modifier = Modifier.size(84.dp)) {
-            val stroke = 1.4f
+        // 4. Орбита: тонкая дуга, которая всегда медленно вращается.
+        Canvas(modifier = Modifier.size(OrbRingSize + 12.dp)) {
             drawArc(
                 brush = Brush.sweepGradient(
                     listOf(
                         Color.Transparent,
-                        primary.copy(alpha = if (isActive) 0.85f else 0.35f),
+                        primary.copy(alpha = if (isActive) 0.90f else 0.38f),
                         Color.Transparent,
                         Color.Transparent,
                     ),
                 ),
                 startAngle = orbit,
-                sweepAngle = 110f,
+                sweepAngle = 104f,
                 useCenter = false,
-                style = Stroke(width = stroke * 2f, cap = StrokeCap.Round),
+                style = Stroke(width = 3f, cap = StrokeCap.Round),
             )
         }
 
-        // 4–5. Стеклянное тело и иконка.
+        // 5. Стеклянная оправа: отделяет орб от фона, держит форму.
         Box(
             modifier = Modifier
-                .size(72.dp)
+                .size(OrbRingSize)
                 .scale(scale)
+                .clip(CircleShape)
                 .background(
-                    brush = Brush.radialGradient(
-                        colors = if (isActive) {
-                            listOf(accentSoft, primary, primary.copy(alpha = 0.92f))
-                        } else {
-                            listOf(
-                                primary.copy(alpha = 0.96f),
-                                primary.copy(alpha = 0.80f),
-                                primary.copy(alpha = 0.62f),
-                            )
-                        },
-                        center = Offset(28f, 20f),
-                        radius = 150f,
+                    Brush.verticalGradient(
+                        listOf(
+                            Color.White.copy(alpha = 0.05f),
+                            Color.Transparent,
+                        ),
                     ),
-                    shape = CircleShape,
                 )
                 .border(
                     width = 1.dp,
                     brush = Brush.verticalGradient(
                         listOf(
-                            Color.White.copy(alpha = 0.42f),
+                            Color.White.copy(alpha = 0.20f),
+                            Color.White.copy(alpha = 0.04f),
+                        ),
+                    ),
+                    shape = CircleShape,
+                ),
+        )
+
+        // 6. Ядро: градиентная капля.
+        Box(
+            modifier = Modifier
+                .size(OrbCoreSize)
+                .scale(scale)
+                .accentGlow(
+                    color = if (isActive) accentSoft else primary,
+                    alpha = if (dimmed) 0.10f else 0.30f,
+                    spread = 1.35f,
+                )
+                .clip(CircleShape)
+                .background(
+                    brush = if (dimmed) {
+                        Brush.radialGradient(
+                            colors = listOf(
+                                MaterialTheme.colorScheme.onSurface.copy(alpha = 0.16f),
+                                MaterialTheme.colorScheme.onSurface.copy(alpha = 0.08f),
+                            ),
+                        )
+                    } else if (isActive) {
+                        Brush.radialGradient(
+                            colors = listOf(accentSoft, primary, primary.copy(alpha = 0.90f)),
+                            center = Offset(150f, 110f),
+                            radius = 420f,
+                        )
+                    } else {
+                        Brush.radialGradient(
+                            colors = listOf(
+                                primary.copy(alpha = 0.98f),
+                                primary.copy(alpha = 0.84f),
+                                primary.copy(alpha = 0.66f),
+                            ),
+                            center = Offset(150f, 110f),
+                            radius = 420f,
+                        )
+                    },
+                )
+                .border(
+                    width = 1.dp,
+                    brush = Brush.verticalGradient(
+                        listOf(
+                            Color.White.copy(alpha = if (dimmed) 0.10f else 0.44f),
                             Color.White.copy(alpha = 0.05f),
                         ),
                     ),
                     shape = CircleShape,
-                )
-                .clickable(
-                    enabled = enabled,
-                    interactionSource = interaction,
-                    indication = null,
-                    onClick = onClick,
                 ),
             contentAlignment = Alignment.Center,
         ) {
-            // Верхний стеклянный блик внутри капли.
+            // Верхний стеклянный блик: «капля поймала свет».
             Box(
                 modifier = Modifier
                     .fillMaxSize()
                     .background(
                         brush = Brush.verticalGradient(
                             colorStops = arrayOf(
-                                0f to Color.White.copy(alpha = 0.22f),
-                                0.45f to Color.Transparent,
-                                1f to Color.Black.copy(alpha = 0.10f),
+                                0f to Color.White.copy(alpha = 0.20f),
+                                0.42f to Color.Transparent,
+                                1f to Color.Black.copy(alpha = 0.12f),
                             ),
                         ),
                         shape = CircleShape,
                     ),
             )
+            // Тонкая дуга-подсветка по нижней кромке — объём без «пластика».
+            Canvas(modifier = Modifier.fillMaxSize()) {
+                drawArc(
+                    color = Color.White.copy(alpha = 0.16f),
+                    startAngle = 200f,
+                    sweepAngle = 140f,
+                    useCenter = false,
+                    style = Stroke(width = 1.5f, cap = StrokeCap.Round),
+                    topLeft = Offset(size.width * 0.10f, size.height * 0.10f),
+                    size = androidx.compose.ui.geometry.Size(
+                        size.width * 0.80f,
+                        size.height * 0.80f,
+                    ),
+                )
+            }
+
+            // 7. Иконка: Mic ↔ Stop.
             AnimatedContent(
                 targetState = isActive,
                 transitionSpec = {
@@ -235,24 +364,34 @@ fun MicButton(
                 Icon(
                     imageVector = if (active) Icons.Filled.Stop else Icons.Filled.Mic,
                     contentDescription = null,
-                    tint = onAccent,
-                    modifier = Modifier.size(if (active) 26.dp else 30.dp),
+                    tint = if (dimmed) {
+                        MaterialTheme.colorScheme.onSurface.copy(alpha = 0.45f)
+                    } else {
+                        onAccent
+                    },
+                    modifier = Modifier.size(if (active) 34.dp else 40.dp),
                 )
             }
         }
     }
 }
 
-/** Одно расходящееся кольцо-пульс. */
+/**
+ * Одно расходящееся кольцо-пульс.
+ *
+ * Кольцо растёт от [baseSize] до +55 % и одновременно гаснет: получается
+ * волна, а не мигание. Толщина уменьшается к концу — так кольцо «улетает»,
+ * а не упирается в границу.
+ */
 @Composable
-private fun PulseRing(progress: Float, color: Color) {
+private fun PulseRing(progress: Float, color: Color, baseSize: Dp) {
     Box(
         modifier = Modifier
-            .size(72.dp)
+            .size(baseSize)
             .scale(1f + progress * 0.55f)
             .border(
-                width = (1.5f - progress).coerceAtLeast(0.6f).dp,
-                color = color.copy(alpha = (1f - progress) * 0.38f),
+                width = (1.6f - progress).coerceAtLeast(0.6f).dp,
+                color = color.copy(alpha = (1f - progress) * 0.40f),
                 shape = CircleShape,
             ),
     )

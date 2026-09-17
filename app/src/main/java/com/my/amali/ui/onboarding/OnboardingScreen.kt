@@ -29,6 +29,7 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.pager.HorizontalPager
+import androidx.compose.foundation.pager.PagerState
 import androidx.compose.foundation.pager.rememberPagerState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -88,6 +89,10 @@ private const val PAGE_WELCOME = 0
 private const val PAGE_VOICE = 1
 private const val PAGE_CONTROL = 2
 private const val PAGE_THEMES = 3
+private const val PAGE_FINISH = 4
+
+/** Всего слайдов в пагере. Одно число для состояния и для превью. */
+private const val ONBOARDING_PAGE_COUNT = 5
 
 /** Иконка + подпись для слайда «Управление устройством». */
 private data class ControlIcon(val icon: ImageVector, val labelResId: Int)
@@ -130,6 +135,39 @@ fun OnboardingScreen(
         if (state.isFinished) onNavigateToAssistant()
     }
 
+    OnboardingScreenContent(
+        state = state,
+        pagerState = pagerState,
+        onNext = viewModel::nextPage,
+        onPrev = viewModel::prevPage,
+        onFinish = viewModel::finish,
+        modifier = modifier,
+    )
+}
+
+/**
+ * Чистая (stateless) часть онбординга.
+ *
+ * Отделена от [OnboardingScreen] ровно по одной причине: `@Preview` не
+ * умеет поднимать ViewModel — в режиме превью нет `ViewModelStoreOwner`,
+ * и вызов `viewModel()` роняет рендер с «No ViewModelStoreOwner was
+ * provided via LocalViewModelStoreOwner». Пока состояние и действия
+ * приходят параметрами, экран рисуется в превью без единого мока.
+ *
+ * @param state текущее состояние онбординга (страница, счётчик).
+ * @param pagerState состояние пагера — принадлежит вызывающей стороне,
+ *   потому что жесты пользователя и кнопки обязаны двигать один и тот же
+ *   объект, а не две его копии.
+ */
+@Composable
+fun OnboardingScreenContent(
+    state: OnboardingState,
+    pagerState: PagerState,
+    onNext: () -> Unit,
+    onPrev: () -> Unit,
+    onFinish: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
     Box(modifier = modifier.fillMaxSize()) {
         // Онбординг всегда в «стекле»: у пользователя ещё нет настроек,
         // а первое впечатление должно быть одним и тем же на любом устройстве.
@@ -160,7 +198,7 @@ fun OnboardingScreen(
                 Spacer(Modifier.weight(1f))
                 GhostButton(
                     text = stringResource(R.string.onboarding_skip),
-                    onClick = viewModel::finish,
+                    onClick = onFinish,
                 )
             }
 
@@ -201,9 +239,9 @@ fun OnboardingScreen(
             BottomControls(
                 currentPage = pagerState.currentPage,
                 pageCount = state.pageCount,
-                onBack = viewModel::prevPage,
-                onNext = viewModel::nextPage,
-                onFinish = viewModel::finish,
+                onBack = onPrev,
+                onNext = onNext,
+                onFinish = onFinish,
             )
         }
     }
@@ -608,11 +646,57 @@ private fun BottomControls(
 }
 
 // === PREVIEW ================================================================
+//
+//  Превью собирают [OnboardingScreenContent] — чистое представление слайдов.
+//  Раньше превью звало OnboardingScreen(), который поднимает ViewModel, и
+//  падало в Android Studio («No ViewModelStoreOwner…»): посмотреть макет
+//  было нельзя вообще. Теперь каждый слайд можно открыть отдельным превью
+//  и увидеть его ровно таким, каким он будет на устройстве.
 
-@Preview(showBackground = true, backgroundColor = 0xFF07070B)
+/** Общая обёртка превью: онбординг на конкретном слайде, без ViewModel. */
 @Composable
-private fun OnboardingScreenPreview() {
+private fun OnboardingPreview(page: Int) {
     AmaliaTheme {
-        OnboardingScreen(onNavigateToAssistant = {})
+        OnboardingScreenContent(
+            state = OnboardingState(currentPage = page, pageCount = ONBOARDING_PAGE_COUNT),
+            pagerState = rememberPagerState(
+                initialPage = page,
+                pageCount = { ONBOARDING_PAGE_COUNT },
+            ),
+            onNext = {},
+            onPrev = {},
+            onFinish = {},
+            modifier = Modifier.fillMaxSize(),
+        )
     }
 }
+
+/** Слайд 0 — приветствие: логотип-орб и обещание. */
+@Preview(name = "Onboarding · Welcome", widthDp = 412, heightDp = 915, showBackground = true)
+@Composable
+private fun OnboardingWelcomePreview() = OnboardingPreview(PAGE_WELCOME)
+
+/** Слайд 1 — голос: живая волна и микрофон. */
+@Preview(name = "Onboarding · Voice", widthDp = 412, heightDp = 915, showBackground = true)
+@Composable
+private fun OnboardingVoicePreview() = OnboardingPreview(PAGE_VOICE)
+
+/** Слайд 2 — управление устройством: сетка иконок. */
+@Preview(name = "Onboarding · Control", widthDp = 412, heightDp = 915, showBackground = true)
+@Composable
+private fun OnboardingControlPreview() = OnboardingPreview(PAGE_CONTROL)
+
+/** Слайд 3 — темы: сравнение палитр. */
+@Preview(name = "Onboarding · Themes", widthDp = 412, heightDp = 915, showBackground = true)
+@Composable
+private fun OnboardingThemesPreview() = OnboardingPreview(PAGE_THEMES)
+
+/** Слайд 4 — финал: жирный CTA «Начать». */
+@Preview(name = "Onboarding · Finish", widthDp = 412, heightDp = 915, showBackground = true)
+@Composable
+private fun OnboardingFinishPreview() = OnboardingPreview(PAGE_FINISH)
+
+/** Компактный экран — проверка, что слайды не обрезаются на 640dp. */
+@Preview(name = "Onboarding · Compact", widthDp = 360, heightDp = 640, showBackground = true)
+@Composable
+private fun OnboardingCompactPreview() = OnboardingPreview(PAGE_CONTROL)

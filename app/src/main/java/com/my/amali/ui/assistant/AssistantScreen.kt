@@ -1,6 +1,11 @@
 package com.my.amali.ui.assistant
 
+import android.Manifest
 import android.content.ClipData
+import android.content.Intent
+import android.net.Uri
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.animateColorAsState
@@ -27,7 +32,6 @@ import androidx.compose.foundation.interaction.collectIsPressedAsState
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
@@ -46,18 +50,21 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.rounded.Chat
+import androidx.compose.material.icons.rounded.AddComment
 import androidx.compose.material.icons.rounded.AutoAwesome
+import androidx.compose.material.icons.rounded.Close
 import androidx.compose.material.icons.rounded.ContentCopy
-import androidx.compose.material.icons.rounded.History
 import androidx.compose.material.icons.rounded.KeyboardArrowDown
 import androidx.compose.material.icons.rounded.KeyboardArrowUp
 import androidx.compose.material.icons.rounded.Refresh
 import androidx.compose.material.icons.rounded.Settings
 import androidx.compose.material.icons.rounded.Tune
+import androidx.compose.material.icons.rounded.WarningAmber
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -73,6 +80,7 @@ import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.ClipEntry
 import androidx.compose.ui.platform.LocalClipboard
 import androidx.compose.ui.platform.LocalConfiguration
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.contentDescription
@@ -90,8 +98,9 @@ import com.my.amali.ui.components.GlassCard
 import com.my.amali.ui.components.GlassIconButton
 import com.my.amali.ui.components.GradientBackground
 import com.my.amali.ui.components.MicButton
+import com.my.amali.ui.components.SuggestionChips
 import com.my.amali.ui.theme.AmaliaTheme
-import com.my.amali.ui.theme.CircadianEngine
+import com.my.amali.ui.theme.AmaliaVisuals
 import com.my.amali.ui.theme.LocalAmaliaVisuals
 import com.my.amali.ui.theme.LocalLightProfile
 import com.my.amali.ui.theme.Radius
@@ -110,50 +119,60 @@ import kotlinx.coroutines.launch
  * ═══════════════════════════════════════════════════════════
  *
  *  1. живой аурора-фон + декоративный мотив;
- *  2. лёгкая шапка: пульс состояния, имя, индикатор света, история, настройки;
- *  3. центр — жидкая волна + одно слово состояния (главный фокус);
- *  4. **единственная гибкая область** — стеклянная карточка диалога;
- *  5. лента подсказок;
- *  6. **кнопка микрофона — в самом низу, над нижней навигацией**;
- *  7. подпись-подсказка.
+ *  2. компактная шапка: пульс состояния, имя, счётчик разговоров,
+ *     индикатор текущего света, история и настройки;
+ *  3. стеклянная карточка диалога — **единственная гибкая область**;
+ *  4. герой-блок: слово состояния, голосовой орб, подпись-подсказка;
+ *  5. запас под плавающую нижнюю навигацию.
  *
  * ═══════════════════════════════════════════════════════════
- *  ЧТО ИЗМЕНИЛОСЬ И ПОЧЕМУ
+ *  ЧТО И ПОЧЕМУ ИЗМЕНИЛОСЬ В ЭТОЙ ВЕРСИИ
  * ═══════════════════════════════════════════════════════════
  *
- * ── 1. Микрофон переехал из «где-то в середине» вниз ──────────
+ * ── 1. Появилась обработка разрешения микрофона ───────────────
  *
- * Раньше под кнопкой лежала подпись, а ниже — отступ в **92dp** под плавающую
- * навигацию. То есть кнопка стояла на ~90dp выше нижнего края, ровно в той
- * зоне, где большой палец при одноручном хвате **не достаёт** без перехвата.
- * Это и было «микрофон слишком высоко».
+ * Раньше `AssistantUiState.micPermissionRequired` выставлялся
+ * ViewModel-ем — и не читался НИКОМУ. Лончера разрешений на экране не было
+ * вообще, поэтому на первом запуске тап по микрофону не делал ничего:
+ * системный диалог не появлялся, ошибка не показывалась, экран молчал.
+ * Теперь запрос запускается эффектом на флаг, а отказ обрабатывается
+ * человеческим текстом с кнопкой «Открыть настройки».
  *
- * Теперь порядок обратный и жёсткий:
- *   подсказки → микрофон → подпись → отступ под навигацию.
+ * ── 2. Состояние переведено на строковые ресурсы ──────────────
  *
- * Кнопка опустилась к нижней трети, где лежит естественная дуга большого
- * пальца, а подпись переехала **под** кнопку — она больше не отодвигает
- * главное действие от края. Сам отступ уменьшен до реальной высоты
- * плавающей панели (64dp + зазоры), а не «на глазок».
+ * Экран печатал `VoiceState.label`, а это хардкод на русском: при девяти
+ * локалях приложения слово состояния оставалось русским в любом языке.
+ * Теперь подпись берётся из ресурсов (`assistant_listening` и т.д.).
  *
- * ── 2. Индикатор света в шапке ────────────────────────────────
+ * ── 3. Орб вместо кнопки ──────────────────────────────────────
  *
- * Адаптация по времени суток была невидимой: палитра менялась, но
- * пользователь не знал почему. Теперь в шапке живёт компактный чип с CCT и
- * фазой суток («Закат · 2700K»). Он объясняет смену цвета и, что важнее,
- * даёт уверенность, что это не глюк, а рассчитанный свет.
+ * Микрофон перестал быть «кнопкой со свечением» и стал героем экрана:
+ * ореол реагирует на уровень голоса, кольца расходятся по факту разговора,
+ * орбита вращается всегда — видно, что система жива, ещё до первого слова.
+ * Размер вырос до 104dp, тач-зона — 172dp: это главное действие, и оно
+ * не должно требовать прицеливания.
  *
- * ── 3. Диалог по-прежнему в `weight`, а не «растёт как хочет» ──
+ * ── 4. Лента подсказок стала кликабельной лентой чипов ─────────
  *
- * Фиксированы: шапка, волна, подсказки, кнопка. Всё свободное место отдано
- * карточке (`weight(1f, fill = false)`); если контента больше, чем места,
- * карточка скроллит **свою** область и не выталкивает кнопку за экран.
+ * В приветственной карточке подсказки выглядели как строки текста со
+ * подчёркнутой ролью кнопки — по ним не хотелось тапать. Теперь это
+ * стеклянные чипы ([SuggestionChips]) с нормальной тач-зоной.
  *
- * ── 4. Адаптация к низким экранам ─────────────────────────────
+ * ── 5. Анимация фаз получила смысл ────────────────────────────
  *
- * Волна и внутренние отступы ужимаются на коротких экранах
- * ([compactHeight]), иначе на 640dp-высоте карточка диалога схлопывалась
- * до нуля и микрофон уезжал под навигацию.
+ * Карточка не «подменяется» рывком: у каждой фазы своё направление
+ * входа-выхода, поэтому слушание уходит вниз, а ответ приходит снизу —
+ * движение читается как продолжение разговора, а не как перерисовка.
+ *
+ * ── 6. Экран разделён на stateful и stateless части ───────────
+ *
+ * [AssistantScreen] владеет ViewModel-ем, разрешением и буфером обмена;
+ * [AssistantScreenContent] — чистая функция от состояния. Именно поэтому
+ * превью ниже рисуют настоящий экран во всех фазах: раньше `@Preview`
+ * вызывал `viewModel()` и падал с «No ViewModelStoreOwner was provided».
+ *
+ * @param onNavigateToHistory переход к истории разговоров.
+ * @param onNavigateToSettings переход к настройкам.
  */
 @Composable
 fun AssistantScreen(
@@ -163,24 +182,86 @@ fun AssistantScreen(
 ) {
     val vm: AssistantViewModel = androidx.lifecycle.viewmodel.compose.viewModel()
     val state by vm.uiState.collectAsStateWithLifecycle()
-    val visuals = LocalAmaliaVisuals.current
-    val light = LocalLightProfile.current
+
     // LocalClipboardManager объявлен deprecated: он не поддерживает suspend и
-    // не умеет отдавать в буфер ничего, кроме текста. Замена — LocalClipboard,
-    // работающий через ClipboardEntry (поддерживает URI, HTML, картинки).
-    // Его setClipEntry — suspend-функция, поэтому вызов идёт через scope.
+    // не умеет отдавать в буфер ничего, кроме текста. LocalClipboard работает
+    // через ClipboardEntry и поддерживает URI, HTML и картинки.
     val clipboard = LocalClipboard.current
     val clipboardScope = rememberCoroutineScope()
+    val context = LocalContext.current
 
-    // На коротких экранах волна и отступы ужимаются: иначе карточка диалога
-    // схлопывается в ноль и кнопка уезжает под плавающую навигацию.
+    // Системный запрос доступа к микрофону. Лончер — один на экран
+    // (внутри элемента списка он ломал бы реестр ActivityResult).
+    val permissionLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.RequestPermission(),
+    ) { granted -> vm.onMicPermissionResult(granted) }
+
+    LaunchedEffect(state.micPermissionRequired) {
+        if (state.micPermissionRequired) {
+            permissionLauncher.launch(Manifest.permission.RECORD_AUDIO)
+        }
+    }
+
+    AssistantScreenContent(
+        state = state,
+        onMicClick = vm::toggleConversation,
+        onMicPress = vm::warmupStt,
+        onPickSuggestion = vm::startConversation,
+        onRepeat = vm::repeatLast,
+        onDismissError = vm::dismissError,
+        onNewSession = vm::startNewSession,
+        onCopy = {
+            clipboardScope.launch {
+                clipboard.setClipEntry(
+                    ClipEntry(ClipData.newPlainText("amalia_reply", state.amaliaReply)),
+                )
+            }
+        },
+        onOpenAppSettings = {
+            val intent = Intent(
+                android.provider.Settings.ACTION_APPLICATION_DETAILS_SETTINGS,
+                Uri.fromParts("package", context.packageName, null),
+            ).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+            runCatching { context.startActivity(intent) }
+        },
+        onNavigateToHistory = onNavigateToHistory,
+        onNavigateToSettings = onNavigateToSettings,
+        modifier = modifier,
+    )
+}
+
+/**
+ * Чистый (stateless) главный экран.
+ *
+ * Вся логика приходит снаружи: состояние — параметр, действия — лямбды.
+ * Благодаря этому экран можно отрисовать в превью в любой фазе, а тесты
+ * не поднимают ViewModel и сеть.
+ */
+@Composable
+fun AssistantScreenContent(
+    state: AssistantUiState,
+    onMicClick: () -> Unit,
+    onMicPress: () -> Unit,
+    onPickSuggestion: (String) -> Unit,
+    onRepeat: () -> Unit,
+    onDismissError: () -> Unit,
+    onNewSession: () -> Unit,
+    onCopy: () -> Unit,
+    onOpenAppSettings: () -> Unit,
+    onNavigateToHistory: () -> Unit,
+    onNavigateToSettings: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    val visuals = LocalAmaliaVisuals.current
+    val light = LocalLightProfile.current
+    val lightLabel = light.lightLabel
+    val cct = light.cct
+    val suggestions = welcomeSuggestions()
+
+    // На коротких экранах сжимается только «воздух» между блоками:
+    // карточка диалога и орб обязаны остаться целыми.
     val screenHeight = LocalConfiguration.current.screenHeightDp
     val compact = screenHeight < 700
-
-    LaunchedEffect(Unit) {
-        delay(900)
-        vm.onFirstLaunchHandled()
-    }
 
     Box(modifier = modifier.fillMaxSize()) {
         GradientBackground(
@@ -202,26 +283,18 @@ fun AssistantScreen(
             AssistantTopBar(
                 conversationCount = state.conversationCount,
                 voiceState = state.voiceState,
-                contextCompressed = state.contextCompressed,
                 showLight = visuals.useBioTime,
-                lightLabel = light.lightLabel,
-                cct = light.cct,
+                lightLabel = lightLabel,
+                cct = cct,
+                // «Новый разговор» показывается только когда есть что закрывать:
+                // в покое кнопка была бы шумом без действия.
+                showNewSession = state.amaliaReply.isNotEmpty(),
+                onNewSession = onNewSession,
                 onNavigateToHistory = onNavigateToHistory,
                 onNavigateToSettings = onNavigateToSettings,
             )
 
-            Spacer(Modifier.weight(if (compact) 0.28f else 0.5f))
-
-            // === СОСТОЯНИЕ ===
-            //
-            // Волновая визуализация убрана по решению владельца: она занимала
-            // 108–142 dp по высоте и постоянно двигалась, перетягивая внимание
-            // с микрофона — главного действия экрана. Состояние («слушаю»,
-            // «думаю», «говорю») теперь читается только словом и самим
-            // микрофоном, который уже реагирует на уровень звука.
-            StatusLabel(state = state.voiceState)
-
-            Spacer(Modifier.height(if (compact) Spacing.sm else Spacing.md))
+            Spacer(Modifier.weight(if (compact) 0.18f else 0.32f))
 
             // === ДИАЛОГ: единственная гибкая область экрана ===
             Box(
@@ -233,18 +306,19 @@ fun AssistantScreen(
                 AnimatedContent(
                     targetState = DialogPhase.of(state),
                     transitionSpec = {
-                        (fadeIn(tween(260)) + slideInVertically(tween(300)) { it / 8 })
+                        (fadeIn(tween(260)) + slideInVertically(tween(320)) { it / 6 })
                             .togetherWith(
-                                fadeOut(tween(180)) + slideOutVertically(tween(220)) { -it / 8 },
+                                fadeOut(tween(160)) + slideOutVertically(tween(220)) { -it / 6 },
                             )
                     },
                     label = "dialog",
                 ) { phase ->
                     when (phase) {
                         DialogPhase.Welcome -> WelcomeCard(
-                            onPickSuggestion = { vm.startConversation(it) },
+                            suggestions = suggestions,
+                            onPickSuggestion = onPickSuggestion,
                         )
-                        DialogPhase.Listening -> ListeningCard(text = state.userTranscript)
+                        DialogPhase.Listening -> ListeningCard(transcript = state.userTranscript)
                         DialogPhase.Thinking -> ThinkingCard(
                             prompt = state.userTranscript,
                             activeTools = state.activeTools,
@@ -257,65 +331,49 @@ fun AssistantScreen(
                             toolReports = state.lastToolReports,
                             contextCompressed = state.contextCompressed,
                             contextMessageCount = state.contextMessageCount,
-                            onRepeat = { vm.startConversation(state.userTranscript) },
-                            onCopy = {
-                                clipboardScope.launch {
-                                    clipboard.setClipEntry(
-                                        ClipEntry(
-                                            ClipData.newPlainText(
-                                                "amalia_reply",
-                                                state.amaliaReply,
-                                            ),
-                                        ),
-                                    )
-                                }
-                            },
+                            onRepeat = onRepeat,
+                            onCopy = onCopy,
                         )
                         DialogPhase.Error -> ErrorCard(
                             message = state.errorMessage
                                 ?: stringResource(R.string.assistant_error),
-                            onRetry = { vm.startConversation(state.userTranscript) },
+                            onRetry = onMicClick,
+                            onDismiss = onDismissError,
+                            onOpenSettings = if (state.micPermissionDenied) {
+                                onOpenAppSettings
+                            } else {
+                                null
+                            },
                         )
-                        DialogPhase.Empty -> Spacer(Modifier.height(0.dp))
                     }
                 }
             }
 
-            // === ПОДСКАЗКИ УБРАНЫ ===
-            //
-            // Кнопки-подсказки («Привет», «Который час» и т. п.) удалены по
-            // решению владельца. Причины, по которым они тут были лишними:
-            //
-            //  — они занимали нижнюю треть экрана и отжимали микрофон вверх —
-            //    ровно та проблема, которую мы только что чинили;
-            //  — подсказки дублировали то, что и так написано в пустой
-            //    карточке диалога, то есть пользователь видел один и тот же
-            //    текст дважды;
-            //  — при голосовом сценарии человек всё равно не читает кнопки,
-            //    он сразу говорит.
-            //
-            // Освободившееся место уходит в гибкую область диалога, поэтому
-            // микрофон остаётся внизу, а ответы получают больше высоты.
+            Spacer(Modifier.height(if (compact) Spacing.sm else Spacing.md))
 
-            // === ГЛАВНОЕ ДЕЙСТВИЕ: внизу, под большим пальцем ===
+            // === ГЕРОЙ: состояние + главное действие + подпись ===
+            StatusLabel(state = state.voiceState)
+
+            Spacer(Modifier.height(if (compact) Spacing.xs else Spacing.sm))
+
             MicButton(
                 isActive = state.voiceState != VoiceState.Idle &&
                     state.voiceState != VoiceState.Error,
-                stateLabel = state.voiceState.label,
+                stateLabel = voiceStateLabel(state.voiceState),
                 level = state.audioLevel,
-                onClick = { vm.toggleConversation() },
-                onPress = { vm.warmupStt() },
+                onClick = onMicClick,
+                onPress = onMicPress,
             )
 
             Spacer(Modifier.height(Spacing.xxs))
 
-            // Подпись под кнопкой, а не над ней: кнопка обязана стоять
-            // максимально близко к нижнему краю — это главный CTA экрана.
+            // Подпись — под орбом: кнопка обязана стоять максимально близко
+            // к нижнему краю, это главное действие экрана.
             Text(
-                text = if (state.voiceState == VoiceState.Idle) {
-                    stringResource(R.string.assistant_welcome_hint)
-                } else {
+                text = if (state.isBusy) {
                     stringResource(R.string.assistant_stop)
+                } else {
+                    stringResource(R.string.assistant_welcome_hint)
                 },
                 style = MaterialTheme.typography.labelSmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.72f),
@@ -325,17 +383,9 @@ fun AssistantScreen(
             )
 
             // Запас ровно под плавающую нижнюю навигацию: 64dp панель +
-            // 12dp нижний паддинг + воздух. Раньше здесь стояло 92dp — именно
-            // из-за этого микрофон «висел» слишком высоко.
-            Spacer(
-                Modifier.height(
-                    if (state.voiceState == VoiceState.Idle) {
-                        BottomBarReserve
-                    } else {
-                        Spacing.xs
-                    },
-                ),
-            )
+            // 12dp нижний паддинг + воздух. Ни пикселем больше — иначе
+            // главное действие уезжает вверх из зоны большого пальца.
+            Spacer(Modifier.height(BottomBarReserve))
         }
     }
 }
@@ -346,7 +396,7 @@ fun AssistantScreen(
 
 /** Что именно показывать в центральной карточке. */
 private enum class DialogPhase {
-    Welcome, Listening, Thinking, Reply, Error, Empty;
+    Welcome, Listening, Thinking, Reply, Error;
 
     companion object {
         fun of(state: AssistantUiState): DialogPhase = when {
@@ -354,11 +404,22 @@ private enum class DialogPhase {
             state.voiceState == VoiceState.Listening -> Listening
             state.voiceState == VoiceState.Thinking -> Thinking
             state.amaliaReply.isNotEmpty() -> Reply
-            state.isFirstLaunch -> Welcome
             else -> Welcome
         }
     }
 }
+
+/** Подпись состояния на языке интерфейса (а не хардкод из enum). */
+@Composable
+private fun voiceStateLabel(state: VoiceState): String = stringResource(
+    when (state) {
+        VoiceState.Idle -> R.string.assistant_ready
+        VoiceState.Listening -> R.string.assistant_listening
+        VoiceState.Thinking -> R.string.assistant_thinking
+        VoiceState.Speaking -> R.string.assistant_speaking
+        VoiceState.Error -> R.string.assistant_error
+    },
+)
 
 // ============================================================
 //  ШАПКА
@@ -368,10 +429,11 @@ private enum class DialogPhase {
 private fun AssistantTopBar(
     conversationCount: Int,
     voiceState: VoiceState,
-    contextCompressed: Boolean,
     showLight: Boolean,
     lightLabel: String,
     cct: Int,
+    showNewSession: Boolean,
+    onNewSession: () -> Unit,
     onNavigateToHistory: () -> Unit,
     onNavigateToSettings: () -> Unit,
     modifier: Modifier = Modifier,
@@ -396,51 +458,45 @@ private fun AssistantTopBar(
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis,
             )
+            // Вторая строка — контекст, а не статус: сколько разговоров
+            // в памяти и какой сейчас свет. Чип света живёт здесь, а не
+            // в верхнем ряду: в верхнем он вместе с тремя кнопками не
+            // оставлял имени ни сантиметра на экране 360dp.
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Text(
                     text = if (conversationCount > 0) {
-                        "$conversationCount ${pluralizeConversations(conversationCount)}"
+                        stringResource(R.string.assistant_conversations_count, conversationCount)
                     } else {
                         stringResource(R.string.assistant_idle)
                     },
                     style = MaterialTheme.typography.labelSmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.78f),
                     maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                    // Текст уступает место чипу: цифру можно и обрезать,
+                    // а свет — нет, он объясняет смену палитры.
+                    modifier = Modifier.weight(1f, fill = false),
                 )
-                // Маркер сжатого контекста: видно, что Амалия помнит разговор
-                // пересказом, а не дословно — без этого «память» выглядит багом.
-                AnimatedVisibility(visible = contextCompressed) {
-                    Row(
+                AnimatedVisibility(visible = showLight) {
+                    LightChip(
+                        label = lightLabel,
+                        cct = cct,
+                        isWarm = cct <= 3200,
                         modifier = Modifier.padding(start = Spacing.xs),
-                        verticalAlignment = Alignment.CenterVertically,
-                    ) {
-                        Icon(
-                            imageVector = Icons.Rounded.History,
-                            contentDescription = null,
-                            tint = MaterialTheme.colorScheme.tertiary.copy(alpha = 0.85f),
-                            modifier = Modifier.size(11.dp),
-                        )
-                        Spacer(Modifier.width(3.dp))
-                        Text(
-                            text = stringResource(R.string.assistant_context_compressed),
-                            style = MaterialTheme.typography.labelSmall,
-                            color = MaterialTheme.colorScheme.tertiary.copy(alpha = 0.9f),
-                        )
-                    }
+                    )
                 }
             }
         }
 
-        // Индикатор текущего света: делает адаптацию объяснимой, а не магической.
-        AnimatedVisibility(visible = showLight) {
-            LightChip(
-                label = lightLabel,
-                cct = cct,
-                isWarm = cct <= 3200,
-                modifier = Modifier.padding(end = Spacing.xxs),
+        // Новый разговор: доступен, когда на экране уже есть ответ —
+        // то есть когда «начать заново» действительно что-то значит.
+        AnimatedVisibility(visible = showNewSession) {
+            GlassIconButton(
+                icon = Icons.Rounded.AddComment,
+                contentDescription = stringResource(R.string.assistant_new_session),
+                onClick = onNewSession,
             )
         }
-
         GlassIconButton(
             icon = Icons.AutoMirrored.Rounded.Chat,
             contentDescription = stringResource(R.string.nav_history),
@@ -456,11 +512,11 @@ private fun AssistantTopBar(
 }
 
 /**
- * Компактный чип «какой сейчас свет»: фаза + цветовая температура.
+ * Компактный чип «какой сейчас свет»: фаза суток + цветовая температура.
  *
- * Показывает ровно те две величины, которые рассчитал [CircadianEngine],
- * поэтому индикатор невозможно «разъехать» с фактическим фоном: и то, и
- * другое читает один [LocalLightProfile].
+ * Показывает ровно те две величины, которые рассчитал CircadianEngine,
+ * поэтому индикатор невозможно «разъехать» с фактическим фоном: и то,
+ * и другое читает один [LocalLightProfile].
  */
 @Composable
 private fun LightChip(
@@ -469,7 +525,6 @@ private fun LightChip(
     isWarm: Boolean,
     modifier: Modifier = Modifier,
 ) {
-    val accent = MaterialTheme.colorScheme.tertiary
     Row(
         modifier = modifier
             .heightIn(min = 24.dp)
@@ -480,29 +535,28 @@ private fun LightChip(
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(4.dp),
     ) {
-        // Точка-индикатор: тёплый свет — янтарная, холодный — голубая.
+        // Тёплый свет — янтарная точка, холодный — голубая.
         Box(
             modifier = Modifier
                 .size(7.dp)
                 .clip(CircleShape)
-                .background(
-                    if (isWarm) {
-                        Color(0xFFE0A25C)
-                    } else {
-                        Color(0xFF8FB6E8)
-                    },
-                ),
+                .background(if (isWarm) Color(0xFFE0A25C) else Color(0xFF8FB6E8)),
         )
         Text(
             text = "$label · ${cct}K",
             style = MaterialTheme.typography.labelSmall,
-            color = accent.copy(alpha = 0.92f),
+            color = MaterialTheme.colorScheme.tertiary.copy(alpha = 0.92f),
             maxLines = 1,
         )
     }
 }
 
-/** Дышащая точка-индикатор состояния слева от имени. */
+/**
+ * Дышащая точка слева от имени — «Амалия на связи».
+ *
+ * В покое дышит медленно (2.6 с), в разговоре часто (0.9 с): по одному
+ * взгляду на точку видно, слушают тебя или нет.
+ */
 @Composable
 private fun StatePulse(voiceState: VoiceState) {
     val transition = rememberInfiniteTransition(label = "statePulse")
@@ -510,7 +564,7 @@ private fun StatePulse(voiceState: VoiceState) {
         initialValue = 0.45f,
         targetValue = 1f,
         animationSpec = infiniteRepeatable(
-            tween(if (voiceState == VoiceState.Idle) 2600 else 900, easing = LinearEasing),
+            tween(if (voiceState == VoiceState.Idle) 2_600 else 900, easing = LinearEasing),
             repeatMode = RepeatMode.Reverse,
         ),
         label = "breath",
@@ -544,6 +598,13 @@ private fun StatePulse(voiceState: VoiceState) {
 //  СОСТОЯНИЕ
 // ============================================================
 
+/**
+ * Слово состояния — главный текстовый якорь экрана.
+ *
+ * Стоит непосредственно над орбом, поэтому «что происходит» и «что нажать»
+ * читаются одним взглядом. Смена слова — вертикальный слайд: движение
+ * совпадает с направлением разговора (вниз — слушание, вверх — ответ).
+ */
 @Composable
 private fun StatusLabel(state: VoiceState, modifier: Modifier = Modifier) {
     val color by animateColorAsState(
@@ -554,14 +615,14 @@ private fun StatusLabel(state: VoiceState, modifier: Modifier = Modifier) {
     AnimatedContent(
         targetState = state,
         transitionSpec = {
-            (fadeIn(tween(220)) + slideInVertically(tween(240)) { it / 3 })
+            (fadeIn(tween(220)) + slideInVertically(tween(260)) { it / 3 })
                 .togetherWith(fadeOut(tween(140)) + slideOutVertically(tween(180)) { -it / 3 })
         },
         label = "statusLabel",
         modifier = modifier,
     ) { target ->
         Text(
-            text = target.label,
+            text = voiceStateLabel(target),
             style = MaterialTheme.typography.titleLarge,
             color = color,
             textAlign = TextAlign.Center,
@@ -583,9 +644,18 @@ private fun stateColor(state: VoiceState): Color = when (state) {
 //  КАРТОЧКИ ДИАЛОГА
 // ============================================================
 
+/**
+ * Приветственная карточка: кто говорит, что делать и что можно сказать.
+ *
+ * Подсказки — чипы с нормальной тач-зоной и горизонтальным скроллом.
+ * Раньше они были строками текста с ролью кнопки: выглядели как абзац,
+ * тапать по ним не хотелось, а на длинном переводе строка обрезалась.
+ */
 @Composable
-private fun WelcomeCard(onPickSuggestion: (String) -> Unit) {
-    val suggestions = welcomeSuggestions()
+private fun WelcomeCard(
+    suggestions: List<String>,
+    onPickSuggestion: (String) -> Unit,
+) {
     GlassCard(
         modifier = Modifier.padding(horizontal = Spacing.screen),
         cornerRadius = Radius.lg,
@@ -607,37 +677,35 @@ private fun WelcomeCard(onPickSuggestion: (String) -> Unit) {
                 )
             }
         }
-        Spacer(Modifier.height(Spacing.sm))
-        // Сразу видно, что можно сказать: это и есть подсказка к главному
-        // действию экрана, поэтому живёт внутри карточки, а не в отдельной ленте.
-        suggestions.take(3).forEach { suggestion ->
+
+        if (suggestions.isNotEmpty()) {
+            Spacer(Modifier.height(Spacing.md))
             Text(
-                text = "«$suggestion»",
-                style = MaterialTheme.typography.labelMedium,
-                color = MaterialTheme.colorScheme.primary.copy(alpha = 0.95f),
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis,
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .clip(RoundedCornerShape(Radius.chip))
-                    .clickable { onPickSuggestion(suggestion) }
-                    .padding(vertical = 4.dp)
-                    .semantics {
-                        role = Role.Button
-                        contentDescription = suggestion
-                    },
+                text = stringResource(R.string.assistant_welcome_chips),
+                style = MaterialTheme.typography.labelSmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.80f),
+            )
+            Spacer(Modifier.height(Spacing.xs))
+            SuggestionChips(
+                suggestions = suggestions,
+                onClick = onPickSuggestion,
             )
         }
     }
 }
 
+/**
+ * Карточка слушания: живые субтитры распознавания.
+ *
+ * Пока соединение STT не поднялось (~1 с), показывается честное
+ * «подключаюсь» — иначе пользователь успевает решить, что его не слышат.
+ */
 @Composable
-private fun ListeningCard(text: String) {
-    // STT подключается ~1 секунду после нажатия — показываем подсказку
-    val connecting = remember { mutableStateOf(true) }
+private fun ListeningCard(transcript: String) {
+    var connecting by remember { mutableStateOf(true) }
     LaunchedEffect(Unit) {
-        delay(1100)
-        connecting.value = false
+        delay(CONNECTING_HINT_MS)
+        connecting = false
     }
 
     GlassCard(
@@ -650,14 +718,14 @@ private fun ListeningCard(text: String) {
         )
         Spacer(Modifier.height(Spacing.xs))
         when {
-            connecting.value -> Text(
+            connecting -> Text(
                 text = stringResource(R.string.assistant_connecting),
                 style = MaterialTheme.typography.bodyMedium,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
-            text.isBlank() -> TypingDots()
+            transcript.isBlank() -> TypingDots()
             else -> Text(
-                text = text,
+                text = transcript,
                 style = MaterialTheme.typography.bodyLarge,
                 color = MaterialTheme.colorScheme.onSurface,
                 maxLines = 4,
@@ -704,7 +772,7 @@ private fun ThinkingCard(
  *
  * Показываются максимум [VISIBLE_TOOL_ROWS] строк: «выключи всё» с десятью
  * командами не должно превращать карточку в пропасть, которая выталкивает
- * кнопку микрофона за пределы экрана. Остальное — счётчиком.
+ * орб за пределы экрана. Остальное — счётчиком.
  */
 @Composable
 private fun ToolActivityStrip(tools: List<ToolActivity>) {
@@ -1015,7 +1083,7 @@ private fun ContextChip(literalCount: Int, modifier: Modifier = Modifier) {
             modifier = Modifier.size(11.dp),
         )
         Text(
-            text = stringResource(R.string.assistant_context_compressed),
+            text = label,
             style = MaterialTheme.typography.labelSmall,
             color = MaterialTheme.colorScheme.tertiary,
         )
@@ -1026,7 +1094,7 @@ private fun ContextChip(literalCount: Int, modifier: Modifier = Modifier) {
 @Composable
 private fun AmaliaAvatar(
     modifier: Modifier = Modifier,
-    size: Dp = 34.dp,
+    size: Dp = 38.dp,
 ) {
     val accent = iconAccent()
     val label = stringResource(R.string.app_name)
@@ -1046,18 +1114,55 @@ private fun AmaliaAvatar(
     }
 }
 
+/**
+ * Карточка ошибки.
+ *
+ * @param onDismiss закрывает ошибку без повтора: пользователь вправе просто
+ *   вернуться к разговору, а не «исправлять» то, что ему не мешает.
+ * @param onOpenSettings не-null → показывается второе действие «Открыть
+ *   настройки». Это ровно тот случай, когда разрешение отклонено навсегда:
+ *   системный диалог больше не появится, и «Повторить» будет упираться
+ *   в закрытую дверь. Кнопка ведёт прямо в настройки приложения.
+ */
 @Composable
-private fun ErrorCard(message: String, onRetry: () -> Unit) {
+private fun ErrorCard(
+    message: String,
+    onRetry: () -> Unit,
+    onDismiss: () -> Unit,
+    onOpenSettings: (() -> Unit)?,
+) {
     GlassCard(
         modifier = Modifier.padding(horizontal = Spacing.screen),
         cornerRadius = Radius.lg,
         tint = MaterialTheme.colorScheme.error,
     ) {
-        CardLabel(
-            text = stringResource(R.string.common_error),
-            color = MaterialTheme.colorScheme.error,
-        )
-        Spacer(Modifier.height(Spacing.xxs))
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Icon(
+                imageVector = Icons.Rounded.WarningAmber,
+                contentDescription = null,
+                tint = MaterialTheme.colorScheme.error,
+                modifier = Modifier.size(16.dp),
+            )
+            Spacer(Modifier.width(Spacing.xs))
+            CardLabel(
+                text = stringResource(R.string.common_error),
+                color = MaterialTheme.colorScheme.error,
+            )
+            Spacer(Modifier.weight(1f))
+            // Крестик в углу: закрыть, не повторяя. Отдельной строкой он
+            // отнимал бы высоту у главного действия карточки.
+            Icon(
+                imageVector = Icons.Rounded.Close,
+                contentDescription = stringResource(R.string.common_close),
+                tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.85f),
+                modifier = Modifier
+                    .size(28.dp)
+                    .clip(CircleShape)
+                    .clickable(onClick = onDismiss)
+                    .padding(5.dp),
+            )
+        }
+        Spacer(Modifier.height(Spacing.xs))
         Text(
             text = message,
             style = MaterialTheme.typography.bodyMedium,
@@ -1066,11 +1171,23 @@ private fun ErrorCard(message: String, onRetry: () -> Unit) {
             overflow = TextOverflow.Ellipsis,
         )
         Spacer(Modifier.height(Spacing.sm))
-        GlassTextAction(
-            icon = Icons.Rounded.Refresh,
-            text = stringResource(R.string.common_retry),
-            onClick = onRetry,
-        )
+        Row(
+            horizontalArrangement = Arrangement.spacedBy(Spacing.xs),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            GlassTextAction(
+                icon = Icons.Rounded.Refresh,
+                text = stringResource(R.string.common_retry),
+                onClick = onRetry,
+            )
+            if (onOpenSettings != null) {
+                GlassTextAction(
+                    icon = Icons.Rounded.Settings,
+                    text = stringResource(R.string.permission_open_settings),
+                    onClick = onOpenSettings,
+                )
+            }
+        }
     }
 }
 
@@ -1169,18 +1286,14 @@ private fun welcomeSuggestions(): List<String> = listOf(
     stringResource(R.string.suggestion_hello),
     stringResource(R.string.suggestion_about),
     stringResource(R.string.suggestion_time),
+    stringResource(R.string.suggestion_weather),
 )
-
-/** Русская форма слова «разговор» для счётчика в шапке. */
-private fun pluralizeConversations(n: Int): String = when {
-    n % 100 in 11..14 -> "разговоров"
-    n % 10 == 1 -> "разговор"
-    n % 10 in 2..4 -> "разговора"
-    else -> "разговоров"
-}
 
 /** Сколько строк работающих инструментов показывать до счётчика «+N». */
 private const val VISIBLE_TOOL_ROWS = 3
+
+/** Через сколько миллисекунд подсказка «подключаюсь» сменяется точками. */
+private const val CONNECTING_HINT_MS = 1_100L
 
 /** Потолок высоты текста ответа: дальше — внутренний скролл, а не рост карточки. */
 private val ReplyMaxHeight = 200.dp
@@ -1189,20 +1302,154 @@ private val ReplyMaxHeight = 200.dp
  * Отступ под плавающую нижнюю навигацию.
  *
  * Считается, а не берётся «на глаз»: 64dp высота панели + 12dp её собственный
- * вертикальный паддинг + 8dp воздуха. Ровно столько, чтобы панель не наезжала
- * на подпись микрофона, и ни пикселем больше — иначе главное действие снова
- * уедет вверх, как это было с прежними 92dp.
+ * вертикальный паддинг ×2 + 8dp воздуха = 96dp. Ровно столько, чтобы панель
+ * не наехала на подпись под орбом. Прежние 84dp были меньше фактической
+ * высоты панели (88dp), и подпись уходила под стекло на 4dp.
  */
-private val BottomBarReserve = 84.dp
+private val BottomBarReserve = 96.dp
 
 // ============================================================
 //  PREVIEW
+//  Превью рисуют [AssistantScreenContent] — чистую функцию состояния.
+//  Поэтому они не падают и показывают каждую фазу разговора целиком.
 // ============================================================
 
-@Preview(showBackground = true, backgroundColor = 0xFF0A0B11)
+private val PreviewModifier = Modifier.fillMaxSize()
+
+/** Демо-состояние: покой, ответа ещё нет. */
+private val IdlePreviewState = AssistantUiState(
+    voiceState = VoiceState.Idle,
+    conversationCount = 0,
+)
+
+/** Демо-состояние: слушание с живым транскриптом. */
+private val ListeningPreviewState = AssistantUiState(
+    voiceState = VoiceState.Listening,
+    userTranscript = "включи фонарик и поставь таймер на пять минут",
+    audioLevel = 0.62f,
+    conversationCount = 4,
+)
+
+/** Демо-состояние: модель думает и запускает инструменты. */
+private val ThinkingPreviewState = AssistantUiState(
+    voiceState = VoiceState.Thinking,
+    userTranscript = "выключи вайфай и убавь яркость до тридцати",
+    conversationCount = 4,
+    activeTools = listOf(
+        ToolActivity("set_wifi", "выключаю Wi-Fi"),
+        ToolActivity("set_brightness", "ставлю яркость 30%"),
+        ToolActivity("set_bluetooth", "выключаю Bluetooth"),
+        ToolActivity("set_volume", "ставлю громкость 40%"),
+    ),
+)
+
+/** Демо-состояние: ответ получен, действия выполнены. */
+private val ReplyPreviewState = AssistantUiState(
+    voiceState = VoiceState.Idle,
+    userTranscript = "выключи вайфай и убавь яркость до тридцати",
+    amaliaReply = "готово, и то и другое. если станет темно — просто скажи.",
+    replyProgress = 1f,
+    conversationCount = 5,
+    contextCompressed = true,
+    contextMessageCount = 6,
+    lastToolReports = listOf(
+        ToolReport("set_wifi", true, "Wi-Fi выключен"),
+        ToolReport("set_brightness", true, "яркость установлена"),
+    ),
+)
+
+/** Демо-состояние: ошибка с предложением открыть настройки. */
+private val ErrorPreviewState = AssistantUiState(
+    voiceState = VoiceState.Error,
+    errorMessage = "Без доступа к микрофону я не слышу. Разреши доступ в настройках приложения.",
+    micPermissionDenied = true,
+    conversationCount = 2,
+)
+
+/** Экран в покое: приветствие, подсказки, орб. */
+@Preview(name = "Assistant · Idle", widthDp = 412, heightDp = 915, showBackground = true)
 @Composable
-private fun AssistantScreenPreview() {
+private fun AssistantIdlePreview() {
     AmaliaTheme {
-        AssistantScreen()
+        PreviewShell(IdlePreviewState)
     }
+}
+
+/** Слушание: живые субтитры и активный орб. */
+@Preview(name = "Assistant · Listening", widthDp = 412, heightDp = 915, showBackground = true)
+@Composable
+private fun AssistantListeningPreview() {
+    AmaliaTheme {
+        PreviewShell(ListeningPreviewState)
+    }
+}
+
+/** Размышление: список работающих инструментов. */
+@Preview(name = "Assistant · Thinking", widthDp = 412, heightDp = 915, showBackground = true)
+@Composable
+private fun AssistantThinkingPreview() {
+    AmaliaTheme {
+        PreviewShell(ThinkingPreviewState)
+    }
+}
+
+/** Ответ: текст, сводка действий и кнопки. */
+@Preview(name = "Assistant · Reply", widthDp = 412, heightDp = 915, showBackground = true)
+@Composable
+private fun AssistantReplyPreview() {
+    AmaliaTheme {
+        PreviewShell(ReplyPreviewState)
+    }
+}
+
+/** Ошибка: объяснение и два действия. */
+@Preview(name = "Assistant · Error", widthDp = 412, heightDp = 915, showBackground = true)
+@Composable
+private fun AssistantErrorPreview() {
+    AmaliaTheme {
+        PreviewShell(ErrorPreviewState)
+    }
+}
+
+/** Тёплый вечерний свет — проверка, что стекло и акценты следуют за CCT. */
+@Preview(name = "Assistant · Night", widthDp = 412, heightDp = 915, showBackground = true)
+@Composable
+private fun AssistantNightPreview() {
+    AmaliaTheme(useBioTime = true, userHourOverride = 22.5f) {
+        // Включаем биовремя и в визуальном контексте: тогда на экране виден
+        // чип «какой сейчас свет» — тот самый, что объясняет смену палитры.
+        CompositionLocalProvider(
+            LocalAmaliaVisuals provides AmaliaVisuals(useBioTime = true),
+        ) {
+            PreviewShell(ReplyPreviewState)
+        }
+    }
+}
+
+/** Компактный экран (640dp высоты) — проверка, что орб не выдавливает карточку. */
+@Preview(name = "Assistant · Compact", widthDp = 360, heightDp = 640, showBackground = true)
+@Composable
+private fun AssistantCompactPreview() {
+    AmaliaTheme {
+        PreviewShell(ThinkingPreviewState)
+    }
+}
+
+/** Общая обёртка превью: экран без ViewModel и без сети. */
+@Composable
+private fun PreviewShell(state: AssistantUiState) {
+    AssistantScreenContent(
+        state = state,
+        onMicClick = {},
+        onMicPress = {},
+        onPickSuggestion = {},
+        onRepeat = {},
+        onDismissError = {},
+        onNewSession = {},
+        onCopy = {},
+        onOpenAppSettings = {},
+        onNavigateToHistory = {},
+        onNavigateToSettings = {},
+        modifier = PreviewModifier,
+    )
 }

@@ -136,11 +136,13 @@ fun ConversationDetailScreen(
 
     val fallbackTitle = stringResource(R.string.history_title)
     val screenTitle = conversation?.title?.takeIf { it.isNotBlank() } ?: fallbackTitle
-    val messagesWord = stringResource(R.string.history_messages)
+    // Число внутри строки: порядок слов и падежи — забота перевода,
+    // а не склейки в коде.
+    val messagesLabel = stringResource(R.string.history_messages, messages.size)
 
     AmaliaScreen(
         title = screenTitle,
-        subtitle = if (messages.isNotEmpty()) "${messages.size} $messagesWord" else null,
+        subtitle = messagesLabel.takeIf { messages.isNotEmpty() },
         onBack = onBack,
         backLabel = stringResource(R.string.common_back),
         actions = {

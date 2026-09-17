@@ -40,6 +40,10 @@
     <string name="assistant_error">خطأ</string>
     <string name="assistant_welcome_hint">اضغط وتحدث</string>
     <string name="assistant_welcome_desc">أنا أماليا، مساعدتك الصوتية. اضغط الزر باستمرار لبدء الحديث.</string>
+    <string name="assistant_welcome_chips">جرّب أن تقول</string>
+    <string name="assistant_new_session">محادثة جديدة</string>
+    <string name="assistant_conversations_count">المحادثات: %1$d</string>
+    <string name="assistant_ready">جاهزة</string>
     <string name="assistant_repeat">إعادة</string>
     <string name="assistant_copy">نسخ</string>
     <string name="assistant_share">مشاركة</string>
@@ -97,6 +101,7 @@
 
     <string name="voice_tts_engine">محرك النطق</string>
     <string name="voice_tts_engine_mock">محرك تجريبي</string>
+    <string name="voice_tts_fallback_note">إذا لم يستجب السحاب، يتحدث صوت النظام</string>
     <string name="voice_speech_rate">سرعة الكلام</string>
     <string name="voice_speech_pitch">نبرة الصوت</string>
     <string name="voice_voice_id">الصوت</string>
@@ -157,6 +162,13 @@
     <string name="permission_permanently_denied">رُفض الإذن. فعّله من إعدادات النظام.</string>
 
     <string name="history_title">السجل</string>
+    <string name="history_search">البحث في المحادثات</string>
+    <string name="history_no_results_desc">جرّب كلمة أخرى أو امسح البحث</string>
+    <string name="history_no_results">لم يتم العثور على شيء</string>
+    <string name="history_messages">الرسائل: %1$d</string>
+    <string name="history_delete_confirm">حذف المحادثة؟</string>
+    <string name="assistant_connecting">انتظر قليلًا، جارٍ الاتصال…</string>
+    <string name="appearance_glass_always_dark">نمط Liquid Glass داكن دائمًا: هكذا يعمل الزجاج وتوهجه بشكل صحيح.</string>
     <string name="history_empty">لا محادثات بعد</string>
     <string name="history_empty_desc">تحدث مع أماليا وستظهر محادثاتك هنا.</string>
     <string name="history_today">اليوم</string>

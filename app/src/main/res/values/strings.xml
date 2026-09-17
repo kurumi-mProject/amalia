@@ -45,6 +45,10 @@
     <string name="assistant_error">ошибка</string>
     <string name="assistant_welcome_hint">Нажми и говори</string>
     <string name="assistant_welcome_desc">Я Амалия — голосовой ассистент. Держи кнопку, чтобы начать разговор.</string>
+    <string name="assistant_welcome_chips">Попробуй сказать</string>
+    <string name="assistant_new_session">Новый разговор</string>
+    <string name="assistant_conversations_count">разговоров: %1$d</string>
+    <string name="assistant_ready">Готова</string>
     <string name="assistant_repeat">повторить</string>
     <string name="assistant_copy">копировать</string>
     <string name="assistant_share">поделиться</string>
@@ -109,6 +113,7 @@
     <!-- === Голос === -->
     <string name="voice_tts_engine">Движок синтеза речи</string>
     <string name="voice_tts_engine_mock">Демо (заглушка)</string>
+    <string name="voice_tts_fallback_note">Если облако не ответит, ответ озвучит системный голос</string>
     <string name="voice_speech_rate">Скорость речи</string>
     <string name="voice_speech_pitch">Тон голоса</string>
     <string name="voice_voice_id">Голос</string>
@@ -180,7 +185,7 @@
     <string name="history_this_week">На этой неделе</string>
     <string name="history_older">Ранее</string>
     <string name="history_search">Поиск по разговорам</string>
-    <string name="history_messages">сообщений</string>
+    <string name="history_messages">сообщений: %1$d</string>
     <string name="history_no_results">Ничего не найдено</string>
     <string name="history_no_results_desc">Попробуй другой запрос или очисти поиск</string>
     <string name="history_delete_confirm">Удалить разговор?</string>

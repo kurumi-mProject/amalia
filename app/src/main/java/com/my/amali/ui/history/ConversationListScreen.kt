@@ -113,7 +113,9 @@ fun ConversationListScreen(
     AmaliaScreen(
         title = stringResource(R.string.history_title),
         subtitle = if (conversations.isNotEmpty()) {
-            "${conversations.size} ${pluralizeConversations(conversations.size)}"
+            // Тот же счётчик, что и на главном экране: одна строка на всё
+            // приложение вместо русской формы слова в девяти локалях.
+            stringResource(R.string.assistant_conversations_count, conversations.size)
         } else {
             null
         },
@@ -455,7 +457,13 @@ private fun HistoryCard(
             Row(verticalAlignment = Alignment.CenterVertically) {
                 MetaChip(
                     icon = Icons.AutoMirrored.Rounded.Chat,
-                    text = "${conversation.messages.size} ${stringResource(R.string.history_messages)}",
+                    // Число внутри строки, а не рядом: в языках с другим
+                    // порядком слов «12 сообщений» и «сообщений 12» — разные
+                    // строки, и склейка через пробел всегда где-то врёт.
+                    text = stringResource(
+                        R.string.history_messages,
+                        conversation.messages.size,
+                    ),
                 )
                 if (actions > 0) {
                     Spacer(Modifier.width(Spacing.xs))
@@ -554,10 +562,7 @@ private fun highlight(text: String, query: String) = buildAnnotatedString {
     }
 }
 
-/** Русская форма слова «разговор». */
-private fun pluralizeConversations(n: Int): String = when {
-    n % 100 in 11..14 -> "разговоров"
-    n % 10 == 1 -> "разговор"
-    n % 10 in 2..4 -> "разговора"
-    else -> "разговоров"
-}
+/**
+ * Форматирование даты/времени и вспомогательные утилиты списка истории
+ * живут в [HistoryFormat] — здесь их нет, чтобы файл не разрастался.
+ */

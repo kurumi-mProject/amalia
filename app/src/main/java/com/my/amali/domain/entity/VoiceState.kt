@@ -7,8 +7,16 @@ import androidx.compose.ui.graphics.Color
  *
  * The state machine flows: Idle -> Listening -> Thinking -> Speaking -> Idle.
  * The Error state can occur from any state and returns to Idle after being shown.
+ *
+ * @property label подпись для логов и отладки. UI её не использует: строки
+ *   интерфейса живут в ресурсах (`R.string.assistant_listening` и т. д.),
+ *   иначе в девяти локалях приложения состояние читалось бы по-русски.
  */
-enum class VoiceState(val label: String, val color: Color) {
+enum class VoiceState(
+    @Deprecated("UI берёт подпись из строковых ресурсов, а не из enum")
+    val label: String,
+    val color: Color,
+) {
     /** Assistant is waiting for user interaction. */
     Idle("Готова", Color(0xFF8E9AAF)),
 

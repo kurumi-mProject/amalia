@@ -19,6 +19,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
@@ -26,6 +27,7 @@ import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.my.amali.R
+import com.my.amali.core.di.ServiceLocator
 import com.my.amali.ui.components.AmaliaBadge
 import com.my.amali.ui.components.AmaliaScreen
 import com.my.amali.ui.components.GlassCard
@@ -107,33 +109,67 @@ fun VoiceSettings(
 
             SectionTitle(stringResource(R.string.voice_tts_engine))
 
-            GlassCard(cornerRadius = Radius.md) {
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Icon(
-                        imageVector = Icons.Rounded.GraphicEq,
-                        contentDescription = null,
-                        tint = MaterialTheme.colorScheme.primary,
-                        modifier = Modifier.width(22.dp),
-                    )
-                    Spacer(Modifier.width(Spacing.sm))
-                    Column(Modifier.fillMaxWidth(0.7f)) {
-                        Text(
-                            text = stringResource(R.string.voice_tts_engine),
-                            style = MaterialTheme.typography.bodyLarge,
-                            color = MaterialTheme.colorScheme.onSurface,
-                        )
-                        Text(
-                            text = stringResource(R.string.voice_tts_engine_mock),
-                            style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        )
-                    }
-                    Spacer(Modifier.weight(1f))
-                    AmaliaBadge(text = "DEMO")
-                }
-            }
+            TtsEngineCard()
 
             Spacer(Modifier.height(96.dp))
+        }
+    }
+}
+
+/**
+ * Карточка «чем говорит Амалия».
+ *
+ * ## Почему она перестала быть статичной
+ *
+ * Раньше здесь были захардкожены `voice_tts_engine_mock` и бейдж «DEMO» —
+ * независимо от того, что реально работает. При зашитых ключах Deepgram,
+ * Groq и Fish Audio пользователь всё равно видел «Демо (заглушка)»: экран
+ * врал о состоянии системы, и по нему невозможно было понять, почему голос
+ * звучит не так, как ожидалось.
+ *
+ * Теперь карточка читает [ServiceLocator.hasLiveKeys] — то же условие, по
+ * которому собирается конвейер, — и честно показывает:
+ *  — какой движок синтеза подключён (LIVE) и что у него есть страховка;
+ *  — либо что работает демо-заглушка (DEMO).
+ */
+@Composable
+private fun TtsEngineCard(modifier: Modifier = Modifier) {
+    // Читаем флаг в remember: BuildConfig не меняется в течение жизни процесса.
+    val live = remember { runCatching { ServiceLocator.hasLiveKeys }.getOrDefault(false) }
+
+    GlassCard(modifier = modifier, cornerRadius = Radius.md) {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Icon(
+                imageVector = Icons.Rounded.GraphicEq,
+                contentDescription = null,
+                tint = MaterialTheme.colorScheme.primary,
+                modifier = Modifier.width(22.dp),
+            )
+            Spacer(Modifier.width(Spacing.sm))
+            Column(Modifier.weight(1f)) {
+                Text(
+                    text = if (live) {
+                        // Название продукта — не переводится: это бренд движка.
+                        "Fish Audio s2.1-pro"
+                    } else {
+                        stringResource(R.string.voice_tts_engine_mock)
+                    },
+                    style = MaterialTheme.typography.bodyLarge,
+                    color = MaterialTheme.colorScheme.onSurface,
+                )
+                Spacer(Modifier.height(2.dp))
+                Text(
+                    text = if (live) {
+                        stringResource(R.string.voice_tts_fallback_note)
+                    } else {
+                        stringResource(R.string.ai_engine_not_connected)
+                    },
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
+            Spacer(Modifier.width(Spacing.sm))
+            AmaliaBadge(text = if (live) "LIVE" else "DEMO")
         }
     }
 }

@@ -40,6 +40,10 @@
     <string name="assistant_error">error</string>
     <string name="assistant_welcome_hint">Pulsa y habla</string>
     <string name="assistant_welcome_desc">Soy Amalia, tu asistente de voz. Mantén pulsado el botón para hablar.</string>
+    <string name="assistant_welcome_chips">Prueba a decir</string>
+    <string name="assistant_new_session">Nueva conversación</string>
+    <string name="assistant_conversations_count">conversaciones: %1$d</string>
+    <string name="assistant_ready">Lista</string>
     <string name="assistant_repeat">repetir</string>
     <string name="assistant_copy">copiar</string>
     <string name="assistant_share">compartir</string>
@@ -97,6 +101,7 @@
 
     <string name="voice_tts_engine">Motor de voz</string>
     <string name="voice_tts_engine_mock">Motor de prueba</string>
+    <string name="voice_tts_fallback_note">Si la nube no responde, habla la voz del sistema</string>
     <string name="voice_speech_rate">Velocidad del habla</string>
     <string name="voice_speech_pitch">Tono de voz</string>
     <string name="voice_voice_id">Voz</string>
@@ -157,6 +162,13 @@
     <string name="permission_permanently_denied">Permiso denegado. Actívalo en los ajustes del sistema.</string>
 
     <string name="history_title">Historial</string>
+    <string name="history_search">Buscar en conversaciones</string>
+    <string name="history_no_results_desc">Prueba otra búsqueda o bórrala</string>
+    <string name="history_no_results">No se encontró nada</string>
+    <string name="history_messages">mensajes: %1$d</string>
+    <string name="history_delete_confirm">¿Eliminar la conversación?</string>
+    <string name="assistant_connecting">espera, conectando…</string>
+    <string name="appearance_glass_always_dark">Liquid Glass siempre es oscuro: así funcionan bien el cristal y su brillo.</string>
     <string name="history_empty">Aún no hay conversaciones</string>
     <string name="history_empty_desc">Habla con Amalia y tus conversaciones aparecerán aquí.</string>
     <string name="history_today">Hoy</string>

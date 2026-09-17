@@ -74,6 +74,18 @@ class AIOrchestrator(
     var lastExecutedTools: List<String> = emptyList()
         private set
 
+    /**
+     * Текст последней ошибки синтеза речи (null — озвучка прошла штатно).
+     *
+     * Существует отдельно от [lastError] осознанно: [lastError] означает
+     * «цикл провалился», а здесь — «ответ получен, но произнести его
+     * не удалось». Смешивать эти состояния нельзя: пользователь обязан
+     * увидеть текст ответа даже при полностью нерабочем синтезе.
+     */
+    @Volatile
+    var lastVoiceError: String? = null
+        private set
+
     /** Инициализирует все движки. Идемпотентно. */
     suspend fun initialize() {
         sttEngine.initialize()
@@ -218,17 +230,23 @@ class AIOrchestrator(
         }
 
         // ── Фаза 2: TTS синтезирует и стримит аудио ──────────────────────
+        //
+        // Озвучка — НЕ условие ответа. Раньше любое исключение синтеза
+        // поднималось наверх и превращало успешный цикл в экран ошибки:
+        // модель ответила, текст был готов, но пользователь видел «ошибка»
+        // и терял ответ целиком. Теперь сбой голоса только фиксируется —
+        // текст остаётся, разговор продолжается.
         emit(AiResponse.Speaking(true))
         try {
             ttsEngine.speak(responseText.trim(), options).collect { chunk ->
                 emit(AiResponse.Audio(chunk))
             }
+            lastVoiceError = null
         } catch (e: CancellationException) {
             emit(AiResponse.Speaking(false))
             throw e
         } catch (e: Throwable) {
-            emit(AiResponse.Speaking(false))
-            throw e
+            lastVoiceError = e.message ?: ERROR_VOICE
         }
         emit(AiResponse.Speaking(false))
         lastError = null
@@ -477,6 +495,9 @@ class AIOrchestrator(
         const val ERROR_NO_SPEECH = "Не услышала ни слова. Нажми микрофон и скажи ещё раз."
         const val ERROR_EMPTY_COMMAND = "Пустая команда — нечего обрабатывать."
         const val ERROR_UNKNOWN = "Что-то пошло не так. Попробуй ещё раз."
+
+        /** Ошибка синтеза речи: ответ показываем, но озвучить не смогли. */
+        const val ERROR_VOICE = "Ответ получен, но озвучить его не удалось."
 
         /**
          * Жёсткий потолок обращений к LLM за один цикл.
