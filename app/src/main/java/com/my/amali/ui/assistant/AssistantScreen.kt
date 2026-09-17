@@ -40,9 +40,6 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.width
-import androidx.compose.foundation.layout.widthIn
-import androidx.compose.foundation.lazy.LazyRow
-import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -93,7 +90,6 @@ import com.my.amali.ui.components.GlassCard
 import com.my.amali.ui.components.GlassIconButton
 import com.my.amali.ui.components.GradientBackground
 import com.my.amali.ui.components.MicButton
-import com.my.amali.ui.components.VoiceWave
 import com.my.amali.ui.theme.AmaliaTheme
 import com.my.amali.ui.theme.CircadianEngine
 import com.my.amali.ui.theme.LocalAmaliaVisuals
@@ -216,18 +212,13 @@ fun AssistantScreen(
 
             Spacer(Modifier.weight(if (compact) 0.28f else 0.5f))
 
-            // === ГЛАВНЫЙ ФОКУС: волна + состояние ===
-            VoiceWave(
-                state = state.voiceState,
-                audioLevel = state.audioLevel,
-                waveHeight = if (compact) 108.dp else 142.dp,
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(horizontal = Spacing.xl),
-            )
-
-            Spacer(Modifier.height(Spacing.xs))
-
+            // === СОСТОЯНИЕ ===
+            //
+            // Волновая визуализация убрана по решению владельца: она занимала
+            // 108–142 dp по высоте и постоянно двигалась, перетягивая внимание
+            // с микрофона — главного действия экрана. Состояние («слушаю»,
+            // «думаю», «говорю») теперь читается только словом и самим
+            // микрофоном, который уже реагирует на уровень звука.
             StatusLabel(state = state.voiceState)
 
             Spacer(Modifier.height(if (compact) Spacing.sm else Spacing.md))
@@ -290,20 +281,21 @@ fun AssistantScreen(
                 }
             }
 
-            // === ПОДСКАЗКИ ===
-            AnimatedVisibility(
-                visible = state.suggestions.isNotEmpty() &&
-                    state.voiceState == VoiceState.Idle,
-                enter = fadeIn(tween(240)) + slideInVertically(tween(260)) { it / 4 },
-                exit = fadeOut(tween(140)),
-            ) {
-                SuggestionRow(
-                    suggestions = state.suggestions,
-                    onClick = { vm.startConversation(it) },
-                )
-            }
-
-            Spacer(Modifier.height(Spacing.xs))
+            // === ПОДСКАЗКИ УБРАНЫ ===
+            //
+            // Кнопки-подсказки («Привет», «Который час» и т. п.) удалены по
+            // решению владельца. Причины, по которым они тут были лишними:
+            //
+            //  — они занимали нижнюю треть экрана и отжимали микрофон вверх —
+            //    ровно та проблема, которую мы только что чинили;
+            //  — подсказки дублировали то, что и так написано в пустой
+            //    карточке диалога, то есть пользователь видел один и тот же
+            //    текст дважды;
+            //  — при голосовом сценарии человек всё равно не читает кнопки,
+            //    он сразу говорит.
+            //
+            // Освободившееся место уходит в гибкую область диалога, поэтому
+            // микрофон остаётся внизу, а ответы получают больше высоты.
 
             // === ГЛАВНОЕ ДЕЙСТВИЕ: внизу, под большим пальцем ===
             MicButton(
@@ -1164,50 +1156,6 @@ private fun GlassTextAction(
             style = MaterialTheme.typography.labelMedium,
             color = MaterialTheme.colorScheme.secondary,
         )
-    }
-}
-
-// ============================================================
-//  ПОДСКАЗКИ
-// ============================================================
-
-@Composable
-private fun SuggestionRow(
-    suggestions: List<String>,
-    onClick: (String) -> Unit,
-    modifier: Modifier = Modifier,
-) {
-    LazyRow(
-        modifier = modifier
-            .fillMaxWidth()
-            .heightIn(min = 44.dp),
-        horizontalArrangement = Arrangement.spacedBy(Spacing.xs),
-        contentPadding = PaddingValues(horizontal = Spacing.screen),
-        verticalAlignment = Alignment.CenterVertically,
-    ) {
-        items(suggestions, key = { it }) { suggestion ->
-            Box(
-                modifier = Modifier
-                    .heightIn(min = 44.dp, max = 44.dp)
-                    .widthIn(max = 220.dp)
-                    .glassSurface(shape = RoundedCornerShape(Radius.chip))
-                    .clickable { onClick(suggestion) }
-                    .padding(horizontal = Spacing.md, vertical = Spacing.xs)
-                    .semantics {
-                        role = Role.Button
-                        contentDescription = suggestion
-                    },
-                contentAlignment = Alignment.Center,
-            ) {
-                Text(
-                    text = suggestion,
-                    style = MaterialTheme.typography.labelLarge,
-                    color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.9f),
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis,
-                )
-            }
-        }
     }
 }
 
