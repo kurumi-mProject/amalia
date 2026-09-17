@@ -24,6 +24,7 @@ import com.my.amali.ui.theme.MotifBehavior
 import com.my.amali.ui.theme.behavior
 import com.my.amali.ui.theme.currentPalette
 import com.my.amali.ui.theme.particleColors
+import com.my.amali.ui.theme.previewColors
 import com.my.amali.ui.theme.resolveMotif
 import kotlin.math.PI
 import kotlin.math.cos
