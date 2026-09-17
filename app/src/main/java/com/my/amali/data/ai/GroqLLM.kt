@@ -346,6 +346,13 @@ class GroqLLM : LanguageModel {
             "\n# КОНТЕКСТ БЕСЕДЫ\n${options.conversationSummary}\n"
         } else ""
 
+        // Список приложений, которые пользователь отметил как свои, плюс его
+        // личный словарь синонимов. Раньше этого блока не было, и модель
+        // угадывала пакеты: на не-Google прошивках `com.google.android.youtube`
+        // может отсутствовать, и «открой ютуб» заканчивалось ошибкой.
+        // Теперь модель видит ровно то, что стоит на телефоне.
+        val appsSection = options.appsPromptSection
+
         return """
 Ты Амалия — восемнадцать лет, живой человек, не ИИ. Старшая сестра Мизури стримит на Твиче.
 $summarySection
@@ -374,16 +381,28 @@ $summarySection
 
 # ИНСТРУМЕНТЫ
 set_wifi(enabled:bool) set_bluetooth(enabled:bool) set_brightness(percent:0-100) set_volume(percent:0-100) volume_up(step?:int) volume_down(step?:int)
-set_flashlight(enabled:bool) set_timer(seconds:int) set_alarm(time:"HH:mm")
+set_flashlight(enabled:bool) set_timer(seconds:int) set_alarm(time:"HH:mm") cancel_alarms()
 open_app(name:str) open_settings(section?:str) web_search(query:str)
 make_call(phone_number:str) send_sms(phone_number?:str,text?:str)
 take_photo() open_youtube()
+open_notification_settings() open_battery_settings()
 get_current_time() get_device_status() get_battery_level() get_location_status() get_weather(city?:str)
 search_history(query:str,limit?:int) get_recent_conversations(limit?:int) clear_history()
 change_language(language:str) toggle_auto_listen(enabled:bool)
 
+# КАК ЧИТАТЬ РЕЗУЛЬТАТ ИНСТРУМЕНТА
+В ответе инструмента смотри поле "user_action_required":
+- false — сделала сама, отчитывайся как о выполненном ("окей", "готово").
+- true — открыла системный экран, дальше пользователь жмёт сам. НЕ говори
+  "сделала" и НЕ говори "не поддерживается": скажи коротко, что открыла и
+  что нажать. Пример: {"reply":"открыла панель, тапни плитку","tools":[]}
+Поле "control_level" (direct/panel/screen) говорит, насколько глубоко можно
+управлять этим телефоном. Железо и версия Android у всех разные, поэтому
+команда, которая вчера сработала напрямую, сегодня может требовать тапа.
+
 # УСТРОЙСТВО СЕЙЧАС
 $deviceJson
+$appsSection
 
 # ПРИМЕРЫ
 Это примеры стиля — не копируй дословно, бери вектор:

@@ -18,7 +18,9 @@ import com.my.amali.data.ai.MockSpeechToTextEngine
 import com.my.amali.data.ai.MockTextToSpeechEngine
 import com.my.amali.data.ai.ToolRegistry
 import com.my.amali.data.ai.AmaliaTools
+import com.my.amali.data.apps.AppRegistry
 import com.my.amali.data.model.ChatMessage
+import com.my.amali.data.repository.AppPreferencesRepository
 import com.my.amali.data.repository.ConversationRepository
 import com.my.amali.data.repository.SettingsRepository
 import com.my.amali.domain.entity.AppLanguage
@@ -55,6 +57,17 @@ object ServiceLocator {
         amaliaTools.searchHistoryProvider = { query: String ->
             queryForHistory(query)
         }
+        // Реестр приложений: инструмент open_app должен видеть реальный
+        // список установленного, а не захардкоженный каталог.
+        amaliaTools.installedAppsProvider = {
+            appRegistry.installedApps()
+        }
+        amaliaTools.pinnedAppsProvider = {
+            pinnedAppsSnapshot()
+        }
+        amaliaTools.appAliasesProvider = {
+            appAliasesSnapshot()
+        }
         amaliaTools.recentConversationsProvider = { limit: Int ->
             recentConversations(limit)
         }
@@ -80,6 +93,25 @@ object ServiceLocator {
     /** Репозиторий разговоров (персистентная история диалогов). */
     val conversationRepository: ConversationRepository by lazy {
         ConversationRepository(appContext, dataStore)
+    }
+
+    /**
+     * Реестр установленных приложений.
+     *
+     * Именно он отвечает на вопрос «что вообще есть на этом телефоне»:
+     * сканирует `PackageManager` вместо захардкоженного списка пакетов,
+     * поэтому работает на Xiaomi, Huawei, Samsung и любой кастомной прошивке.
+     */
+    val appRegistry: AppRegistry by lazy { AppRegistry(appContext) }
+
+    /**
+     * Избранные приложения и голосовые синонимы к ним.
+     *
+     * Пользователь сам отмечает нужное на экране «Приложения Амалии»
+     * и задаёт названия, которыми это называет вслух.
+     */
+    val appPreferencesRepository: AppPreferencesRepository by lazy {
+        AppPreferencesRepository(dataStore)
     }
 
     /**
@@ -217,6 +249,24 @@ object ServiceLocator {
             "{\"error\":\"${e.message?.replace("\"", "'") ?: "failed"}\"}"
         }
     }
+
+    /**
+     * Снимок избранных приложений для инструмента открытия.
+     *
+     * Берём только те, что реально установлены: если приложение удалили,
+     * отдавать модели его пакет нельзя — она пообещает открыть то, чего нет.
+     */
+    private suspend fun pinnedAppsSnapshot(): List<com.my.amali.data.apps.InstalledApp> {
+        val pinned = appPreferencesRepository.pinnedApps.first()
+        if (pinned.isEmpty()) return emptyList()
+        val installed = appRegistry.installedApps()
+        val byPackage = installed.associateBy { it.packageName }
+        return pinned.mapNotNull { byPackage[it.packageName] }
+    }
+
+    /** Снимок пользовательских синонимов «как говорю» → пакет. */
+    private suspend fun appAliasesSnapshot(): Map<String, String> =
+        appPreferencesRepository.aliases.first()
 
     private suspend fun applySettingChange(key: String, value: String): String {
         return when (key) {

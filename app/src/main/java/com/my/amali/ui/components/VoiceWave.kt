@@ -28,6 +28,7 @@ import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.lerp
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import com.my.amali.domain.entity.VoiceState
 import kotlin.math.PI
@@ -58,12 +59,17 @@ import kotlin.math.sin
  *
  * @param state текущее состояние ассистента.
  * @param audioLevel нормализованный уровень входного/выходного звука 0..1.
+ * @param waveHeight высота полотна волны. Экран передаёт уменьшенное значение
+ *   на низких дисплеях (см. `compactHeight` в [AssistantScreen]): без этого
+ *   на 640dp-высоте карточка диалога схлопывалась в ноль и кнопка микрофона
+ *   уезжала под нижнюю навигацию.
  */
 @Composable
 fun VoiceWave(
     state: VoiceState,
     audioLevel: Float,
     modifier: Modifier = Modifier,
+    waveHeight: Dp = 148.dp,
 ) {
     // Медленная фаза «дыхания»: 10 с = 6 циклов в минуту.
     val slow = rememberInfiniteTransition(label = "waveSlow")
@@ -137,7 +143,7 @@ fun VoiceWave(
     Canvas(
         modifier = modifier
             .fillMaxWidth()
-            .height(148.dp)
+            .height(waveHeight)
             .semantics { contentDescription = description },
     ) {
         val w = size.width

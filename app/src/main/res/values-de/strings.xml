@@ -227,4 +227,52 @@
     <string name="time_hours_ago">vor %1$d Std</string>
     <string name="time_days_ago">vor %1$d T</string>
     <string name="history_resume">In neuem Chat fortsetzen</string>
+
+    <!-- Device control: access levels -->
+    <string name="device_access_direct">Direct control</string>
+    <string name="device_access_panel">Opens the panel — one tap</string>
+    <string name="device_access_screen">Opens system settings</string>
+    <string name="device_flashlight">Flashlight</string>
+    <string name="device_notifications">Notifications</string>
+    <string name="device_volume_note">Device scale: %1$d steps. The app always works in percentages so the value means the same on any phone.</string>
+    <string name="device_battery">Battery</string>
+    <string name="device_battery_level">%1$d%% · %2$s</string>
+    <string name="device_battery_charging">charging</string>
+    <string name="device_battery_discharging">on battery</string>
+    <string name="device_battery_rationale">When the system saves power it can throttle background listening, and Amalia stops hearing without a command. Exempting the app fixes that.</string>
+    <string name="device_battery_exempt">Exempt from battery optimization</string>
+
+    <!-- Appearance: circadian light -->
+    <string name="appearance_light_title">Interface light</string>
+    <string name="appearance_light_now">Now: %1$s · %2$d K</string>
+    <string name="appearance_light_desc">Colour temperature adapts continuously, with no jump at the hour boundary. By day the light is cooler and aids alertness; in the evening it shifts to warm 2000–2700 K so it does not suppress melatonin.</string>
+    <string name="appearance_melatonin">Melatonin suppression impact</string>
+    <string name="appearance_melatonin_value">%1$d%%</string>
+    <string name="appearance_melatonin_hint">How hard the current light pulls on your circadian system. Useful in the day, disruptive in the evening — which is why the adaptation lowers temperature in advance.</string>
+    <string name="appearance_eye_title">Eye comfort</string>
+    <string name="appearance_eye_contrast">Text contrast: %1$.1f:1</string>
+    <string name="appearance_eye_desc">Dark mode targets 7:1 for body text instead of 4.5:1, which compensates for halation — light letters on dark bloom because of lateral inhibition in the retina. The background is never pure black and the text is never pure white.</string>
+    <string name="appearance_eye_ok">Check passed</string>
+    <string name="appearance_eye_astigmatism">If you have astigmatism (about one in three people), light mode reads better — set “Dark theme” to “Always light”.</string>
+
+    <!-- Amalia's apps -->
+    <string name="settings_apps">Amalia's apps</string>
+    <string name="settings_apps_desc">Pick what she opens by voice and name it your way</string>
+    <string name="apps_scanning">Scanning installed apps…</string>
+    <string name="apps_selected_count">%1$d of %2$d selected</string>
+    <string name="apps_intro_desc">Amalia sees the selected apps in every request — that keeps her list short and accurate. The “+” button on a row sets the name you call it out loud.</string>
+    <string name="apps_search_hint">Find an app</string>
+    <string name="apps_pinned_title">Amalia knows</string>
+    <string name="apps_all_title">All apps</string>
+    <string name="apps_found_title">Found: %1$d</string>
+    <string name="apps_system_hint">system · %1$s</string>
+    <string name="apps_status_no_launcher">Installed, but has no standalone screen — it only opens from inside another app</string>
+    <string name="apps_status_missing">App was uninstalled — remove it, otherwise Amalia will promise to open something that is not there</string>
+    <string name="apps_empty_none">Nothing found. If the list is empty, the system is blocking app visibility.</string>
+    <string name="apps_empty_query">Nothing matched “%1$s”.</string>
+    <string name="apps_empty_hint">Try another name or a package (e.g. miui.gallery). Search understands both local words and Latin.</string>
+    <string name="apps_clear_search">Clear search</string>
+    <string name="apps_alias_title">What to call “%1$s”</string>
+    <string name="apps_alias_desc">Say this word out loud and Amalia opens exactly this app. For example “open tunes”. Your name always beats automatic matching.</string>
+    <string name="apps_alias_existing">Names already set</string>
 </resources>

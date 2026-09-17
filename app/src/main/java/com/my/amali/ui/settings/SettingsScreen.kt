@@ -16,6 +16,7 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.AutoAwesome
+import androidx.compose.material.icons.rounded.Apps
 import androidx.compose.material.icons.rounded.DarkMode
 import androidx.compose.material.icons.rounded.Info
 import androidx.compose.material.icons.rounded.Language
@@ -64,6 +65,7 @@ fun SettingsScreen(
     onOpenLanguage: () -> Unit,
     onOpenVoice: () -> Unit,
     onOpenDevice: () -> Unit,
+    onOpenApps: () -> Unit,
     onOpenPrivacy: () -> Unit,
     onOpenNotifications: () -> Unit,
     onOpenAbout: () -> Unit,
@@ -175,6 +177,13 @@ fun SettingsScreen(
                     title = stringResource(R.string.settings_device),
                     subtitle = stringResource(R.string.settings_device_desc),
                     onClick = onOpenDevice,
+                )
+                GlassDivider()
+                SettingsActionRow(
+                    icon = Icons.Rounded.Apps,
+                    title = stringResource(R.string.settings_apps),
+                    subtitle = stringResource(R.string.settings_apps_desc),
+                    onClick = onOpenApps,
                 )
                 GlassDivider()
                 SettingsActionRow(

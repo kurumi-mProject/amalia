@@ -7,13 +7,20 @@ package com.my.amali.data.model
  * @property wifiEnabled whether Wi-Fi is currently on.
  * @property bluetoothEnabled whether Bluetooth is currently on.
  * @property brightnessLevel display brightness in the [0, 255] range.
- * @property volumeLevel media volume in the [0, 100] range.
+ * @property volumeLevel media volume as a percentage in the [0, 100] range.
+ *   Normalised rather than raw, because the per-device stream maximum varies
+ *   (7, 10, 15, 25, 30): a percentage is the only portable unit.
  * @property batteryLevel battery charge percentage [0, 100].
  * @property isCharging whether the device is charging.
  * @property currentTime current time as "HH:mm" string.
  * @property locationEnabled whether location services are on.
  * @property hasContactsPermission whether READ_CONTACTS was granted.
- * @property hasNotificationPermission whether POST_NOTIFICATIONS was granted.
+ * @property hasNotificationPermission whether notifications are enabled
+ *   (runtime grant *and* system toggle on API 33+).
+ * @property internetAvailable whether a validated network is up right now.
+ * @property flashlightOn whether the torch is believed to be on.
+ * @property wifiAccess how deeply Wi-Fi can be controlled on this device.
+ * @property bluetoothAccess how deeply Bluetooth can be controlled.
  */
 data class DeviceStatus(
     val wifiEnabled: Boolean = false,
@@ -25,7 +32,11 @@ data class DeviceStatus(
     val currentTime: String = "",
     val locationEnabled: Boolean = false,
     val hasContactsPermission: Boolean = false,
-    val hasNotificationPermission: Boolean = false
+    val hasNotificationPermission: Boolean = false,
+    val internetAvailable: Boolean = false,
+    val flashlightOn: Boolean = false,
+    val wifiAccess: ControlAccessLevel = ControlAccessLevel.SCREEN,
+    val bluetoothAccess: ControlAccessLevel = ControlAccessLevel.SCREEN,
 ) {
     /** Normalized brightness in the [0.0, 1.0] range for UI sliders. */
     val brightnessFraction: Float
@@ -52,6 +63,14 @@ data class DeviceStatus(
         DeviceFeature.LOCATION -> locationEnabled
         DeviceFeature.CONTACTS -> hasContactsPermission
         DeviceFeature.NOTIFICATIONS -> hasNotificationPermission
+        DeviceFeature.FLASHLIGHT -> flashlightOn
+    }
+
+    /** Deepest control level available for [feature], for honest UI labels. */
+    fun accessFor(feature: DeviceFeature): ControlAccessLevel = when (feature) {
+        DeviceFeature.WIFI -> wifiAccess
+        DeviceFeature.BLUETOOTH -> bluetoothAccess
+        else -> ControlAccessLevel.DIRECT
     }
 
     companion object {
@@ -66,9 +85,29 @@ data class DeviceStatus(
             currentTime = "",
             locationEnabled = false,
             hasContactsPermission = false,
-            hasNotificationPermission = false
+            hasNotificationPermission = false,
+            internetAvailable = false,
+            flashlightOn = false,
         )
     }
+}
+
+/**
+ * How deeply the app can control a system feature on this device.
+ *
+ * Exists so the UI can be honest instead of showing a dead toggle: a control
+ * that can only open a system panel must look and read differently from one
+ * that actually flips a setting in place.
+ */
+enum class ControlAccessLevel {
+    /** Direct API control — the switch works right here. */
+    DIRECT,
+
+    /** Opens the quick-settings panel; the user taps once. */
+    PANEL,
+
+    /** Opens a full settings screen; the user does everything. */
+    SCREEN,
 }
 
 /**
@@ -79,6 +118,7 @@ enum class DeviceFeature {
     BLUETOOTH,
     BRIGHTNESS,
     VOLUME,
+    FLASHLIGHT,
     LOCATION,
     CONTACTS,
     NOTIFICATIONS

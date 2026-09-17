@@ -47,6 +47,7 @@ import androidx.compose.ui.unit.sp
 import androidx.compose.foundation.clickable
 import com.my.amali.ui.theme.LocalAmaliaVisuals
 import com.my.amali.ui.theme.Radius
+import com.my.amali.ui.theme.LocalLightProfile
 import com.my.amali.ui.theme.Spacing
 import com.my.amali.ui.theme.glassSurface
 import com.my.amali.ui.theme.paletteChip
@@ -77,6 +78,7 @@ fun AmaliaScreen(
     content: @Composable (PaddingValues) -> Unit,
 ) {
     val visuals = LocalAmaliaVisuals.current
+    val light = LocalLightProfile.current
 
     Box(modifier = modifier.fillMaxSize()) {
         GradientBackground(
@@ -84,6 +86,9 @@ fun AmaliaScreen(
             intensity = visuals.glassIntensity,
             motif = visuals.motif,
             motifDensity = visuals.motifDensity,
+            // Ночью фон гасится вместе с главным экраном: иначе переход в
+            // настройки «вспыхивал» бы ярче, чем экран, с которого пришли.
+            luminance = light.displayLuminance,
         )
         Column(Modifier.fillMaxSize()) {
             AmaliaHeader(

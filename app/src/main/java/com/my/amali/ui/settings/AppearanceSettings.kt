@@ -3,6 +3,7 @@ package com.my.amali.ui.settings
 import androidx.compose.animation.core.Spring
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.spring
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -26,6 +27,9 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.Check
+import androidx.compose.material.icons.rounded.CheckCircle
+import androidx.compose.material.icons.rounded.Contrast
+import androidx.compose.material.icons.rounded.WbTwilight
 import androidx.compose.material.icons.rounded.Schedule
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
@@ -60,14 +64,19 @@ import com.my.amali.ui.components.SectionTitle
 import com.my.amali.ui.components.SettingsToggleRow
 import com.my.amali.ui.theme.AmaliaMotif
 import com.my.amali.ui.theme.AmaliaVisualTheme
-import com.my.amali.ui.theme.BioGradientMorning
+import com.my.amali.ui.theme.BioGradientDay
+import com.my.amali.ui.theme.CircadianEngine
 import com.my.amali.ui.theme.DarkModePreference
 import com.my.amali.ui.theme.GlassGradientPalette
 import com.my.amali.ui.theme.GradientPalette
+import com.my.amali.ui.theme.LocalLightProfile
 import com.my.amali.ui.theme.Radius
+import com.my.amali.ui.theme.paletteChip
 import com.my.amali.ui.theme.Spacing
 import com.my.amali.ui.theme.accentGlow
+import com.my.amali.ui.theme.bodyTextContrast
 import com.my.amali.ui.theme.glassSurface
+import com.my.amali.ui.theme.iconAccent
 import com.my.amali.ui.theme.previewColors
 
 /**
@@ -114,7 +123,7 @@ fun AppearanceSettings(
                     modifier = Modifier.weight(1f),
                 )
                 ThemeCard(
-                    palette = BioGradientMorning,
+                    palette = BioGradientDay,
                     label = stringResource(R.string.appearance_theme_bio),
                     accent = MaterialTheme.colorScheme.tertiary,
                     selected = settings.visualTheme == AmaliaVisualTheme.BIOPHILIC,
@@ -151,6 +160,17 @@ fun AppearanceSettings(
                     checked = settings.useBioTime,
                     onCheckedChange = { vm.setUseBioTime(it) },
                 )
+            }
+
+            // ── Свет интерфейса: что именно рассчитал движок ──────────
+            //
+            // Раньше адаптация была невидимой: палитра менялась, а пользователь
+            // не знал ни почему, ни «какой сейчас свет». Здесь показываются
+            // ровно те величины, которые посчитал [CircadianEngine], — значит
+            // индикация физически не может разойтись с фактическим фоном.
+            if (settings.useBioTime) {
+                SectionTitle(stringResource(R.string.appearance_light_title))
+                CircadianLightCard()
             }
 
             SectionTitle(stringResource(R.string.appearance_motif))
@@ -448,6 +468,208 @@ private fun SegmentedDarkMode(
                     textAlign = TextAlign.Center,
                 )
             }
+        }
+    }
+}
+
+/**
+ * ════════════════════════════════════════════════════════════════════════
+ *  КАРТОЧКА «СВЕТ ИНТЕРФЕЙСА»
+ * ════════════════════════════════════════════════════════════════════════
+ *
+ * Показывает пользователю то, что раньше происходило «под капотом» молча.
+ * Это не декоративная сводка: все три величины приходят из одного
+ * [LocalLightProfile], то есть из того же расчёта, что управляет фоном,
+ * акцентами и тенями. Разойтись они не могут по построению.
+ *
+ * ## Что и зачем показано
+ *
+ * 1. **Цветовая температура в кельвинах** — пользователь видит, какой
+ *    именно свет выбран прямо сейчас. Это снимает главную претензию к
+ *    адаптивным темам: «цвет сам меняется, и непонятно, так задумано или
+ *    это баг».
+ *
+ * 2. **Вклад в подавление мелатонина** — доля от меланопического максимума
+ *    (по mel-DER). Вечером полоса короткая и подписана «сон под защитой»:
+ *    именно ради этого весь механизм и существует. Цифра честная: она
+ *    считается из той же CCT, что задаёт фон.
+ *
+ * 3. **Контраст текста** — фактическое отношение контраста основного текста
+ *    к поверхности, посчитанное той же функцией WCAG, которой пользуется
+ *    тема. Если оно ниже целевого (7:1 для тела текста — компенсация
+ *    halation), карточка честно скажет об этом, а не промолчит.
+ *
+ * Отдельная строка про астигматизм — не «сноска для галочки»: примерно у
+ * трети людей светлые буквы на тёмном читаются хуже даже при формально
+ * проходящем контрасте, и им нужна именно светлая тема. Об этом дешевле
+ * сказать в интерфейсе, чем оставить человека думать, что приложение
+ * «неудобное».
+ */
+@Composable
+private fun CircadianLightCard() {
+    val light = LocalLightProfile.current
+    val contrast = bodyTextContrast()
+
+    // Доля подавления мелатонина: mel-DER нормирован к D65 (1.0), поэтому
+    // 0.62 при 3500 K честно читается как «62% от дневного вклада».
+    val melatoninPercent = (light.melanopicDer * 100).toInt().coerceIn(0, 100)
+    val protected = light.circadianStimulus < 0f
+
+    GlassCard(cornerRadius = Radius.md) {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Box(
+                modifier = Modifier
+                    .size(38.dp)
+                    .paletteChip(shape = CircleShape, strength = 1f),
+                contentAlignment = Alignment.Center,
+            ) {
+                Icon(
+                    imageVector = Icons.Rounded.WbTwilight,
+                    contentDescription = null,
+                    tint = iconAccent(),
+                    modifier = Modifier.size(19.dp),
+                )
+            }
+            Spacer(Modifier.width(Spacing.sm))
+            Column(Modifier.weight(1f)) {
+                Text(
+                    text = stringResource(
+                        R.string.appearance_light_now,
+                        light.lightLabel,
+                        light.cct,
+                    ),
+                    style = MaterialTheme.typography.titleMedium,
+                    color = MaterialTheme.colorScheme.onSurface,
+                )
+                Spacer(Modifier.height(2.dp))
+                Text(
+                    text = stringResource(R.string.appearance_light_desc),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
+        }
+
+        Spacer(Modifier.height(Spacing.md))
+
+        // ── Полоса меланопического вклада ─────────────────────────────
+        MelatoninBar(
+            percent = melatoninPercent,
+            protected = protected,
+        )
+
+        Spacer(Modifier.height(Spacing.xs))
+
+        Text(
+            text = stringResource(R.string.appearance_melatonin_hint),
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.85f),
+        )
+
+        Spacer(Modifier.height(Spacing.md))
+        GlassDivider()
+        Spacer(Modifier.height(Spacing.md))
+
+        // ── Контраст текста ───────────────────────────────────────────
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Icon(
+                imageVector = Icons.Rounded.Contrast,
+                contentDescription = null,
+                tint = MaterialTheme.colorScheme.secondary,
+                modifier = Modifier.size(16.dp),
+            )
+            Spacer(Modifier.width(Spacing.xs))
+            Text(
+                text = stringResource(R.string.appearance_eye_contrast, contrast),
+                style = MaterialTheme.typography.labelLarge,
+                color = MaterialTheme.colorScheme.onSurface,
+                modifier = Modifier.weight(1f),
+            )
+            if (contrast >= CircadianEngine.TARGET_BODY_CONTRAST) {
+                Icon(
+                    imageVector = Icons.Rounded.CheckCircle,
+                    contentDescription = stringResource(R.string.appearance_eye_ok),
+                    tint = MaterialTheme.colorScheme.secondary,
+                    modifier = Modifier.size(16.dp),
+                )
+            }
+        }
+
+        Spacer(Modifier.height(Spacing.xxs))
+
+        Text(
+            text = stringResource(R.string.appearance_eye_desc),
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
+
+        Spacer(Modifier.height(Spacing.xs))
+
+        Text(
+            text = stringResource(R.string.appearance_eye_astigmatism),
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.8f),
+        )
+    }
+}
+
+/**
+ * Полоса «сколько света сейчас подмешивается в циркадную систему».
+ *
+ * Цвет полосы не декоративный: он меняется с тёплого на холодный ровно по
+ * той же границе ([LightProfile.isWarm]), что и сама палитра. Когда вклад
+ * мал и свет тёплый, полоса дополнительно подписана — так пользователь
+ * понимает, что механизм работает, а не «просто нарисована шкала».
+ */
+@Composable
+private fun MelatoninBar(percent: Int, protected: Boolean) {
+    val fraction = (percent / 100f).coerceIn(0f, 1f)
+    val animated by animateFloatAsState(
+        targetValue = fraction,
+        animationSpec = tween(520),
+        label = "melatoninBar",
+    )
+
+    Column {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Text(
+                text = stringResource(R.string.appearance_melatonin),
+                style = MaterialTheme.typography.labelMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.weight(1f),
+            )
+            Text(
+                text = stringResource(R.string.appearance_melatonin_value, percent),
+                style = MaterialTheme.typography.labelLarge,
+                color = if (protected) {
+                    MaterialTheme.colorScheme.secondary
+                } else {
+                    MaterialTheme.colorScheme.tertiary
+                },
+            )
+        }
+        Spacer(Modifier.height(Spacing.xxs))
+        Box(
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(8.dp)
+                .clip(RoundedCornerShape(Radius.chip))
+                .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f)),
+        ) {
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth(animated)
+                    .height(8.dp)
+                    .clip(RoundedCornerShape(Radius.chip))
+                    .background(
+                        Brush.horizontalGradient(
+                            listOf(
+                                MaterialTheme.colorScheme.secondary,
+                                MaterialTheme.colorScheme.primary,
+                            ),
+                        ),
+                    ),
+            )
         }
     }
 }

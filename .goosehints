@@ -49,6 +49,7 @@ This is an Android Kotlin project. Read all source files below before making any
 /root/Mykutyassistant/app/src/main/java/com/my/amali/ui/components/GradientBackground.kt
 /root/Mykutyassistant/app/src/main/java/com/my/amali/ui/components/GuideOverlay.kt
 /root/Mykutyassistant/app/src/main/java/com/my/amali/ui/components/MicButton.kt
+/root/Mykutyassistant/app/src/main/java/com/my/amali/ui/components/MotifLayer.kt
 /root/Mykutyassistant/app/src/main/java/com/my/amali/ui/components/PermissionCard.kt
 /root/Mykutyassistant/app/src/main/java/com/my/amali/ui/components/SettingsRow.kt
 /root/Mykutyassistant/app/src/main/java/com/my/amali/ui/components/StateViews.kt
@@ -57,6 +58,7 @@ This is an Android Kotlin project. Read all source files below before making any
 /root/Mykutyassistant/app/src/main/java/com/my/amali/ui/history/ConversationDetailViewModel.kt
 /root/Mykutyassistant/app/src/main/java/com/my/amali/ui/history/ConversationListScreen.kt
 /root/Mykutyassistant/app/src/main/java/com/my/amali/ui/history/ConversationListViewModel.kt
+/root/Mykutyassistant/app/src/main/java/com/my/amali/ui/history/HistoryFormat.kt
 /root/Mykutyassistant/app/src/main/java/com/my/amali/ui/onboarding/GuideStep.kt
 /root/Mykutyassistant/app/src/main/java/com/my/amali/ui/onboarding/OnboardingScreen.kt
 /root/Mykutyassistant/app/src/main/java/com/my/amali/ui/onboarding/OnboardingViewModel.kt
@@ -71,8 +73,10 @@ This is an Android Kotlin project. Read all source files below before making any
 /root/Mykutyassistant/app/src/main/java/com/my/amali/ui/settings/SettingsScreen.kt
 /root/Mykutyassistant/app/src/main/java/com/my/amali/ui/settings/SettingsViewModel.kt
 /root/Mykutyassistant/app/src/main/java/com/my/amali/ui/settings/VoiceSettings.kt
+/root/Mykutyassistant/app/src/main/java/com/my/amali/ui/theme/CircadianEngine.kt
 /root/Mykutyassistant/app/src/main/java/com/my/amali/ui/theme/Color.kt
 /root/Mykutyassistant/app/src/main/java/com/my/amali/ui/theme/Glass.kt
+/root/Mykutyassistant/app/src/main/java/com/my/amali/ui/theme/Motifs.kt
 /root/Mykutyassistant/app/src/main/java/com/my/amali/ui/theme/Shapes.kt
 /root/Mykutyassistant/app/src/main/java/com/my/amali/ui/theme/Theme.kt
 /root/Mykutyassistant/app/src/main/java/com/my/amali/ui/theme/Type.kt

@@ -28,6 +28,7 @@ import com.my.amali.ui.history.ConversationListScreen
 import com.my.amali.ui.onboarding.OnboardingScreen
 import com.my.amali.ui.permissions.PermissionsScreen
 import com.my.amali.ui.settings.AboutSettings
+import com.my.amali.ui.settings.AppPickerSettings
 import com.my.amali.ui.settings.AppearanceSettings
 import com.my.amali.ui.settings.DeviceControlSettings
 import com.my.amali.ui.settings.LanguageSettings
@@ -127,6 +128,7 @@ fun AmaliaNavHost(
                     onOpenDevice = { navController.navigate("${Destinations.Settings.route}/device") },
                     onOpenPrivacy = { navController.navigate("${Destinations.Settings.route}/privacy") },
                     onOpenNotifications = { navController.navigate("${Destinations.Settings.route}/notifications") },
+                    onOpenApps = { navController.navigate("${Destinations.Settings.route}/apps") },
                     onOpenAbout = { navController.navigate("${Destinations.Settings.route}/about") },
                     onOpenPermissions = { navController.navigate(Destinations.Permissions.route) },
                 )
@@ -171,6 +173,9 @@ fun AmaliaNavHost(
             }
             composable("${Destinations.Settings.route}/notifications") {
                 NotificationSettings(onBack = { navController.popBackStack() })
+            }
+            composable("${Destinations.Settings.route}/apps") {
+                AppPickerSettings(onBack = { navController.popBackStack() })
             }
             composable("${Destinations.Settings.route}/about") {
                 AboutSettings(onBack = { navController.popBackStack() })

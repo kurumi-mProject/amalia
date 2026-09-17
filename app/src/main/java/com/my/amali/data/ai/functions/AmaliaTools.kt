@@ -3,11 +3,15 @@ package com.my.amali.data.ai
 import android.app.SearchManager
 import android.content.Context
 import android.content.Intent
-import android.hardware.camera2.CameraManager
+import android.os.Build
 import android.os.BatteryManager
 import android.provider.AlarmClock
 import android.provider.MediaStore
 import android.provider.Settings as SystemSettings
+import com.my.amali.data.apps.AppRegistry
+import com.my.amali.data.apps.LaunchOutcome
+import com.my.amali.system.ControlAccess
+import com.my.amali.system.ControlResult
 import com.my.amali.system.SystemControllerHub
 import java.time.LocalDateTime
 import java.time.LocalTime
@@ -52,6 +56,7 @@ class AmaliaTools(
         setFlashlight(),
         setTimer(),
         setAlarm(),
+        cancelAlarm(),
 
         // ── Системные действия: открыть / найти ──────────────────────────
         openApp(),
@@ -59,6 +64,8 @@ class AmaliaTools(
         webSearch(),
         makePhoneCall(),
         sendSms(),
+        openNotificationSettings(),
+        openBatterySettings(),
 
         // ── Мультимедиа ────────────────────────────────────────────────────
         takePhoto(),
@@ -105,6 +112,30 @@ class AmaliaTools(
     @Volatile
     var settingsChangeProvider: (suspend (String, String) -> String)? = null
 
+    /**
+     * Полный список установленных приложений.
+     *
+     * Отдаёт [AppRegistry] — то есть **фактическое** содержимое телефона,
+     * а не захардкоженный список пакетов. Благодаря этому «открой камеру»
+     * работает и на Xiaomi (`com.android.camera`), и на Samsung
+     * (`com.sec.android.app.camera`), и на Huawei.
+     */
+    @Volatile
+    var installedAppsProvider: (suspend () -> List<com.my.amali.data.apps.InstalledApp>)? = null
+
+    /**
+     * Приложения, отмеченные пользователем как «свои».
+     *
+     * Уже отфильтрованы по факту установки: если приложение удалили, его
+     * пакет сюда не попадёт, и модель не пообещает открыть несуществующее.
+     */
+    @Volatile
+    var pinnedAppsProvider: (suspend () -> List<com.my.amali.data.apps.InstalledApp>)? = null
+
+    /** Пользовательские синонимы: «как говорю» → пакет. */
+    @Volatile
+    var appAliasesProvider: (suspend () -> Map<String, String>)? = null
+
     // ════════════════════════════════════════════════════════════════════
     //  Устройство: Wi-Fi / Bluetooth / яркость / громкость
     // ════════════════════════════════════════════════════════════════════
@@ -125,15 +156,11 @@ class AmaliaTools(
         )
         val handler = ToolHandler { args ->
             val on = args.bool("enabled")
-            val ok = hub.setWifiEnabled(on)
-            if (ok) {
-                ToolOutcome.json("wifi" to on, "source" to "system")
-            } else {
-                ToolOutcome.failed(
-                    "Wi-Fi нельзя переключить напрямую на этом устройстве " +
-                        "(Android 13+ требует системный экран).",
-                )
-            }
+            hub.setWifiEnabled(on).asToolOutcome(
+                successKey = "wifi",
+                requested = on,
+                appliedHint = "Wi-Fi переключён напрямую.",
+            )
         }
         return AmaliaTool(def, handler)
     }
@@ -154,15 +181,11 @@ class AmaliaTools(
         )
         val handler = ToolHandler { args ->
             val on = args.bool("enabled")
-            val ok = hub.setBluetoothEnabled(on)
-            if (ok) {
-                ToolOutcome.json("bluetooth" to on, "source" to "system")
-            } else {
-                ToolOutcome.failed(
-                    "Bluetooth нельзя переключить напрямую на этом устройстве " +
-                        "(Android 12+ требует системный экран).",
-                )
-            }
+            hub.setBluetoothEnabled(on).asToolOutcome(
+                successKey = "bluetooth",
+                requested = on,
+                appliedHint = "Bluetooth переключён напрямую.",
+            )
         }
         return AmaliaTool(def, handler)
     }
@@ -184,20 +207,13 @@ class AmaliaTools(
         )
         val handler = ToolHandler { args ->
             val pct = args.int("percent", default = 50).coerceIn(0, 100)
-            if (!hub.canWriteBrightness()) {
-                hub.openBrightnessSettingsScreen()
-                return@ToolHandler ToolOutcome.failed(
-                    "WRITE_SETTINGS не выдан — открыла системный экран яркости, " +
-                        "попроси пользователя дать доступ «Изменять системные настройки».",
-                )
-            }
             val actualLevel = (pct * 255) / 100
-            val granted = hub.setBrightness(actualLevel)
-            ToolOutcome.of(
-                ok = granted,
-                reasonIfFailed = "WRITE_SETTINGS отозван системой.",
-                "brightness_percent" to pct,
-                "system_level" to actualLevel,
+            hub.setBrightness(actualLevel).asToolOutcome(
+                successKey = "brightness_percent",
+                requested = true,
+                appliedHint = "Яркость установлена.",
+                extraPairs = arrayOf("system_level" to actualLevel),
+                successValueOverride = pct,
             )
         }
         return AmaliaTool(def, handler)
@@ -219,12 +235,12 @@ class AmaliaTools(
         )
         val handler = ToolHandler { args ->
             val pct = args.int("percent", default = 50).coerceIn(0, 100)
-            val maxVol = hub.mediaVolumeMax()
-            val applied = hub.setVolume((pct * maxVol) / 100).coerceAtMost(maxVol)
-            ToolOutcome.json(
-                "volume_percent" to pct,
-                "system_level" to applied,
-                "max" to maxVol,
+            hub.setVolumePercent(pct).asToolOutcome(
+                successKey = "volume_percent",
+                requested = true,
+                appliedHint = "Громкость изменена.",
+                extraPairs = arrayOf("max" to hub.mediaVolumeMax()),
+                successValueOverride = pct,
             )
         }
         return AmaliaTool(def, handler)
@@ -245,12 +261,13 @@ class AmaliaTools(
         )
         val handler = ToolHandler { args ->
             val step = args.int("step", default = 10).coerceIn(1, 50)
-            val maxVol = hub.mediaVolumeMax()
-            val current = hub.currentVolume()
-            val currentPct = current * 100 / maxVol
-            val newPct = (currentPct + step).coerceIn(0, 100)
-            val applied = hub.setVolume(newPct * maxVol / 100).coerceAtMost(maxVol)
-            ToolOutcome.json("volume_percent" to newPct, "system_level" to applied)
+            hub.adjustVolume(step).asToolOutcome(
+                successKey = "volume_direction",
+                requested = true,
+                appliedHint = "Громкость увеличена.",
+                extraPairs = arrayOf("step_percent" to step),
+                successValueOverride = "up",
+            )
         }
         return AmaliaTool(def, handler)
     }
@@ -270,12 +287,13 @@ class AmaliaTools(
         )
         val handler = ToolHandler { args ->
             val step = args.int("step", default = 10).coerceIn(1, 50)
-            val maxVol = hub.mediaVolumeMax()
-            val current = hub.currentVolume()
-            val currentPct = current * 100 / maxVol
-            val newPct = (currentPct - step).coerceIn(0, 100)
-            val applied = hub.setVolume(newPct * maxVol / 100).coerceAtMost(maxVol)
-            ToolOutcome.json("volume_percent" to newPct, "system_level" to applied)
+            hub.adjustVolume(-step).asToolOutcome(
+                successKey = "volume_direction",
+                requested = true,
+                appliedHint = "Громкость уменьшена.",
+                extraPairs = arrayOf("step_percent" to step),
+                successValueOverride = "down",
+            )
         }
         return AmaliaTool(def, handler)
     }
@@ -299,21 +317,105 @@ class AmaliaTools(
         )
         val handler = ToolHandler { args ->
             val on = args.bool("enabled")
-            val failure = runCatching {
-                val cm = context.getSystemService(Context.CAMERA_SERVICE) as CameraManager
-                val cameraId = cm.cameraIdList.firstOrNull()
-                    ?: throw IllegalStateException("на устройстве нет камеры с фонариком")
-                cm.setTorchMode(cameraId, on)
-                true
-            }
-            if (failure.getOrDefault(false)) {
-                ToolOutcome.json("flashlight" to on)
-            } else {
-                ToolOutcome.failed(
-                    "Не удалось переключить фонарик: " +
-                        (failure.exceptionOrNull()?.message ?: "неизвестная причина"),
+            hub.setFlashlight(on).asToolOutcome(
+                successKey = "flashlight",
+                requested = on,
+                appliedHint = "Фонарик переключён.",
+            )
+        }
+        return AmaliaTool(def, handler)
+    }
+
+    /**
+     * Отмена всех будильников.
+     *
+     * `ACTION_DISMISS_ALARM` принимает `EXTRA_ALARM_SEARCH_MODE`; самый
+     * безопасный режим — [AlarmClock.ALARM_SEARCH_MODE_ALL]: он снимает все
+     * будильники, не требуя знать их идентификаторы. Доступен с API 23,
+     * поэтому на более старых системах честно отвечаем об ограничении.
+     */
+    private fun cancelAlarm(): AmaliaTool {
+        val def = ToolDefinition(
+            name = "cancel_alarms",
+            description = "Отключает все будильники на устройстве. " +
+                "Учти: отменяются все будильники сразу, а не один конкретный.",
+            parameters = emptyList(),
+        )
+        val handler = ToolHandler {
+            if (Build.VERSION.SDK_INT < Build.VERSION_CODES.M) {
+                return@ToolHandler ToolOutcome.failed(
+                    "Отмена будильников через приложение доступна с Android 6.0. " +
+                        "Открыла часы — выключи там.",
                 )
             }
+            val intent = Intent(AlarmClock.ACTION_DISMISS_ALARM)
+                .putExtra(
+                    AlarmClock.EXTRA_ALARM_SEARCH_MODE,
+                    AlarmClock.ALARM_SEARCH_MODE_ALL,
+                )
+                .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+            val launched = runCatching { context.startActivity(intent) }.isSuccess
+            if (launched) {
+                ToolOutcome.json("alarms_cancelled" to true, "scope" to "all")
+            } else {
+                ToolOutcome.failed(
+                    "На этом устройстве нет приложения часов, которое умеет " +
+                        "отменять будильники.",
+                )
+            }
+        }
+        return AmaliaTool(def, handler)
+    }
+
+    /**
+     * Открывает настройки уведомлений приложения.
+     *
+     * Нужен потому, что `POST_NOTIFICATIONS` на API 33+ можно выдать только
+     * из системного UI: приложение обязано не «просить ещё раз», а отвести
+     * пользователя туда, где тумблер действительно есть.
+     */
+    private fun openNotificationSettings(): AmaliaTool {
+        val def = ToolDefinition(
+            name = "open_notification_settings",
+            description = "Открывает системный экран настроек уведомлений: " +
+                "там пользователь включает или выключает их вручную.",
+            parameters = emptyList(),
+        )
+        val handler = ToolHandler {
+            hub.openNotificationSettings()
+            ToolOutcome.json(
+                "notifications_enabled" to hub.areNotificationsEnabled(),
+            )
+        }
+        return AmaliaTool(def, handler)
+    }
+
+    /**
+     * Настройки батареи и исключение из оптимизации.
+     *
+     * Критично для ассистента: если система агрессивно экономит заряд, фоновое
+     * слушание wake-word замолкает. Без этого экрана пользователь не понимает,
+     * почему «Амалия перестала слышать», и считает приложение сломанным.
+     */
+    private fun openBatterySettings(): AmaliaTool {
+        val def = ToolDefinition(
+            name = "open_battery_settings",
+            description = "Открывает настройки батареи. Если приложение ещё под " +
+                "оптимизацией заряда, сначала предложит исключить его — иначе " +
+                "система может глушить фоновое слушание.",
+            parameters = emptyList(),
+        )
+        val handler = ToolHandler {
+            val ignored = hub.isBatteryOptimizationIgnored()
+            if (ignored) {
+                hub.openAppInfo(context.packageName)
+            } else {
+                hub.requestIgnoreBatteryOptimizations()
+            }
+            ToolOutcome.json(
+                "battery_optimization_ignored" to ignored,
+                "battery_percent" to hub.batteryLevel(),
+            )
         }
         return AmaliaTool(def, handler)
     }
@@ -401,57 +503,90 @@ class AmaliaTools(
     private fun openApp(): AmaliaTool {
         val def = ToolDefinition(
             name = "open_app",
-            description = "Открывает установленное приложение по имени или пакету. " +
-                "Если точного названия нет, можно передать пакет " +
-                "(например 'com.android.chrome').",
+            description = "Открывает приложение, установленное на устройстве. " +
+                "Передай название так, как его называет пользователь " +
+                "('ютуб', 'телега', 'музон', 'Chrome') — поиск сам разберётся. " +
+                "Список приложений, которые пользователь отметил как свои, " +
+                "приходит отдельным блоком в системном промпте: используй " +
+                "именно те названия, что там указаны.",
             parameters = listOf(
                 ToolParameter(
                     name = "name",
                     type = ToolParameter.JsonType.STRING,
-                    description = "Имя приложения ('YouTube', 'Chrome') или его пакет " +
-                        "('com.google.android.youtube'). Если передано имя — " +
-                        "выбирается наиболее вероятный пакет из локального каталога.",
+                    description = "Название приложения, как его произносит человек, " +
+                        "либо точный пакет ('com.android.chrome').",
                 ),
             ),
         )
-        val apps = AppCatalog.index(context.packageManager)
+
         val handler = ToolHandler { args ->
-            val name = args.string("name").trim()
-            if (name.isEmpty()) {
-                return@ToolHandler ToolOutcome.failed("Не передано имя приложения.")
+            val query = args.string("name").trim()
+            if (query.isEmpty()) {
+                return@ToolHandler ToolOutcome.failed("Не передано название приложения.")
             }
-            val resolved = apps.resolve(name)
+
+            // 1. Сканируем реальный список — он же источник правды о телефоне.
+            //    Кэш не используем: пользователь мог только что установить
+            //    приложение, и «не нашла» выглядело бы как баг.
+            val installed = installedAppsProvider?.invoke()
+                ?: return@ToolHandler ToolOutcome.failed(
+                    "Реестр приложений ещё не готов, попробуй через секунду.",
+                )
+
+            val aliases = appAliasesProvider?.invoke().orEmpty()
+            val registry = AppRegistry(context)
+
+            // 2. Пользовательский синоним имеет наивысший приоритет.
+            //    Если человек сам сказал «музон — это Spotify», никакой
+            //    автоматический поиск не должен это перебивать.
+            val resolved = registry.resolve(
+                query = query,
+                userAliases = aliases,
+                apps = installed,
+            )
+
             if (resolved == null) {
+                // 3. Неоднозначность: три «Яндекс» на телефоне — это не повод
+                //    угадывать. Возвращаем варианты, чтобы Амалия спросила.
+                val candidates = registry.candidates(query, installed)
+                if (candidates.isNotEmpty()) {
+                    return@ToolHandler ToolOutcome.failed(
+                        "Уточни, какое именно: " +
+                            candidates.joinToString(", ") { it.label } +
+                            ". Спроси пользователя и вызови инструмент снова.",
+                    )
+                }
+                // 4. Похожие названия — подсказка, а не пустой отказ.
+                val close = registry.candidates(query.take(3), installed, limit = 3)
+                val hint = if (close.isEmpty()) {
+                    ""
+                } else {
+                    " Возможно, имелось в виду: " +
+                        close.joinToString(", ") { it.label } + "."
+                }
                 return@ToolHandler ToolOutcome.failed(
-                    "Не нашла приложение '$name' на устройстве.",
+                    "Приложение «$query» не найдено среди установленных.$hint",
                 )
             }
-            val launchIntent = context.packageManager
-                .getLaunchIntentForPackage(resolved.packageName)
-                ?.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-            val safeLaunch = launchIntent != null &&
-                runCatching { context.startActivity(launchIntent) }.isSuccess
-            if (safeLaunch) {
-                ToolOutcome.json(
+
+            // 5. Запуск.
+            return@ToolHandler when (registry.launch(resolved.packageName)) {
+                LaunchOutcome.Opened -> ToolOutcome.json(
+                    "status" to "ok",
+                    "opened" to resolved.label,
                     "package" to resolved.packageName,
-                    "label" to resolved.label,
                 )
-            } else {
-                // Fallback в market — приложение существует, но не запускается напрямую
-                val marketIntent = Intent(
-                    Intent.ACTION_VIEW,
-                    android.net.Uri.parse("market://details?id=${resolved.packageName}"),
-                ).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-                val marketOk = runCatching { context.startActivity(marketIntent) }.isSuccess
-                if (marketOk) {
-                    ToolOutcome.json(
-                        "package" to resolved.packageName,
-                        "label" to resolved.label,
-                        "fallback" to "play_market",
-                    )
-                } else {
-                    ToolOutcome.failed("Не удалось запустить '${resolved.label}'.")
-                }
+
+                LaunchOutcome.NoLaunchIntent -> ToolOutcome.failed(
+                    "«${resolved.label}» установлено, но у него нет отдельного " +
+                        "экрана для запуска — такие приложения открываются " +
+                        "только изнутри другого.",
+                )
+
+                is LaunchOutcome.Failed -> ToolOutcome.failed(
+                    "Система не дала открыть «${resolved.label}»" +
+                        (resolved.packageName.let { " (${it})" } ?: "") + ".",
+                )
             }
         }
         return AmaliaTool(def, handler)
@@ -689,15 +824,30 @@ class AmaliaTools(
             parameters = emptyList(),
         )
         val handler = ToolHandler {
-            val snapshot = hub.status.value
+            // Читаем заново, а не из Flow: модель должна получать факт на
+            // момент вызова. Раньше здесь лежал кэш, и после собственного
+            // переключения Wi-Fi Амалия сообщала пользователю старое состояние.
+            val snapshot = hub.refresh()
             ToolOutcome.json(
                 "wifi" to snapshot.wifiEnabled,
+                "wifi_control_level" to snapshot.wifiAccess.name.lowercase(),
                 "bluetooth" to snapshot.bluetoothEnabled,
+                "bluetooth_control_level" to snapshot.bluetoothAccess.name.lowercase(),
                 "brightness_percent" to (snapshot.brightnessLevel * 100) / 255,
                 "volume_percent" to snapshot.volumeLevel,
+                "volume_max_steps" to hub.mediaVolumeMax(),
+                "battery_percent" to snapshot.batteryLevel,
+                "is_charging" to snapshot.isCharging,
+                "internet_available" to snapshot.internetAvailable,
                 "location" to snapshot.locationEnabled,
                 "contacts_permission" to snapshot.hasContactsPermission,
                 "notifications_permission" to snapshot.hasNotificationPermission,
+                "auto_brightness" to hub.isAutoBrightnessOn(),
+                "battery_optimization_ignored" to hub.isBatteryOptimizationIgnored(),
+                "control_note" to
+                    "если wifi_control_level или bluetooth_control_level = 'panel' " +
+                    "или 'screen', переключение требует действия пользователя " +
+                    "в системном окне — так и скажи, не утверждай, что выключила.",
             )
         }
         return AmaliaTool(def, handler)
@@ -901,58 +1051,5 @@ class AmaliaTools(
             ToolOutcome.raw(provider("auto_listen", args.bool("enabled").toString()))
         }
         return AmaliaTool(def, handler)
-    }
-}
-
-/**
- * Локальный каталог приложений: маппит человеческие имена на пакеты.
- *
- * Нужен, чтобы LLM могла сказать «открой ютуб», а не угадывать
- * `com.google.android.youtube`. Полный список установленных пакетов
- * мы в контекст LLM не отдаём — слишком шумно.
- */
-private class AppCatalog {
-
-    data class Entry(
-        val packageName: String,
-        val label: String,
-        val keywords: List<String>,
-    )
-
-    private val entries: List<Entry> = listOf(
-        Entry("com.google.android.youtube", "YouTube", listOf("ютуб", "youtube", "ют")),
-        Entry("com.google.android.apps.maps", "Google Maps", listOf("карты", "maps", "google maps")),
-        Entry("com.android.chrome", "Chrome", listOf("хром", "chrome", "браузер", "browser")),
-        Entry("org.telegram.messenger", "Telegram", listOf("телеграм", "telegram", "тг")),
-        Entry("com.whatsapp", "WhatsApp", listOf("ватсап", "whatsapp")),
-        Entry("com.instagram.android", "Instagram", listOf("инстаграм", "instagram", "инста")),
-        Entry("com.spotify.music", "Spotify", listOf("спотифай", "spotify")),
-        Entry("com.google.android.gm", "Gmail", listOf("почта", "gmail", "мейл")),
-        Entry("com.google.android.calendar", "Google Calendar", listOf("календарь", "calendar")),
-        Entry("com.android.settings", "Settings", listOf("настройки", "settings")),
-        Entry("com.android.camera", "Camera", listOf("камера", "camera")),
-        Entry("com.google.android.apps.photos", "Google Photos", listOf("фото", "photos", "фотографии")),
-        Entry("com.google.android.dialer", "Phone", listOf("телефон", "звонки", "phone")),
-        Entry("com.google.android.contacts", "Contacts", listOf("контакты", "contacts")),
-        Entry("com.google.android.keep", "Google Keep", listOf("заметки", "keep", "записки")),
-        Entry("com.netflix.mediaclient", "Netflix", listOf("нетфликс", "netflix")),
-        Entry("ru.yandex.searchplugin", "Яндекс", listOf("яндекс", "yandex")),
-        Entry("com.vkontakte.android", "VK", listOf("вк", "vk", "вконтакте")),
-    )
-
-    fun resolve(name: String): Entry? {
-        val low = name.trim().lowercase()
-        if (low.isEmpty()) return null
-        // Прямое совпадение по package
-        entries.firstOrNull { it.packageName.equals(low, ignoreCase = true) }?.let { return it }
-        // По ключевым словам
-        entries.firstOrNull { entry ->
-            entry.keywords.any { low.contains(it) } || entry.label.lowercase().contains(low)
-        }?.let { return it }
-        return null
-    }
-
-    companion object {
-        fun index(pm: android.content.pm.PackageManager): AppCatalog = AppCatalog()
     }
 }

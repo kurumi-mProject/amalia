@@ -74,7 +74,7 @@ import com.my.amali.ui.components.VoiceWave
 import com.my.amali.ui.theme.AmaliaTheme
 import com.my.amali.ui.theme.AmaliaVisualTheme
 import com.my.amali.ui.theme.AmaliaMotif
-import com.my.amali.ui.theme.BioGradientMorning
+import com.my.amali.ui.theme.BioGradientDay
 import com.my.amali.ui.theme.GlassGradientPalette
 import com.my.amali.ui.theme.GradientPalette
 import com.my.amali.ui.theme.Radius
@@ -379,7 +379,7 @@ private fun ThemesSlide(offset: Float) {
                 modifier = Modifier.weight(1f),
             )
             ThemePreview(
-                palette = BioGradientMorning,
+                palette = BioGradientDay,
                 label = stringResource(R.string.appearance_theme_bio),
                 accent = MaterialTheme.colorScheme.tertiary,
                 modifier = Modifier.weight(1f),

@@ -23,6 +23,7 @@ import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import com.my.amali.ui.theme.Radius
 import com.my.amali.ui.theme.Spacing
+import com.my.amali.ui.theme.amaliaShadow
 import com.my.amali.ui.theme.glassSurface
 
 /**
@@ -32,9 +33,21 @@ import com.my.amali.ui.theme.glassSurface
  * диагональный блик и мягкое свечение акцента снизу. Одинаково работает
  * на всех API, включая API 26, потому что не использует RenderEffect.
  *
+ * ## Почему к стеклу добавлена тень ([amaliaShadow])
+ *
+ * Раньше все стеклянные поверхности лежали на фоне **в одной плоскости**:
+ * ни одна карточка не отбрасывала тень, поэтому интерфейс выглядел
+ * наклеенным слоем, а не набором предметов. Системная Material-тень здесь
+ * непригодна — она всегда чёрная, а на тёплом янтарном вечере чёрное пятно
+ * под карточкой разрушает всю работу по адаптации света.
+ *
+ * [amaliaShadow] берёт цвет из текущей палитры и тонируется её ведущим
+ * тоном: тёплый вечер получает тёплую тень, холодное утро — холодную.
+ *
  * @param cornerRadius радиус скругления (по умолчанию — общий Radius.md).
  * @param contentPadding внутренний отступ контента.
- * @param elevated усиленное стекло для акцентных/плавающих блоков.
+ * @param elevated усиленное стекло для акцентных/плавающих блоков;
+ *   заодно поднимает и тень — иначе «парящая» карточка выглядит плоской.
  * @param tint цвет внутреннего свечения.
  */
 @Composable
@@ -46,11 +59,13 @@ fun GlassCard(
     tint: Color = MaterialTheme.colorScheme.primary,
     content: @Composable ColumnScope.() -> Unit,
 ) {
+    val shape = RoundedCornerShape(cornerRadius)
     Column(
         modifier = modifier
             .fillMaxWidth()
+            .amaliaShadow(elevation = if (elevated) 0.62f else 0.34f, shape = shape)
             .glassSurface(
-                shape = RoundedCornerShape(cornerRadius),
+                shape = shape,
                 tint = tint,
                 elevated = elevated,
             )

@@ -10,6 +10,7 @@ import com.my.amali.data.ai.AiResponse
 import com.my.amali.data.ai.AudioChunk
 import com.my.amali.data.ai.AudioPlayer
 import com.my.amali.data.ai.EngineOptions
+import com.my.amali.data.ai.KnownApp
 import com.my.amali.data.model.ChatMessage
 import com.my.amali.data.model.Conversation
 import com.my.amali.data.model.DeviceStatus
@@ -26,6 +27,7 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.receiveAsFlow
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.flow.update
@@ -351,9 +353,18 @@ class AssistantViewModel(
             val deviceStatus = runCatching {
                 ServiceLocator.systemControllers.refresh()
             }.getOrDefault(DeviceStatus.Offline)
+            // Приложения, которые пользователь отметил как свои, и его
+            // личный словарь синонимов. Без них модель угадывает пакеты, а на
+            // не-Google прошивках угадывание промахивается мимо реальных
+            // пакетов (там нет `com.google.android.youtube`).
+            val knownApps = knownAppsForPrompt()
+            val appAliases = ServiceLocator.appPreferencesRepository.aliases.first()
+
             val options = EngineOptions.from(settings.value).copy(
                 deviceStatus = deviceStatus,
                 conversationSummary = conversationSummary,
+                knownApps = knownApps,
+                appAliases = appAliases,
             )
             val audioChannel = Channel<AudioChunk>(capacity = Channel.UNLIMITED)
             val historySnapshot = historyForModel()
@@ -652,7 +663,14 @@ class AssistantViewModel(
             val generated = StringBuilder()
             withTimeoutOrNull(SUMMARY_TIMEOUT_MS) {
                 runCatching {
-                    orchestrator.textOnlyResponse(prompt, emptyList(), EngineOptions.from(settings.value))
+                    orchestrator.textOnlyResponse(
+                        prompt,
+                        emptyList(),
+                        EngineOptions.from(settings.value).copy(
+                            knownApps = knownAppsForPrompt(),
+                            appAliases = ServiceLocator.appPreferencesRepository.aliases.first(),
+                        ),
+                    )
                         .collect { piece -> generated.append(piece) }
                 }
             }
@@ -775,6 +793,43 @@ class AssistantViewModel(
         "toggle_auto_listen" -> "настройка изменена"
         else -> "готово"
     }
+
+    // ── Приложения для промпта ───────────────────────────────────────────
+
+    /**
+     * Приложения для промпта: отмеченные пользователем, обогащённые его
+     * синонимами и отфильтрованные по факту установки.
+     *
+     * Фильтр по установке здесь критичен. Если приложение удалили, а запись
+     * в избранном осталась, модель получила бы пакет, которого нет на
+     * телефоне, и пообещала бы пользователю открыть несуществующее — то
+     * есть ровно тот класс ошибок, который хуже честного «не нашла».
+     * Поэтому список собирается как пересечение «избранное ∩ установленное».
+     *
+     * Синонимы подставляются к каждому приложению, а не отдельным списком:
+     * модели проще связать «музон» с конкретным Spotify, когда они стоят
+     * рядом, чем искать соответствие в двух разных блоках промпта.
+     */
+    private suspend fun knownAppsForPrompt(): List<KnownApp> = runCatching {
+        val pinned = ServiceLocator.appPreferencesRepository.pinnedApps.first()
+        if (pinned.isEmpty()) return@runCatching emptyList()
+
+        val installed = ServiceLocator.appRegistry.installedApps()
+        val byPackage = installed.associateBy { it.packageName }
+        val aliases = ServiceLocator.appPreferencesRepository.aliases.first()
+
+        pinned.mapNotNull { pin ->
+            val app = byPackage[pin.packageName] ?: return@mapNotNull null
+            KnownApp(
+                label = app.label,
+                packageName = app.packageName,
+                aliases = aliases
+                    .filterValues { it == app.packageName }
+                    .keys
+                    .sorted(),
+            )
+        }
+    }.getOrDefault(emptyList())
 
     // ── Строки ───────────────────────────────────────────────────────────
 

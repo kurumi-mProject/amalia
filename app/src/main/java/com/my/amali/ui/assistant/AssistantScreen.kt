@@ -72,6 +72,7 @@ import androidx.compose.ui.draw.scale
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalClipboardManager
+import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.contentDescription
@@ -81,6 +82,7 @@ import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.tooling.preview.Preview
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.my.amali.R
@@ -91,7 +93,9 @@ import com.my.amali.ui.components.GradientBackground
 import com.my.amali.ui.components.MicButton
 import com.my.amali.ui.components.VoiceWave
 import com.my.amali.ui.theme.AmaliaTheme
+import com.my.amali.ui.theme.CircadianEngine
 import com.my.amali.ui.theme.LocalAmaliaVisuals
+import com.my.amali.ui.theme.LocalLightProfile
 import com.my.amali.ui.theme.Radius
 import com.my.amali.ui.theme.Spacing
 import com.my.amali.ui.theme.glassSurface
@@ -102,29 +106,55 @@ import kotlinx.coroutines.delay
 /**
  * AssistantScreen — главный экран Амалии.
  *
- * Композиция сверху вниз:
- *  1. живой аурора-фон + декоративный мотив (лепестки/звёзды/…);
- *  2. лёгкая шапка: пульс-индикатор состояния, имя, история, настройки;
+ * ═══════════════════════════════════════════════════════════
+ *  КОМПОЗИЦИЯ (сверху вниз)
+ * ═══════════════════════════════════════════════════════════
+ *
+ *  1. живой аурора-фон + декоративный мотив;
+ *  2. лёгкая шапка: пульс состояния, имя, индикатор света, история, настройки;
  *  3. центр — жидкая волна + одно слово состояния (главный фокус);
  *  4. **единственная гибкая область** — стеклянная карточка диалога;
- *  5. лента подсказок, кнопка микрофона и подсказка-подпись.
+ *  5. лента подсказок;
+ *  6. **кнопка микрофона — в самом низу, над нижней навигацией**;
+ *  7. подпись-подсказка.
  *
- * ## Почему карточка диалога живёт в `weight`, а не «растёт как хочет»
+ * ═══════════════════════════════════════════════════════════
+ *  ЧТО ИЗМЕНИЛОСЬ И ПОЧЕМУ
+ * ═══════════════════════════════════════════════════════════
  *
- * Экран собирается в [Column], и раньше центральная карточка не была
- * ограничена по высоте: длинный ответ с кучей выполненных команд просто
- * распухал и лез поверх волны, подсказок и кнопки — то есть в то самое
- * «место, где команды перекрывают UI». Теперь жёсткое правило:
+ * ── 1. Микрофон переехал из «где-то в середине» вниз ──────────
  *
- *  — фиксированными остаются шапка, волна, подсказки и кнопка;
- *  — всё свободное пространство отдаётся карточке (`weight(1f, fill = false)`);
- *  — если контента больше, чем места, карточка скроллит **свою** область,
- *    а соседей не трогает;
- *  — список инструментов ограничен сверху (три строки + «+N ещё»), а сводка
- *    «что сделано» свёрнута в одну строку и раскрывается по нажатию.
+ * Раньше под кнопкой лежала подпись, а ниже — отступ в **92dp** под плавающую
+ * навигацию. То есть кнопка стояла на ~90dp выше нижнего края, ровно в той
+ * зоне, где большой палец при одноручном хвате **не достаёт** без перехвата.
+ * Это и было «микрофон слишком высоко».
  *
- * Всё, кроме волны и кнопки, визуально тише: это делает главное действие
- * однозначным и даёт экрану «дорогое» спокойствие.
+ * Теперь порядок обратный и жёсткий:
+ *   подсказки → микрофон → подпись → отступ под навигацию.
+ *
+ * Кнопка опустилась к нижней трети, где лежит естественная дуга большого
+ * пальца, а подпись переехала **под** кнопку — она больше не отодвигает
+ * главное действие от края. Сам отступ уменьшен до реальной высоты
+ * плавающей панели (64dp + зазоры), а не «на глазок».
+ *
+ * ── 2. Индикатор света в шапке ────────────────────────────────
+ *
+ * Адаптация по времени суток была невидимой: палитра менялась, но
+ * пользователь не знал почему. Теперь в шапке живёт компактный чип с CCT и
+ * фазой суток («Закат · 2700K»). Он объясняет смену цвета и, что важнее,
+ * даёт уверенность, что это не глюк, а рассчитанный свет.
+ *
+ * ── 3. Диалог по-прежнему в `weight`, а не «растёт как хочет» ──
+ *
+ * Фиксированы: шапка, волна, подсказки, кнопка. Всё свободное место отдано
+ * карточке (`weight(1f, fill = false)`); если контента больше, чем места,
+ * карточка скроллит **свою** область и не выталкивает кнопку за экран.
+ *
+ * ── 4. Адаптация к низким экранам ─────────────────────────────
+ *
+ * Волна и внутренние отступы ужимаются на коротких экранах
+ * ([compactHeight]), иначе на 640dp-высоте карточка диалога схлопывалась
+ * до нуля и микрофон уезжал под навигацию.
  */
 @Composable
 fun AssistantScreen(
@@ -135,7 +165,13 @@ fun AssistantScreen(
     val vm: AssistantViewModel = androidx.lifecycle.viewmodel.compose.viewModel()
     val state by vm.uiState.collectAsStateWithLifecycle()
     val visuals = LocalAmaliaVisuals.current
+    val light = LocalLightProfile.current
     val clipboard = LocalClipboardManager.current
+
+    // На коротких экранах волна и отступы ужимаются: иначе карточка диалога
+    // схлопывается в ноль и кнопка уезжает под плавающую навигацию.
+    val screenHeight = LocalConfiguration.current.screenHeightDp
+    val compact = screenHeight < 700
 
     LaunchedEffect(Unit) {
         delay(900)
@@ -148,6 +184,7 @@ fun AssistantScreen(
             intensity = visuals.glassIntensity,
             motif = visuals.motif,
             motifDensity = visuals.motifDensity,
+            luminance = light.displayLuminance,
         )
 
         Column(
@@ -162,19 +199,20 @@ fun AssistantScreen(
                 conversationCount = state.conversationCount,
                 voiceState = state.voiceState,
                 contextCompressed = state.contextCompressed,
+                showLight = visuals.useBioTime,
+                lightLabel = light.lightLabel,
+                cct = light.cct,
                 onNavigateToHistory = onNavigateToHistory,
                 onNavigateToSettings = onNavigateToSettings,
             )
 
-            // Верхняя пустота меньше нижней: волна встаёт в «золотую»
-            // верхнюю треть, а не в геометрический центр — так композиция
-            // ощущается устойчивой, а не «съехавшей вниз».
-            Spacer(Modifier.weight(0.5f))
+            Spacer(Modifier.weight(if (compact) 0.28f else 0.5f))
 
             // === ГЛАВНЫЙ ФОКУС: волна + состояние ===
             VoiceWave(
                 state = state.voiceState,
                 audioLevel = state.audioLevel,
+                waveHeight = if (compact) 108.dp else 142.dp,
                 modifier = Modifier
                     .fillMaxWidth()
                     .padding(horizontal = Spacing.xl),
@@ -184,7 +222,7 @@ fun AssistantScreen(
 
             StatusLabel(state = state.voiceState)
 
-            Spacer(Modifier.height(Spacing.lg))
+            Spacer(Modifier.height(if (compact) Spacing.sm else Spacing.md))
 
             // === ДИАЛОГ: единственная гибкая область экрана ===
             Box(
@@ -246,8 +284,9 @@ fun AssistantScreen(
                 )
             }
 
-            Spacer(Modifier.height(Spacing.md))
+            Spacer(Modifier.height(Spacing.xs))
 
+            // === ГЛАВНОЕ ДЕЙСТВИЕ: внизу, под большим пальцем ===
             MicButton(
                 isActive = state.voiceState != VoiceState.Idle &&
                     state.voiceState != VoiceState.Error,
@@ -257,8 +296,10 @@ fun AssistantScreen(
                 onPress = { vm.warmupStt() },
             )
 
-            Spacer(Modifier.height(Spacing.xs))
+            Spacer(Modifier.height(Spacing.xxs))
 
+            // Подпись под кнопкой, а не над ней: кнопка обязана стоять
+            // максимально близко к нижнему краю — это главный CTA экрана.
             Text(
                 text = if (state.voiceState == VoiceState.Idle) {
                     stringResource(R.string.assistant_welcome_hint)
@@ -266,11 +307,24 @@ fun AssistantScreen(
                     stringResource(R.string.assistant_stop)
                 },
                 style = MaterialTheme.typography.labelSmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f),
+                color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.72f),
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+                modifier = Modifier.padding(horizontal = Spacing.md),
             )
 
-            // Запас под плавающую нижнюю навигацию.
-            Spacer(Modifier.height(92.dp))
+            // Запас ровно под плавающую нижнюю навигацию: 64dp панель +
+            // 12dp нижний паддинг + воздух. Раньше здесь стояло 92dp — именно
+            // из-за этого микрофон «висел» слишком высоко.
+            Spacer(
+                Modifier.height(
+                    if (state.voiceState == VoiceState.Idle) {
+                        BottomBarReserve
+                    } else {
+                        Spacing.xs
+                    },
+                ),
+            )
         }
     }
 }
@@ -304,6 +358,9 @@ private fun AssistantTopBar(
     conversationCount: Int,
     voiceState: VoiceState,
     contextCompressed: Boolean,
+    showLight: Boolean,
+    lightLabel: String,
+    cct: Int,
     onNavigateToHistory: () -> Unit,
     onNavigateToSettings: () -> Unit,
     modifier: Modifier = Modifier,
@@ -325,6 +382,8 @@ private fun AssistantTopBar(
                 text = stringResource(R.string.app_name),
                 style = MaterialTheme.typography.titleMedium,
                 color = MaterialTheme.colorScheme.onBackground,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
             )
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Text(
@@ -334,7 +393,8 @@ private fun AssistantTopBar(
                         stringResource(R.string.assistant_idle)
                     },
                     style = MaterialTheme.typography.labelSmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.75f),
+                    color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.78f),
+                    maxLines = 1,
                 )
                 // Маркер сжатого контекста: видно, что Амалия помнит разговор
                 // пересказом, а не дословно — без этого «память» выглядит багом.
@@ -346,19 +406,30 @@ private fun AssistantTopBar(
                         Icon(
                             imageVector = Icons.Rounded.History,
                             contentDescription = null,
-                            tint = MaterialTheme.colorScheme.tertiary.copy(alpha = 0.8f),
+                            tint = MaterialTheme.colorScheme.tertiary.copy(alpha = 0.85f),
                             modifier = Modifier.size(11.dp),
                         )
                         Spacer(Modifier.width(3.dp))
                         Text(
                             text = stringResource(R.string.assistant_context_compressed),
                             style = MaterialTheme.typography.labelSmall,
-                            color = MaterialTheme.colorScheme.tertiary.copy(alpha = 0.85f),
+                            color = MaterialTheme.colorScheme.tertiary.copy(alpha = 0.9f),
                         )
                     }
                 }
             }
         }
+
+        // Индикатор текущего света: делает адаптацию объяснимой, а не магической.
+        AnimatedVisibility(visible = showLight) {
+            LightChip(
+                label = lightLabel,
+                cct = cct,
+                isWarm = cct <= 3200,
+                modifier = Modifier.padding(end = Spacing.xxs),
+            )
+        }
+
         GlassIconButton(
             icon = Icons.AutoMirrored.Rounded.Chat,
             contentDescription = stringResource(R.string.nav_history),
@@ -369,6 +440,53 @@ private fun AssistantTopBar(
             icon = Icons.Rounded.Settings,
             contentDescription = stringResource(R.string.nav_settings),
             onClick = onNavigateToSettings,
+        )
+    }
+}
+
+/**
+ * Компактный чип «какой сейчас свет»: фаза + цветовая температура.
+ *
+ * Показывает ровно те две величины, которые рассчитал [CircadianEngine],
+ * поэтому индикатор невозможно «разъехать» с фактическим фоном: и то, и
+ * другое читает один [LocalLightProfile].
+ */
+@Composable
+private fun LightChip(
+    label: String,
+    cct: Int,
+    isWarm: Boolean,
+    modifier: Modifier = Modifier,
+) {
+    val accent = MaterialTheme.colorScheme.tertiary
+    Row(
+        modifier = modifier
+            .heightIn(min = 24.dp)
+            .clip(RoundedCornerShape(Radius.chip))
+            .glassSurface(shape = RoundedCornerShape(Radius.chip))
+            .padding(horizontal = Spacing.xs, vertical = 3.dp)
+            .semantics { contentDescription = "$label, $cct K" },
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(4.dp),
+    ) {
+        // Точка-индикатор: тёплый свет — янтарная, холодный — голубая.
+        Box(
+            modifier = Modifier
+                .size(7.dp)
+                .clip(CircleShape)
+                .background(
+                    if (isWarm) {
+                        Color(0xFFE0A25C)
+                    } else {
+                        Color(0xFF8FB6E8)
+                    },
+                ),
+        )
+        Text(
+            text = "$label · ${cct}K",
+            style = MaterialTheme.typography.labelSmall,
+            color = accent.copy(alpha = 0.92f),
+            maxLines = 1,
         )
     }
 }
@@ -436,6 +554,7 @@ private fun StatusLabel(state: VoiceState, modifier: Modifier = Modifier) {
             style = MaterialTheme.typography.titleLarge,
             color = color,
             textAlign = TextAlign.Center,
+            maxLines = 1,
         )
     }
 }
@@ -478,12 +597,13 @@ private fun WelcomeCard(onPickSuggestion: (String) -> Unit) {
             }
         }
         Spacer(Modifier.height(Spacing.sm))
-        // Сразу видно, что можно сказать: это и есть главное действие экрана.
+        // Сразу видно, что можно сказать: это и есть подсказка к главному
+        // действию экрана, поэтому живёт внутри карточки, а не в отдельной ленте.
         suggestions.take(3).forEach { suggestion ->
             Text(
                 text = "«$suggestion»",
                 style = MaterialTheme.typography.labelMedium,
-                color = MaterialTheme.colorScheme.primary.copy(alpha = 0.9f),
+                color = MaterialTheme.colorScheme.primary.copy(alpha = 0.95f),
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis,
                 modifier = Modifier
@@ -572,7 +692,7 @@ private fun ThinkingCard(
  * Индикаторы работающих инструментов.
  *
  * Показываются максимум [VISIBLE_TOOL_ROWS] строк: «выключи всё» с десятью
- * командами не должно превращать карточку в Пропастырь, который выталкивает
+ * командами не должно превращать карточку в пропасть, которая выталкивает
  * кнопку микрофона за пределы экрана. Остальное — счётчиком.
  */
 @Composable
@@ -588,7 +708,7 @@ private fun ToolActivityStrip(tools: List<ToolActivity>) {
                     tools.size - VISIBLE_TOOL_ROWS,
                 ),
                 style = MaterialTheme.typography.labelSmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f),
+                color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.72f),
                 modifier = Modifier.padding(start = Spacing.xxs, top = 2.dp),
             )
         }
@@ -674,7 +794,7 @@ private fun ReplyCard(
             Text(
                 text = prompt,
                 style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.8f),
+                color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.85f),
                 maxLines = 2,
                 overflow = TextOverflow.Ellipsis,
             )
@@ -799,7 +919,7 @@ private fun ToolSummary(reports: List<ToolReport>, modifier: Modifier = Modifier
                         stringResource(R.string.assistant_actions_partial, reports.size, fails)
                     },
                     style = MaterialTheme.typography.labelMedium,
-                    color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.8f),
+                    color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.85f),
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis,
                     modifier = Modifier.weight(1f),
@@ -811,7 +931,7 @@ private fun ToolSummary(reports: List<ToolReport>, modifier: Modifier = Modifier
                         Icons.Rounded.KeyboardArrowDown
                     },
                     contentDescription = null,
-                    tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f),
+                    tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.75f),
                     modifier = Modifier.size(16.dp),
                 )
             }
@@ -853,7 +973,7 @@ private fun ToolReportRow(report: ToolReport) {
         Text(
             text = report.summary,
             style = MaterialTheme.typography.labelMedium,
-            color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.78f),
+            color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.82f),
             maxLines = 1,
             overflow = TextOverflow.Ellipsis,
             modifier = Modifier.weight(1f),
@@ -895,7 +1015,7 @@ private fun ContextChip(literalCount: Int, modifier: Modifier = Modifier) {
 @Composable
 private fun AmaliaAvatar(
     modifier: Modifier = Modifier,
-    size: androidx.compose.ui.unit.Dp = 34.dp,
+    size: Dp = 34.dp,
 ) {
     val accent = iconAccent()
     val label = stringResource(R.string.app_name)
@@ -998,7 +1118,7 @@ private fun GlassTextAction(
     )
     Row(
         modifier = Modifier
-            .heightIn(min = 36.dp)
+            .heightIn(min = 44.dp)
             .scale(scale)
             .glassSurface(shape = RoundedCornerShape(Radius.chip))
             .clickable(
@@ -1049,7 +1169,7 @@ private fun SuggestionRow(
         items(suggestions, key = { it }) { suggestion ->
             Box(
                 modifier = Modifier
-                    .heightIn(min = 40.dp, max = 44.dp)
+                    .heightIn(min = 44.dp, max = 44.dp)
                     .widthIn(max = 220.dp)
                     .glassSurface(shape = RoundedCornerShape(Radius.chip))
                     .clickable { onClick(suggestion) }
@@ -1063,7 +1183,7 @@ private fun SuggestionRow(
                 Text(
                     text = suggestion,
                     style = MaterialTheme.typography.labelLarge,
-                    color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.88f),
+                    color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.9f),
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis,
                 )
@@ -1098,11 +1218,21 @@ private const val VISIBLE_TOOL_ROWS = 3
 /** Потолок высоты текста ответа: дальше — внутренний скролл, а не рост карточки. */
 private val ReplyMaxHeight = 200.dp
 
+/**
+ * Отступ под плавающую нижнюю навигацию.
+ *
+ * Считается, а не берётся «на глаз»: 64dp высота панели + 12dp её собственный
+ * вертикальный паддинг + 8dp воздуха. Ровно столько, чтобы панель не наезжала
+ * на подпись микрофона, и ни пикселем больше — иначе главное действие снова
+ * уедет вверх, как это было с прежними 92dp.
+ */
+private val BottomBarReserve = 84.dp
+
 // ============================================================
 //  PREVIEW
 // ============================================================
 
-@Preview(showBackground = true, backgroundColor = 0xFF07070B)
+@Preview(showBackground = true, backgroundColor = 0xFF0A0B11)
 @Composable
 private fun AssistantScreenPreview() {
     AmaliaTheme {

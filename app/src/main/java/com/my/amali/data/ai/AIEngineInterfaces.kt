@@ -21,6 +21,15 @@ import java.util.Locale
  *   чтобы Амалия знала какие разрешения выданы/не выданы.
  * @property conversationSummary краткое резюме истории (3-5 предложений) — заменяет старые сообщения
  *   чтобы не переполнять контекст. null если сессия только началась.
+ * @property knownApps приложения, которые пользователь отметил как «свои»,
+ *   в виде готовых пар «как называть» → пакет. Уходят в промпт отдельным
+ *   блоком, потому что без них модель угадывает пакет и на не-Google
+ *   прошивках промахивается (там `com.google.android.youtube` может
+ *   отсутствовать вовсе). Пустой список означает «пользователь ещё не
+ *   выбирал» — тогда блок в промпт не добавляется вообще.
+ * @property appAliases пользовательские синонимы «как говорю» → пакет.
+ *   Передаются рядом с приложениями: модель должна видеть ровно тот
+ *   словарь, которым человек разговаривает.
  */
 data class EngineOptions(
     val languageCode: String = "ru",
@@ -28,7 +37,49 @@ data class EngineOptions(
     val speechPitch: Float = 1.0f,
     val deviceStatus: DeviceStatus = DeviceStatus.Offline,
     val conversationSummary: String? = null,
+    val knownApps: List<KnownApp> = emptyList(),
+    val appAliases: Map<String, String> = emptyMap(),
 ) {
+    /**
+     * Готовый блок для системного промпта: «название → пакет» плюс словарь
+     * синонимов. Пустая строка, если пользователь ничего не выбрал, — тогда
+     * промпт не тратит на этот блок ни одного токена.
+     *
+     * Формат намеренно компактный (одна строка на приложение): при 15
+     * приложениях это ~200 символов вместо развёрнутого JSON, а разницы для
+     * модели нет — она всё равно использует только пару «имя → пакет».
+     */
+    val appsPromptSection: String
+        get() {
+            if (knownApps.isEmpty() && appAliases.isEmpty()) return ""
+            val builder = StringBuilder()
+            builder.append("\n# ПРИЛОЖЕНИЯ ПОЛЬЗОВАТЕЛЯ\n")
+            if (knownApps.isNotEmpty()) {
+                builder.append("Пользователь отметил эти приложения как свои. ")
+                builder.append("Передавай в open_app именно название из списка, ")
+                builder.append("а не пакет, — поиск разберётся сам.\n")
+                knownApps.forEach { app ->
+                    builder.append("- ")
+                    builder.append(app.label)
+                    builder.append(" (")
+                    builder.append(app.packageName)
+                    builder.append(")")
+                    if (app.aliases.isNotEmpty()) {
+                        builder.append(" — он говорит: ")
+                        builder.append(app.aliases.joinToString(", ") { "\"$it\"" })
+                    }
+                    builder.append('\n')
+                }
+            }
+            if (appAliases.isNotEmpty()) {
+                builder.append("Личный словарь синонимов (высший приоритет): ")
+                builder.append(
+                    appAliases.entries.joinToString(", ") { ""${it.key}" → ${it.value}" },
+                )
+                builder.append('\n')
+            }
+            return builder.toString()
+        }
     /** Человекочитаемое имя языка для системного промпта LLM. */
     val languageName: String
         get() = LANGUAGE_NAMES[languageCode] ?: "русском"

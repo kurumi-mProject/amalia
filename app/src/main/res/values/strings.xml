@@ -251,4 +251,52 @@
     <string name="time_hours_ago">%1$d ч назад</string>
     <string name="time_days_ago">%1$d дн назад</string>
     <string name="history_resume">Продолжить в новом диалоге</string>
+
+    <!-- Управление устройством: уровни доступа -->
+    <string name="device_access_direct">Прямое управление</string>
+    <string name="device_access_panel">Откроется панель — один тап</string>
+    <string name="device_access_screen">Откроются системные настройки</string>
+    <string name="device_flashlight">Фонарик</string>
+    <string name="device_notifications">Уведомления</string>
+    <string name="device_volume_note">Шкала устройства: %1$d шагов. Приложение всегда работает в процентах, чтобы значение совпадало на любом телефоне.</string>
+    <string name="device_battery">Батарея</string>
+    <string name="device_battery_level">Заряд %1$d%% · %2$s</string>
+    <string name="device_battery_charging">заряжается</string>
+    <string name="device_battery_discharging">от батареи</string>
+    <string name="device_battery_rationale">Если система экономит заряд, она может приглушать фоновое слушание, и Амалия перестаёт слышать без команды. Исключение из оптимизации это лечит.</string>
+    <string name="device_battery_exempt">Исключить из оптимизации заряда</string>
+
+    <!-- Внешний вид: циркадный свет -->
+    <string name="appearance_light_title">Свет интерфейса</string>
+    <string name="appearance_light_now">Сейчас: %1$s · %2$d K</string>
+    <string name="appearance_light_desc">Цветовая температура подстраивается непрерывно, без скачков на границе часа. Днём свет холоднее и помогает бодрости, вечером уходит в тёплые 2000–2700 K и не подавляет мелатонин.</string>
+    <string name="appearance_melatonin">Вклад в подавление мелатонина</string>
+    <string name="appearance_melatonin_value">%1$d%%</string>
+    <string name="appearance_melatonin_hint">Насколько текущий свет «тянет» циркадную систему. Днём это полезно, вечером — мешает засыпанию, поэтому адаптация и снижает температуру заранее.</string>
+    <string name="appearance_eye_title">Комфорт для глаз</string>
+    <string name="appearance_eye_contrast">Контраст текста: %1$.1f:1</string>
+    <string name="appearance_eye_desc">Тёмная тема задаёт контраст основного текста не 4.5:1, а 7:1 — так компенсируется halation: светлые буквы на тёмном «расплываются» из-за латерального торможения в сетчатке. Фон тоже никогда не чистый чёрный, а текст — не чистый белый.</string>
+    <string name="appearance_eye_ok">Проверка пройдена</string>
+    <string name="appearance_eye_astigmatism">Если у вас астигматизм (примерно каждый третий), светлая тема читается лучше — переключите «Тёмная тема» на «Всегда светлая».</string>
+
+    <!-- Приложения Амалии -->
+    <string name="settings_apps">Приложения Амалии</string>
+    <string name="settings_apps_desc">Отметь, что открывать голосом, и назови своими словами</string>
+    <string name="apps_scanning">Сканирую установленные приложения…</string>
+    <string name="apps_selected_count">Выбрано %1$d из %2$d</string>
+    <string name="apps_intro_desc">Отмеченные приложения Амалия видит в каждом запросе — поэтому её список короткий и точный. Кнопка «+» у строки задаёт название, которым ты это называешь вслух.</string>
+    <string name="apps_search_hint">Найти приложение</string>
+    <string name="apps_pinned_title">Амалия знает</string>
+    <string name="apps_all_title">Все приложения</string>
+    <string name="apps_found_title">Найдено: %1$d</string>
+    <string name="apps_system_hint">системное · %1$s</string>
+    <string name="apps_status_no_launcher">Установлено, но нет отдельного экрана — открывается только изнутри другого приложения</string>
+    <string name="apps_status_missing">Приложение удалено с устройства — убери его, иначе Амалия будет обещать открыть то, чего нет</string>
+    <string name="apps_empty_none">Ничего не найдено. Если список пуст — системе запрещено показывать приложения.</string>
+    <string name="apps_empty_query">По запросу «%1$s» ничего не нашлось.</string>
+    <string name="apps_empty_hint">Попробуй другое название или пакет (например miui.gallery). Поиск понимает и русские слова, и латиницу.</string>
+    <string name="apps_clear_search">Очистить поиск</string>
+    <string name="apps_alias_title">Как называть «%1$s»</string>
+    <string name="apps_alias_desc">Скажи вслух это слово — Амалия откроет именно это приложение. Например: «открой музон». Приоритет у твоего названия выше любого автоматического поиска.</string>
+    <string name="apps_alias_existing">Уже заданные названия</string>
 </resources>

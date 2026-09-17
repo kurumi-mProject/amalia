@@ -46,6 +46,59 @@
     <uses-permission android:name="android.permission.WRITE_SETTINGS"
         tools:ignore="ProtectedPermissions" />
 
+    <!--
+        Полный список установленных приложений.
+
+        Начиная с Android 11 (API 30) система фильтрует видимость пакетов:
+        без этого разрешения `getInstalledApplications()` вернёт только те
+        приложения, с которыми уже есть взаимодействие, — то есть почти
+        пустой список, и «открой камеру» перестанет работать.
+
+        Обоснование для политики Google Play: это **основная функциональность**
+        приложения. Ассистент обязан уметь открывать любое приложение, которое
+        пользователь сам выбрал в настройках, — заранее перечислить их в
+        <queries> невозможно, потому что список у каждого свой.
+    -->
+    <uses-permission android:name="android.permission.QUERY_ALL_PACKAGES"
+        tools:ignore="QueryAllPackagesPermission" />
+
+    <!--
+        Явные <queries> нужны для сценариев, которые должны работать ДАЖЕ без
+        QUERY_ALL_PACKAGES (например, если пользователь отзовёт разрешение
+        или сборка пойдёт в регион с урезанным доступом): системный набор
+        для звонков, поиска, часов и магазина приложений.
+    -->
+    <queries>
+        <intent>
+            <action android:name="android.intent.action.MAIN" />
+            <category android:name="android.intent.category.LAUNCHER" />
+        </intent>
+        <intent>
+            <action android:name="android.intent.action.DIAL" />
+            <data android:scheme="tel" />
+        </intent>
+        <intent>
+            <action android:name="android.intent.action.WEB_SEARCH" />
+        </intent>
+        <intent>
+            <action android:name="android.intent.action.VIEW" />
+            <data android:scheme="https" />
+        </intent>
+        <intent>
+            <action android:name="android.intent.action.SET_ALARM" />
+        </intent>
+        <intent>
+            <action android:name="android.intent.action.SET_TIMER" />
+        </intent>
+        <intent>
+            <action android:name="android.intent.action.SENDTO" />
+            <data android:scheme="smsto" />
+        </intent>
+        <intent>
+            <action android:name="android.media.action.STILL_IMAGE_CAMERA" />
+        </intent>
+    </queries>
+
     <!-- Internet -->
     <uses-permission android:name="android.permission.INTERNET" />
     <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />

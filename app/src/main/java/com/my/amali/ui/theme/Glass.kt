@@ -125,7 +125,7 @@ fun Modifier.glassSurface(
     val surface = MaterialTheme.colorScheme.surface
     val outline = MaterialTheme.colorScheme.outline
     val fill = fillAlpha ?: if (elevated) style.fill + 0.18f else style.fill
-    val lightSource = if (style.light) Color.White else Color.White
+    val lightSource = Color.White
     val highlightAlpha = if (elevated) style.highlight * 1.6f else style.highlight
     val glowAlpha = if (elevated) style.glow * 1.4f else style.glow
 
@@ -134,10 +134,17 @@ fun Modifier.glassSurface(
         .background(surface.copy(alpha = fill.coerceIn(0f, 1f)))
         .drawWithCache {
             // Диагональный блик — «преломление» на верхней грани стекла.
+            // Тонируется текущим светом: тёплый вечер не ловит белый блик.
+            val p = LocalAmaliaPalette.current
+            val tone = if (p.isWarm) {
+                p.auroras.lastOrNull() ?: lightSource
+            } else {
+                lightSource
+            }
             val sheen = Brush.linearGradient(
                 colorStops = arrayOf(
-                    0f to lightSource.copy(alpha = highlightAlpha),
-                    0.42f to lightSource.copy(alpha = highlightAlpha * 0.22f),
+                    0f to tone.copy(alpha = highlightAlpha),
+                    0.42f to tone.copy(alpha = highlightAlpha * 0.22f),
                     1f to Color.Transparent,
                 ),
                 start = Offset.Zero,
@@ -189,6 +196,86 @@ fun Modifier.accentGlow(
             center = Offset(size.width / 2f, size.height / 2f),
         )
     }
+}
+
+/**
+ * Тень текущего времени суток.
+ *
+ * ## Почему не `Modifier.shadow(...)` из Material
+ *
+ * Системная тень всегда чёрная и всегда одинаковая. На тёплом вечернем фоне
+ * чёрная тень читается как «грязное пятно» и разрушает всю работу по адаптации
+ * света: фон уехал в янтарь, а глубина осталась ледяной. Здесь тень берётся из
+ * палитры ([LocalAmaliaShadow]) и подмешивается в сторону ведущего тона —
+ * физически это близко к тому, как свет отражается от поверхностей вокруг.
+ *
+ * Тень рисуется двумя пятнами (контактная + рассеянная), а не одним: одна
+ * мягкая тень выглядит как «размытие», две дают настоящую глубину.
+ *
+ * @param elevation сила подъёма поверхности, 0..1.
+ * @param shape форма поверхности — тень обязана ей следовать.
+ */
+@Composable
+fun Modifier.amaliaShadow(elevation: Float = 0.3f, shape: Shape): Modifier {
+    val shadow = LocalAmaliaShadow.current
+    val palette = LocalAmaliaPalette.current
+    val e = elevation.coerceIn(0f, 1f)
+    // Ночью тень глубже и мягче, днём — почти незаметна: это соответствует
+    // тому, как рассеянный дневной свет «съедает» жёсткие тени.
+    val strength = if (palette.isDark) 0.35f + e * 0.65f else 0.10f + e * 0.30f
+
+    return this.drawWithCache {
+        val contactRadius = maxOf(size.width, size.height) * 0.62f
+        val ambientRadius = maxOf(size.width, size.height) * (0.85f + e * 0.35f)
+        val centerY = size.height * 0.56f
+        val contact = Brush.radialGradient(
+            colors = listOf(
+                shadow.color.copy(alpha = shadow.color.alpha * strength),
+                Color.Transparent,
+            ),
+            center = Offset(size.width / 2f, centerY),
+            radius = contactRadius,
+        )
+        val ambient = Brush.radialGradient(
+            colors = listOf(
+                shadow.ambient.copy(alpha = shadow.ambient.alpha * strength * 0.8f),
+                Color.Transparent,
+            ),
+            center = Offset(size.width / 2f, centerY + size.height * 0.10f),
+            radius = ambientRadius,
+        )
+        onDrawBehind {
+            drawCircle(ambient, radius = ambientRadius, center = Offset(size.width / 2f, centerY))
+            drawCircle(contact, radius = contactRadius, center = Offset(size.width / 2f, centerY))
+        }
+    }
+}
+
+/**
+ * Верхний блик стекла, тонированный текущим светом.
+ *
+ * Тёплый вечер ловит тёплый блик, холодное утро — холодный. Раньше блик был
+ * всегда белым, и на янтарном фоне выглядел как наклейка.
+ *
+ * @param alpha сила блика 0..1.
+ */
+fun Modifier.amaliaSheen(alpha: Float = 0.5f, shape: Shape): Modifier = this.drawWithCache {
+    val palette = LocalAmaliaPalette.current
+    val tone = if (palette.isWarm) {
+        palette.auroras.lastOrNull() ?: Color.White
+    } else {
+        palette.auroras.getOrNull(1) ?: Color.White
+    }
+    val brush = Brush.linearGradient(
+        colorStops = arrayOf(
+            0f to tone.copy(alpha = palette.sheen * alpha),
+            0.42f to tone.copy(alpha = palette.sheen * alpha * 0.22f),
+            1f to Color.Transparent,
+        ),
+        start = Offset.Zero,
+        end = Offset(size.width * 0.9f, size.height * 1.4f),
+    )
+    onDrawBehind { drawRect(brush) }
 }
 
 /** Текущая тема светлая? Нужно для выбора направления бликов. */

@@ -26,12 +26,18 @@ data class DeviceCommand(
         SET_BLUETOOTH("set_bluetooth"),         // value: Boolean
         SET_BRIGHTNESS("set_brightness"),       // value: Int 0-100 (%)
         SET_VOLUME("set_volume"),               // value: Int 0-100 (%)
+        VOLUME_UP("volume_up"),                 // value: Int (шаг в %)
+        VOLUME_DOWN("volume_down"),             // value: Int (шаг в %)
         SET_FLASHLIGHT("set_flashlight"),       // value: Boolean
         SET_TIMER("set_timer"),                 // value: Int (секунды)
         SET_ALARM("set_alarm"),                 // value: String "HH:mm"
+        CANCEL_ALARMS("cancel_alarms"),         // value: — (снимает все)
         OPEN_APP("open_app"),                   // value: String (package or name)
         OPEN_SETTINGS("open_settings"),         // value: String? (section)
         WEB_SEARCH("web_search"),               // value: String (query)
+        MAKE_CALL("make_call"),                 // value: String (phone)
+        OPEN_NOTIFICATION_SETTINGS("open_notification_settings"),
+        OPEN_BATTERY_SETTINGS("open_battery_settings"),
         ;
 
         companion object {
