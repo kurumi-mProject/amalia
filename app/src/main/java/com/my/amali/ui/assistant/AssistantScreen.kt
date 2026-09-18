@@ -835,7 +835,7 @@ private fun ListeningCard(transcript: String) {
     }
 
     GlassCard(
-        modifier = Modifier.padding(horizontal: Spacing.screen),
+        modifier = Modifier.padding(horizontal = Spacing.screen),
         cornerRadius = Radius.lg,
     ) {
         CardLabel(
