@@ -46,6 +46,16 @@ class MainActivity : ComponentActivity() {
     /** Настройки, прочитанные при старте (null → splash ещё виден). */
     private var bootSettings by mutableStateOf<UserSettings?>(null)
 
+    /**
+     * Язык, применённый к процессу при старте.
+     *
+     * Хранится в активити, а не в `remember` внутри композиции: `remember`
+     * живёт до первой реконструкции и умирает на смене конфигурации, из-за
+     * чего сравнение «язык изменился?» теряло опорное значение. В поле оно
+     * переживает любые перезапуски композиции.
+     */
+    private var appliedLanguage: AppLanguage = AppLanguage.SYSTEM
+
     /** Управляет скрытием splash-экрана. */
     private var uiReady by mutableStateOf(false)
 
@@ -69,6 +79,7 @@ class MainActivity : ComponentActivity() {
             // Применяем сохранённый язык до показа UI, чтобы ресурсы
             // загрузились сразу на нужном языке (без перерисовки).
             applyLocale(first.selectedLanguage)
+            appliedLanguage = first.selectedLanguage
 
             bootSettings = first
             startOnOnboarding = !completed
@@ -109,10 +120,13 @@ class MainActivity : ComponentActivity() {
             // applyLocale — но только если значение действительно отличается
             // от того, что было применено при старте. Это предотвращает
             // лишние recreate-вызовы и тем более бесконечные циклы.
-            val currentLang = remember { mutableStateOf(first.selectedLanguage) }
+            //
+            // Опорное значение — поле активити [appliedLanguage], а не
+            // `remember`: снимок в композиции умирает на смене конфигурации,
+            // после чего сравнение становилось бессмысленным.
             LaunchedEffect(settings.selectedLanguage) {
-                if (settings.selectedLanguage != currentLang.value) {
-                    currentLang.value = settings.selectedLanguage
+                if (settings.selectedLanguage != appliedLanguage) {
+                    appliedLanguage = settings.selectedLanguage
                     applyLocale(settings.selectedLanguage)
                 }
             }

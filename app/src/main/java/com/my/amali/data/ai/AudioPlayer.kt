@@ -364,7 +364,12 @@ class AudioPlayer {
      * есть), интерфейс не должен залипать.
      */
     private suspend fun drain(active: AudioTrack, sampleRate: Int) {
-        val totalBytes = runCatching { active.bufferSizeInBytes }.getOrDefault(0)
+        // `bufferSizeInBytes` появился только на API 23. На более старых
+        // системах его нет — читаем размер через рефлексию, а если и это
+        // не удалось, считаем буфер уже пустым и не ждём зря.
+        val totalBytes = runCatching {
+            AudioTrack::class.java.getMethod("getBufferSizeInBytes").invoke(active) as? Int
+        }.getOrNull() ?: 0
         val framesPlayed = runCatching { active.playbackHeadPosition }.getOrDefault(0)
         val framesTotal = totalBytes / FRAME
         val remaining = (framesTotal - framesPlayed).coerceAtLeast(0)

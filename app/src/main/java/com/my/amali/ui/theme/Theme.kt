@@ -337,12 +337,21 @@ fun AmaliaTheme(
         LocalAmaliaShadow provides shadow,
         LocalLightProfile provides profile,
     ) {
-        MaterialTheme(
+        // Тема вызывается по имени пакета, а не через импорт.
+        //
+        // Импорт `MaterialTheme` (объект-компаньон со вложенной composable
+        // `MaterialTheme(...)`) в одном файле с собственными компонентами
+        // регулярно разрешается в **свой** член вместо нужной функции — и
+        // сборка падает на «No value passed for parameter 'content'» в
+        // совершенно невинном месте. Полное имя убирает эту двусмысленность
+        // раз и навсегда.
+        androidx.compose.material3.MaterialTheme(
             colorScheme = scheme,
             typography = typography,
             shapes = shapes,
-            content = content,
-        )
+        ) {
+            content()
+        }
     }
 }
 
