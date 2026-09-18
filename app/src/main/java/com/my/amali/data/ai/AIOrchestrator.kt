@@ -309,8 +309,16 @@ class AIOrchestrator(
         emit(AiResponse.Thinking(false))
 
         if (responseText.isBlank()) {
-            AmaliaLog.e(AmaliaLog.tagWith("ORC"), "responseText is blank — throwing EngineException")
-            throw EngineException("Модель не дала ответа. Попробуй переспросить.")
+            // Сюда можно попасть ТОЛЬКО в одном случае: модель закрыла поток,
+            // не отдав ни одного символа, и при этом не вызвала ни одного
+            // инструмента. Всё остальное — прозу, обрывок JSON, ответ без
+            // поля reply — разбирает runToolLoop, поэтому «модель не дала
+            // ответа» больше не выдаётся на каждый второй запрос.
+            AmaliaLog.e(
+                AmaliaLog.tagWith("ORC"),
+                "responseText is BLANK: stream closed with 0 chars and no tool calls",
+            )
+            throw EngineException(ERROR_NO_ANSWER)
         }
 
         AmaliaLog.i(AmaliaLog.tagWith("ORC"), "★ LLM response ready | length=${responseText.length} | preview=${responseText.take(80)}")
@@ -434,12 +442,26 @@ class AIOrchestrator(
             // движок: иначе ответ, который модель уже сгенерировала, терялся
             // бы здесь и превращался в «модель не дала ответа».
             val rawCollected = collected.toString()
-            // Приоритет: уже восстановленный движком текст → честный JSON →
-            // терпимый разбор сырого потока. Порядок важен: восстановленный
-            // текст — самое достоверное, что у нас есть.
+            // Приоритет источников текста — от самого достоверного к самому
+            // терпимому:
+            //
+            //  1. `recovered` — текст, который движок уже спас из невалидного
+            //     JSON. Если он есть, разбирать больше нечего.
+            //  2. `extractReply` — честное поле `reply` из валидного JSON.
+            //     Ключевая правка: пустая строка здесь больше НЕ считается
+            //     финальным ответом. Модель любит вернуть
+            //     `{"reply":"","tools":[...]}` после действия — по прежней
+            //     логике это выглядело как «модель не дала ответа», хотя JSON
+            //     валиден, а действие выполнено.
+            //  3. `recoverPlainText` — вытащить хоть что-то: прозу, обрывок
+            //     JSON, текст без поля reply. Возвращает пусто только тогда,
+            //     когда в выводе вообще нет букв.
+            //  4. `fallbackReply` ниже — и он теперь звучит ВСЕГДА, когда
+            //     инструменты что-то сделали. Пользователь получает реплику
+            //     в любом случае: молчания в трубке не бывает.
             val text = recovered.toString().takeIf { it.isNotBlank() }
-                ?: extractReply(rawCollected).ifBlank { recoverPlainText(rawCollected) }
-                    .takeIf { it.isNotBlank() }
+                ?: extractReply(rawCollected).takeIf { it.isNotBlank() }
+                ?: recoverPlainText(rawCollected).takeIf { it.isNotBlank() }
 
             if (text == null && rawCollected.isNotBlank()) {
                 AmaliaLog.w(
@@ -657,8 +679,23 @@ class AIOrchestrator(
      */
     private fun fallbackReply(executed: Set<String>): String = when {
         executed.isEmpty() -> ""
-        executed.size == 1 -> "готово"
-        else -> "всё, ${executed.size} дела"
+        else -> {
+            // Варианты чередуются по числу сделанных действий: однообразное
+            // «сделала» на каждом цикле пользователь читает как поломку.
+            // Выбор по размеру набора детерминирован, поэтому один и тот же
+            // запрос всегда даёт одну и ту же реплику — так проще проверять.
+            val variants = when (executed.size) {
+                1 -> listOf("сделала", "готово", "есть", "окей")
+                2 -> listOf("сделала оба", "готово, два дела", "оба пункта есть", "есть, оба сделала")
+                else -> listOf(
+                    "сделала всё",
+                    "готово, ${executed.size} дела",
+                    "все ${executed.size} пунктов закрыла",
+                    "есть, всё по списку",
+                )
+            }
+            variants[executed.size % variants.size]
+        }
     }
 
     /**
@@ -711,6 +748,15 @@ class AIOrchestrator(
         const val ERROR_NO_SPEECH = "Не услышала ни слова. Нажми микрофон и скажи ещё раз."
         const val ERROR_EMPTY_COMMAND = "Пустая команда — нечего обрабатывать."
         const val ERROR_UNKNOWN = "Что-то пошло не так. Попробуй ещё раз."
+
+        /**
+         * Ответа нет вообще — модель закрыла поток, не отдав ни символа.
+         *
+         * Это единственная ситуация, в которой пользователь видит просьбу
+         * повторить: сюда попадаем при пустом стриме (перегрузка провайдера,
+         * HTTP 200 с пустым телом), а не при «непонятном формате ответа».
+         */
+        const val ERROR_NO_ANSWER = "Модель вернула пустой ответ. Скажи ещё раз."
 
         /** Ошибка синтеза речи: ответ показываем, но озвучить не смогли. */
         const val ERROR_VOICE = "Ответ получен, но озвучить его не удалось."

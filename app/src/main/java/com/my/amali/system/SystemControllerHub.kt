@@ -28,6 +28,7 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.withContext
 import java.util.Calendar
+import java.util.TimeZone
 
 /**
  * ════════════════════════════════════════════════════════════════════════
@@ -215,14 +216,128 @@ class SystemControllerHub(private val context: Context) {
             )
         }.getOrDefault("")
 
+        // ── Дата и день недели ────────────────────────────────────────────
+        //
+        // Модель отвечает на «какой сегодня день» и «сколько до пятницы».
+        // Считать день недели из даты она умеет плохо, а врать в голосовом
+        // ответе нельзя, поэтому день недели приходит готовым словом.
+        val now = Calendar.getInstance()
+        val currentDate = runCatching {
+            "%04d-%02d-%02d".format(
+                now.get(Calendar.YEAR),
+                now.get(Calendar.MONTH) + 1,
+                now.get(Calendar.DAY_OF_MONTH),
+            )
+        }.getOrDefault("")
+        val weekday = runCatching {
+            WEEKDAY_NAMES[now.get(Calendar.DAY_OF_WEEK)] ?: ""
+        }.getOrDefault("")
+        val timezone = runCatching { TimeZone.getDefault().id }.getOrDefault("")
+
+        // ── Разрешения ───────────────────────────────────────────────────
+        //
+        // Каждое разрешение читается отдельно и не влияет на остальные:
+        // отказ в микрофоне не должен стирать из промпта состояние Wi-Fi.
+        val microphone = hasPermission(Manifest.permission.RECORD_AUDIO)
+        val cameraPermission = hasPermission(Manifest.permission.CAMERA)
+        val phonePermission = hasPermission(Manifest.permission.CALL_PHONE)
+        val smsPermission = hasPermission(Manifest.permission.SEND_SMS)
+        val writeSettings = runCatching {
+            SystemSettings.System.canWrite(context)
+        }.getOrDefault(false)
+        val accessibility = isAccessibilityServiceEnabled()
+
+        // ── Аудио и режимы ───────────────────────────────────────────────
+        val ringerMode = runCatching {
+            audioManager?.ringerMode ?: AudioManager.RINGER_MODE_NORMAL
+        }.getOrDefault(AudioManager.RINGER_MODE_NORMAL)
+        val audioMode = when (ringerMode) {
+            AudioManager.RINGER_MODE_SILENT -> "silent"
+            AudioManager.RINGER_MODE_VIBRATE -> "vibrate"
+            else -> "normal"
+        }
+        val muted = ringerMode == AudioManager.RINGER_MODE_SILENT
+        val dnd = runCatching {
+            notificationManager?.isNotificationPolicyAccessGranted == true &&
+                notificationManager.currentInterruptionFilter !=
+                NotificationManager.INTERRUPTION_FILTER_ALL
+        }.getOrDefault(false)
+        val inCall = runCatching {
+            val tm = context.getSystemService(Context.TELEPHONY_SERVICE) as? android.telephony.TelephonyManager
+            @Suppress("DEPRECATION")
+            tm?.callState != android.telephony.TelephonyManager.CALL_STATE_IDLE
+        }.getOrDefault(false)
+        val headset = runCatching {
+            audioManager?.isWiredHeadsetOn == true ||
+                audioManager?.getDevices(AudioManager.GET_DEVICES_OUTPUTS)
+                    ?.any {
+                        it.type == android.media.AudioDeviceInfo.TYPE_WIRED_HEADPHONES ||
+                            it.type == android.media.AudioDeviceInfo.TYPE_BLUETOOTH_A2DP ||
+                            it.type == android.media.AudioDeviceInfo.TYPE_USB_HEADSET
+                    } == true
+        }.getOrDefault(false)
+        val alarms = runCatching {
+            android.provider.AlarmClock.getAlarms(context.contentResolver).size
+        }.getOrDefault(0)
+
+        // ── Железо и версия системы ──────────────────────────────────────
+        val sdk = Build.VERSION.SDK_INT
+        val androidVersion = runCatching { Build.VERSION.RELEASE }.getOrDefault("")
+        val model = runCatching { Build.MODEL }.getOrDefault("")
+        val manufacturer = runCatching { Build.MANUFACTURER }.getOrDefault("")
+        val hasCameraHardware = runCatching {
+            context.packageManager.hasSystemFeature(PackageManager.FEATURE_CAMERA_ANY)
+        }.getOrDefault(false)
+        val hasFlashlightHardware = runCatching {
+            context.packageManager.hasSystemFeature(PackageManager.FEATURE_CAMERA_FLASH)
+        }.getOrDefault(false)
+        val hasBluetoothHardware = runCatching {
+            context.packageManager.hasSystemFeature(PackageManager.FEATURE_BLUETOOTH)
+        }.getOrDefault(false)
+        val hasTelephonyHardware = runCatching {
+            context.packageManager.hasSystemFeature(PackageManager.FEATURE_TELEPHONY)
+        }.getOrDefault(false)
+        val hasWifiHardware = runCatching {
+            context.packageManager.hasSystemFeature(PackageManager.FEATURE_WIFI)
+        }.getOrDefault(false)
+
+        // ── Питание: режим экономии, блокировка, температура батареи ─────
+        val powerSave = runCatching {
+            val pm = context.getSystemService(Context.POWER_SERVICE) as? PowerManager
+            pm?.isPowerSaveMode == true
+        }.getOrDefault(false)
+        val deviceLocked = runCatching {
+            val km = context.getSystemService(Context.KEYGUARD_SERVICE) as? android.app.KeyguardManager
+            km?.isDeviceLocked == true
+        }.getOrDefault(false)
+        val batteryExtra = runCatching {
+            val intent = context.registerReceiver(null, IntentFilter(Intent.ACTION_BATTERY_CHANGED))
+            val temp = intent?.getIntExtra(BatteryManager.EXTRA_TEMPERATURE, -1) ?: -1
+            val health = intent?.getIntExtra(BatteryManager.EXTRA_HEALTH, -1) ?: -1
+            val tempC = if (temp > 0) temp / 10f else null
+            val healthName = when (health) {
+                BatteryManager.BATTERY_HEALTH_GOOD -> "good"
+                BatteryManager.BATTERY_HEALTH_OVERHEAT -> "overheat"
+                BatteryManager.BATTERY_HEALTH_DEAD -> "dead"
+                BatteryManager.BATTERY_HEALTH_OVER_VOLTAGE -> "over_voltage"
+                BatteryManager.BATTERY_HEALTH_COLD -> "cold"
+                else -> "unknown"
+            }
+            tempC to healthName
+        }.getOrDefault(null to "unknown")
+
         DeviceStatus(
             wifiEnabled = wifi,
             bluetoothEnabled = bt,
             brightnessLevel = brightness,
+            brightnessPercent = (brightness.coerceIn(0, 255) * 100) / 255,
             volumeLevel = volume,
             batteryLevel = battery.first,
             isCharging = battery.second,
             currentTime = currentTime,
+            currentDate = currentDate,
+            weekday = weekday,
+            timezone = timezone,
             locationEnabled = location,
             hasContactsPermission = contacts,
             hasNotificationPermission = notifications,
@@ -230,8 +345,61 @@ class SystemControllerHub(private val context: Context) {
             flashlightOn = flashlight,
             wifiAccess = accessLevelFor(DeviceFeature.WIFI).toStatusLevel(),
             bluetoothAccess = accessLevelFor(DeviceFeature.BLUETOOTH).toStatusLevel(),
+            brightnessAccess = accessLevelFor(DeviceFeature.BRIGHTNESS).toStatusLevel(),
+            flashlightAccess = accessLevelFor(DeviceFeature.FLASHLIGHT).toStatusLevel(),
+            volumeAccess = accessLevelFor(DeviceFeature.VOLUME).toStatusLevel(),
+            hasMicrophonePermission = microphone,
+            hasCameraPermission = cameraPermission,
+            hasPhonePermission = phonePermission,
+            hasSmsPermission = smsPermission,
+            canWriteSettings = writeSettings,
+            hasAccessibilityService = accessibility,
+            isDeviceLocked = deviceLocked,
+            powerSaveMode = powerSave,
+            isMuted = muted,
+            isDnd = dnd,
+            isInCall = inCall,
+            isHeadsetConnected = headset,
+            audioMode = audioMode,
+            alarmsCount = alarms,
+            notificationPolicyState = if (dnd) "dnd" else "all",
+            sdkVersion = sdk,
+            androidVersion = androidVersion,
+            deviceModel = model,
+            deviceManufacturer = manufacturer,
+            hasCamera = hasCameraHardware,
+            hasFlashlight = hasFlashlightHardware,
+            hasBluetoothAdapter = hasBluetoothHardware,
+            hasTelephony = hasTelephonyHardware,
+            hasWifiAdapter = hasWifiHardware,
+            batteryTemperatureC = batteryExtra.first,
+            batteryHealth = batteryExtra.second,
+            capturedAtMillis = System.currentTimeMillis(),
         ).also { snapshot -> _status.value = snapshot }
     }
+
+    /**
+     * Включена ли служба спец. возможностей Амалии.
+     *
+     * Проверяется по списку включённых служб в настройках, а не по факту
+     * подключения сервиса: сервис может быть включён, но ещё не
+     * инициализирован, и это не повод говорить «выключено».
+     *
+     * Строка собирается через `Settings.Secure.ENABLED_ACCESSIBILITY_SERVICES`
+     * и сравнивается по короткому имени класса — так же, как это делает
+     * сама система при запуске.
+     */
+    fun isAccessibilityServiceEnabled(): Boolean = runCatching {
+        val enabled = SystemSettings.Secure.getString(
+            context.contentResolver,
+            SystemSettings.Secure.ENABLED_ACCESSIBILITY_SERVICES,
+        ).orEmpty()
+        val expected = "${context.packageName}/.core.accessibility.AmaliaAccessibilityService"
+        enabled.split(':').any {
+            it.equals(expected, ignoreCase = true) ||
+                it.contains("AmaliaAccessibilityService", ignoreCase = true)
+        }
+    }.getOrDefault(false)
 
     /**
      * Wi-Fi включён?
@@ -774,6 +942,27 @@ class SystemControllerHub(private val context: Context) {
         const val DEFAULT_VOLUME_MAX = 15
         const val BLUETOOTH_STATE_POLLS = 6
         const val BLUETOOTH_STATE_POLL_MS = 250L
+
+        /**
+         * Дни недели словами, по индексам [Calendar].
+         *
+         * Считается в одном месте и уходит в промпт готовым словом: модели
+         * дают плохо даются вычисления «18 сентября — это четверг», и в
+         * голосовом ответе такая ошибка звучит как выдумка. Индекс
+         * [Calendar.DAY_OF_WEEK] начинается с воскресенья — это не опечатка.
+         *
+         * Названия намеренно по-русски: их читает человек, а модель переводит
+         * сама, если язык ответа другой (примеры в промпте учат именно этому).
+         */
+        val WEEKDAY_NAMES: Map<Int, String> = mapOf(
+            Calendar.SUNDAY to "воскресенье",
+            Calendar.MONDAY to "понедельник",
+            Calendar.TUESDAY to "вторник",
+            Calendar.WEDNESDAY to "среда",
+            Calendar.THURSDAY to "четверг",
+            Calendar.FRIDAY to "пятница",
+            Calendar.SATURDAY to "суббота",
+        )
     }
 }
 

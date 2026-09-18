@@ -1119,8 +1119,12 @@ private fun ToolSummary(reports: List<ToolReport>, modifier: Modifier = Modifier
     var expanded by remember { mutableStateOf(false) }
     // stringResource нельзя звать внутри semantics-лямбды — она не композабл.
     val actionsTitle = stringResource(R.string.assistant_actions_title)
-    val okCount = reports.count { it.ok }
-    val fails = reports.size - okCount
+    // «Выполнено: 2» рядом с одной красной строкой ошибки читалось как ошибка
+    // в подсчёте: цвет ошибки брался от любой неудачи, а цифра — от общего
+    // числа действий. Теперь считаем только успешные, и цифры сходятся со
+    // списком, который раскрывается под сводкой.
+    val doneCount = reports.count { it.ok }
+    val fails = reports.size - doneCount
     val accent = if (fails == 0 && reports.isNotEmpty()) {
         MaterialTheme.colorScheme.secondary
     } else {
@@ -1155,9 +1159,9 @@ private fun ToolSummary(reports: List<ToolReport>, modifier: Modifier = Modifier
                 Spacer(Modifier.width(Spacing.xs))
                 Text(
                     text = if (fails == 0) {
-                        stringResource(R.string.assistant_actions_ok, reports.size)
+                        stringResource(R.string.assistant_actions_ok, doneCount)
                     } else {
-                        stringResource(R.string.assistant_actions_partial, reports.size, fails)
+                        stringResource(R.string.assistant_actions_partial, doneCount, fails)
                     },
                     style = MaterialTheme.typography.labelMedium,
                     color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.85f),
@@ -1543,6 +1547,27 @@ private val VoiceFailedPreviewState = AssistantUiState(
     errorMessage = "Ответ получен, но озвучить его не удалось.",
 )
 
+/**
+ * Демо-состояние: в одной фразе два действия.
+ *
+ * Проверка того самого сценария, ради которого в промпте появился раздел
+ * «несколько желаний в одной фразе»: два инструмента должны прийти двумя
+ * отдельными записями, а не одной на выбор. Если сводка показывает «2
+ * действия» — контракт промпта работает.
+ */
+private val MultiToolPreviewState = AssistantUiState(
+    voiceState = VoiceState.Idle,
+    userTranscript = "увеличь яркость и звук",
+    amaliaReply = "сейчас. яркость на девяносто, звук на восемьдесят",
+    replyProgress = 1f,
+    isSpeaking = true,
+    conversationCount = 9,
+    lastToolReports = listOf(
+        ToolReport(name = "set_brightness", ok = true, summary = "яркость 90%"),
+        ToolReport(name = "set_volume", ok = true, summary = "звук 80%"),
+    ),
+)
+
 /** Экран в покое: приветствие, подсказки, орб. */
 @Preview(name = "Assistant · Idle", widthDp = 412, heightDp = 915, showBackground = true)
 @Composable
@@ -1594,6 +1619,15 @@ private fun AssistantErrorPreview() {
 private fun AssistantVoiceFailedPreview() {
     AmaliaTheme {
         PreviewShell(VoiceFailedPreviewState)
+    }
+}
+
+/** Два действия в одной фразе: обе настройки попали в инструменты. */
+@Preview(name = "Assistant · Two actions", widthDp = 412, heightDp = 915, showBackground = true)
+@Composable
+private fun AssistantMultiToolPreview() {
+    AmaliaTheme {
+        PreviewShell(MultiToolPreviewState)
     }
 }
 

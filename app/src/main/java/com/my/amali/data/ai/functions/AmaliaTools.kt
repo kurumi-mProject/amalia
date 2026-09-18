@@ -819,8 +819,13 @@ class AmaliaTools(
     private fun getDeviceStatus(): AmaliaTool {
         val def = ToolDefinition(
             name = "get_device_status",
-            description = "Считывает актуальное состояние Wi-Fi, Bluetooth, яркости, " +
-                "громкости, геолокации и разрешений на уведомления/контакты.",
+            description = "Считывает актуальное состояние телефона на текущую " +
+                "секунду: время и дата, Wi-Fi, Bluetooth, яркость, громкость, " +
+                "фонарик, заряд и зарядка, режим экономии, блокировка, режим " +
+                "звука, «не беспокоить», звонок, наушники, число будильников, " +
+                "интернет, все разрешения приложения, глубина управления " +
+                "каждой настройкой и модель устройства. Если факт уже есть " +
+                "в блоке состояния промпта — вызывать не нужно.",
             parameters = emptyList(),
         )
         val handler = ToolHandler {
@@ -828,26 +833,61 @@ class AmaliaTools(
             // момент вызова. Раньше здесь лежал кэш, и после собственного
             // переключения Wi-Fi Амалия сообщала пользователю старое состояние.
             val snapshot = hub.refresh()
+            // Отдаём ТО ЖЕ, что лежит в снимке промпта, плюс проверки, которые
+            // не входят в снимок (авто-яркость, игнор оптимизации батареи).
+            // Дублировать состояние здесь обязательно: снимок в промпте мог
+            // подустареть за время разговора, а этот вызов — источник правды
+            // на текущую секунду. Расхождение полей было бы хуже, чем отказ
+            // от одного из путей.
             ToolOutcome.json(
+                "time" to snapshot.currentTime,
+                "date" to snapshot.currentDate,
+                "weekday" to snapshot.weekday,
                 "wifi" to snapshot.wifiEnabled,
-                "wifi_control_level" to snapshot.wifiAccess.name.lowercase(),
                 "bluetooth" to snapshot.bluetoothEnabled,
-                "bluetooth_control_level" to snapshot.bluetoothAccess.name.lowercase(),
-                "brightness_percent" to (snapshot.brightnessLevel * 100) / 255,
+                "brightness_percent" to snapshot.brightnessPercent,
                 "volume_percent" to snapshot.volumeLevel,
-                "volume_max_steps" to hub.mediaVolumeMax(),
+                "flashlight" to snapshot.flashlightOn,
                 "battery_percent" to snapshot.batteryLevel,
                 "is_charging" to snapshot.isCharging,
+                "power_save_mode" to snapshot.powerSaveMode,
+                "battery_temperature_c" to snapshot.batteryTemperatureC,
+                "battery_health" to snapshot.batteryHealth,
+                "locked" to snapshot.isDeviceLocked,
+                "ringer_mode" to snapshot.audioMode,
+                "muted" to snapshot.isMuted,
+                "dnd" to snapshot.isDnd,
+                "in_call" to snapshot.isInCall,
+                "headset_connected" to snapshot.isHeadsetConnected,
+                "alarms_count" to snapshot.alarmsCount,
                 "internet_available" to snapshot.internetAvailable,
+                "wifi_control_level" to snapshot.wifiAccess.name.lowercase(),
+                "bluetooth_control_level" to snapshot.bluetoothAccess.name.lowercase(),
+                "brightness_control_level" to snapshot.brightnessAccess.name.lowercase(),
+                "flashlight_control_level" to snapshot.flashlightAccess.name.lowercase(),
+                "volume_control_level" to snapshot.volumeAccess.name.lowercase(),
+                "volume_max_steps" to hub.mediaVolumeMax(),
                 "location" to snapshot.locationEnabled,
                 "contacts_permission" to snapshot.hasContactsPermission,
                 "notifications_permission" to snapshot.hasNotificationPermission,
+                "microphone_permission" to snapshot.hasMicrophonePermission,
+                "camera_permission" to snapshot.hasCameraPermission,
+                "phone_permission" to snapshot.hasPhonePermission,
+                "sms_permission" to snapshot.hasSmsPermission,
+                "write_settings_permission" to snapshot.canWriteSettings,
+                "accessibility_service" to snapshot.hasAccessibilityService,
+                "has_camera" to snapshot.hasCamera,
+                "has_flashlight" to snapshot.hasFlashlight,
+                "has_telephony" to snapshot.hasTelephony,
+                "android_sdk" to snapshot.sdkVersion,
+                "android_version" to snapshot.androidVersion,
+                "device" to "${snapshot.deviceManufacturer} ${snapshot.deviceModel}".trim(),
                 "auto_brightness" to hub.isAutoBrightnessOn(),
                 "battery_optimization_ignored" to hub.isBatteryOptimizationIgnored(),
                 "control_note" to
-                    "если wifi_control_level или bluetooth_control_level = 'panel' " +
-                    "или 'screen', переключение требует действия пользователя " +
-                    "в системном окне — так и скажи, не утверждай, что выключила.",
+                    "если *_control_level = 'panel' или 'screen', переключение " +
+                    "требует действия пользователя в системном окне — так и скажи, " +
+                    "не утверждай, что выключила.",
             )
         }
         return AmaliaTool(def, handler)
