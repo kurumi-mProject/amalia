@@ -122,58 +122,31 @@ class GroqWhisperStt(private val context: android.content.Context) : SpeechToTex
         if (ContextCompat.checkSelfPermission(context, Manifest.permission.RECORD_AUDIO)
             != PackageManager.PERMISSION_GRANTED
         ) {
-            // Единственное место, где поток не отдаёт ни одного события:
-            // без разрешения запись физически невозможна, и вызывающая
-            // сторона получит понятное исключение, а не тишину.
             throw EngineException(ERROR_NO_PERMISSION)
         }
 
         val apiKey = options.api.groqKey.trim().ifBlank { BuildConfigKey }
-        if (apiKey.isBlank()) {
-            throw EngineException(ERROR_NO_KEY)
-        }
+        if (apiKey.isBlank()) throw EngineException(ERROR_NO_KEY)
 
         val vad = ensureDetector()
+        val frameSamples = vad.frameSamples
+        val frameMs = VoiceActivityDetector.FRAME_MS.toLong()
+
         val minBuffer = AudioRecord.getMinBufferSize(
-            SAMPLE_RATE,
-            AudioFormat.CHANNEL_IN_MONO,
-            AudioFormat.ENCODING_PCM_16BIT,
+            SAMPLE_RATE, AudioFormat.CHANNEL_IN_MONO, AudioFormat.ENCODING_PCM_16BIT,
         )
-        if (minBuffer <= 0) {
-            throw EngineException(ERROR_MIC_UNAVAILABLE)
-        }
+        if (minBuffer <= 0) throw EngineException(ERROR_MIC_UNAVAILABLE)
 
         val recorder = openRecorder(minBuffer)
-        val model = ModelCatalog.resolveForRequest(
-            ModelCatalog.Provider.GROQ_STT,
-            options.api.sttModel,
-        )
-        val chunkSeconds = options.api.sttChunkSeconds
-            .coerceIn(
-                com.my.amali.domain.entity.UserApiSettings.STT_CHUNK_MIN_SECONDS,
-                com.my.amali.domain.entity.UserApiSettings.STT_CHUNK_MAX_SECONDS,
-            )
-        // Язык запроса выводим из кода распознавания: если он пуст, значит
-        // система говорит на языке, которого мы не знаем, и подсказывать
-        // Whisper нечего — пусть определит сам.
+        val model = ModelCatalog.resolveForRequest(ModelCatalog.Provider.GROQ_STT, options.api.sttModel)
         val whisperLanguage = options.languageCode.trim()
-        val partialEverySamples = samplesFor(chunkSeconds)
         val prompt = recognitionPrompt(options)
-        val frameSamples = vad.frameSamples
-        val frameMs = VoiceSegmenter.FRAME_MS.toLong()
-        val trailingPadMs = VoiceSegmenter.trailingPadMs()
 
-        // Речевой буфер одной фразы. Растёт только на речи и на коротком
-        // хвосте после неё — см. объяснение в заголовке класса.
+        // Буфер всей фразы — растёт пока говорит
         val utterance = ShortAccumulator(MAX_UTTERANCE_SAMPLES)
-
         var speechStarted = false
-        var totalSamples = 0L
         var silenceMs = 0L
-        var lastPartialSample = 0
-        // Последний распознанный кусок: он же субтитр, он же подстраховка,
-        // если финальный запрос вернёт пусто.
-        var lastPartialText = ""
+        val startedAt = System.currentTimeMillis()
 
         val job = launch(Dispatchers.IO) {
             val raw = ShortArray(frameSamples)
@@ -184,110 +157,70 @@ class GroqWhisperStt(private val context: android.content.Context) : SpeechToTex
                     return@launch
                 }
 
-                val startedAt = System.currentTimeMillis()
+                AmaliaLog.i("STT", "recording started | frameSamples=$frameSamples frameMs=${frameMs}ms")
+
                 while (isActive) {
                     val read = recorder.read(raw, 0, frameSamples)
                     if (read <= 0) continue
-                    // `read` не всегда равен запрошенному: AudioRecord может
-                    // отдать меньше. Тогда обрезаем кадр, а не считаем
-                    // недочитанные сэмплы речью — VAD обучен на фиксированном
-                    // окне 512 сэмплов, и мусор на конце сбил бы его с толку.
+
                     val frame = if (read == frameSamples) raw else raw.copyOf(read)
 
-                    // Уровень считаем всегда — волна на экране должна дышать
-                    // даже когда человек молчит и собирается с мыслями.
+                    // Уровень громкости — всегда, независимо от VAD
                     trySend(SttEvent.Level(VoiceSegmenter.level(frame)))
 
-                    if (vad.isSpeech(frame)) {
+                    val isSpeech = vad.isSpeech(frame)
+
+                    if (isSpeech) {
+                        if (!speechStarted) {
+                            AmaliaLog.i("STT", "★ speech started")
+                        }
                         speechStarted = true
                         silenceMs = 0
                         utterance.append(frame)
-                        totalSamples += frame.size
-                    } else if (speechStarted) {
-                        // Хвост тишины после слова дописываем: последний
-                        // согласный часто тише порога, и без него «включи»
-                        // превратилось бы в «ключи».
-                        if (silenceMs < trailingPadMs) {
-                            utterance.append(frame)
-                        }
-                        silenceMs += frameMs
                     } else {
-                        // Речь ещё не началась, а тишина тянется — не держим
-                        // микрофон открытым вечно.
-                        if (System.currentTimeMillis() - startedAt >
-                            VoiceSegmenter.NO_SPEECH_TIMEOUT_MS
-                        ) {
-                            channel.close()
-                            return@launch
+                        if (speechStarted) {
+                            // Дописываем хвост тишины — последний согласный часто тише порога
+                            utterance.append(frame)
+                            silenceMs += frameMs
+
+                            if (silenceMs >= END_OF_SPEECH_MS) {
+                                AmaliaLog.i("STT", "★ end of speech | utteranceSamples=${utterance.size} silenceMs=${silenceMs}ms")
+                                break
+                            }
+                        } else {
+                            // Речь не началась — ждём NO_SPEECH_TIMEOUT_MS
+                            if (System.currentTimeMillis() - startedAt > NO_SPEECH_TIMEOUT_MS) {
+                                AmaliaLog.w("STT", "no speech timeout")
+                                channel.close()
+                                return@launch
+                            }
                         }
                     }
 
-                    // ── Промежуточный запрос ради живых субтитров ─────────
-                    // Проверка «что-то уже сказано» здесь не лишняя: запрос
-                    // отправляется из горячего цикла по 32 мс, и стучаться в
-                    // сеть с пустым буфером нельзя.
-                    if (speechStarted && utterance.size > 0 &&
-                        utterance.size - lastPartialSample >= partialEverySamples
-                    ) {
-                        lastPartialSample = utterance.size
-                        val tail = VoiceSegmenter.extractTail(
-                            utterance.buffer,
-                            utterance.size,
-                            VoiceSegmenter.PARTIAL_CHUNK_MS,
-                        )
-                        val text = runCatching {
-                            client.transcribe(
-                                wav = VoiceSegmenter.toWav(tail),
-                                languageCode = whisperLanguage,
-                                model = model,
-                                apiKey = apiKey,
-                                prompt = prompt,
-                            )
-                        }.getOrElse { error ->
-                            // Обрыв на промежуточном шаге — не повод терять
-                            // фразу: финальный запрос попробует ещё раз.
-                            AmaliaLog.w(
-                                AmaliaLog.tagWith("STT"),
-                                "partial failed: ${error.message}",
-                            )
-                            ""
-                        }
-                        if (text.isNotBlank()) {
-                            lastPartialText = text
-                            trySend(SttEvent.Partial(text))
-                        }
+                    // Жёсткий лимит длины
+                    if (utterance.size >= MAX_UTTERANCE_SAMPLES) {
+                        AmaliaLog.w("STT", "max utterance length reached")
+                        break
                     }
-
-                    val finished = speechStarted &&
-                        silenceMs >= VoiceSegmenter.END_OF_SPEECH_SILENCE_MS
-                    val tooLong = speechStarted && totalSamples >= MAX_UTTERANCE_SAMPLES
-                    if (finished || tooLong) break
                 }
             } catch (e: SecurityException) {
-                close(EngineException(ERROR_PERMISSION_REVOKED, e))
-                return@launch
+                close(EngineException(ERROR_PERMISSION_REVOKED, e)); return@launch
             } catch (e: IllegalStateException) {
-                close(EngineException(ERROR_MIC_BUSY, e))
-                return@launch
+                close(EngineException(ERROR_MIC_BUSY, e)); return@launch
             } finally {
                 runCatching {
-                    if (recorder.recordingState == AudioRecord.RECORDSTATE_RECORDING) {
-                        recorder.stop()
-                    }
+                    if (recorder.recordingState == AudioRecord.RECORDSTATE_RECORDING) recorder.stop()
                 }
             }
 
             if (!speechStarted || utterance.size == 0) {
-                // Тишина в микрофоне: поток закрывается без текста, а
-                // оркестратор скажет «не услышала ни слова».
+                AmaliaLog.w("STT", "no speech in buffer")
                 channel.close()
                 return@launch
             }
 
-            // ── Финальный запрос: полный сегмент, с первого слова ────────
-            //
-            // Клиент сам переключает поток на Dispatchers.IO: это сетевой
-            // вызов, а мы уже находимся в фоновом потоке записи.
+            // Отправляем ВЕСЬ буфер — никаких хвостов, никаких обрезков
+            AmaliaLog.i("STT", "sending to Whisper | samples=${utterance.size} (~${utterance.size / SAMPLE_RATE}s)")
             val finalText = runCatching {
                 client.transcribe(
                     wav = VoiceSegmenter.toWav(utterance.toArray()),
@@ -297,18 +230,16 @@ class GroqWhisperStt(private val context: android.content.Context) : SpeechToTex
                     prompt = prompt,
                 )
             }.getOrElse { error ->
+                AmaliaLog.e("STT", "whisper error: ${error.message}", error)
                 close(EngineException(error.message ?: ERROR_RECOGNITION, error))
                 return@launch
             }
 
             val cleaned = VoiceSegmenter.collapseRepeats(finalText)
-            // Пустой финальный ответ не означает, что человек молчал: если
-            // промежуточный запрос уже что-то распознал, показываем его.
-            // Так теряется только точность, а не реплика целиком.
-            val chosen = if (cleaned.isNotBlank()) cleaned else lastPartialText
-            val merged = VoiceSegmenter.mergeTranscript(listOf(chosen))
-            if (merged.isNotBlank()) {
-                trySend(SttEvent.Final(merged))
+            AmaliaLog.i("STT", "whisper result: \"${cleaned.take(80)}\"")
+
+            if (cleaned.isNotBlank()) {
+                trySend(SttEvent.Final(cleaned))
             }
             channel.close()
         }
@@ -393,17 +324,18 @@ class GroqWhisperStt(private val context: android.content.Context) : SpeechToTex
         /** Сколько читать за раз; кратно кадру VAD (512 сэмплов = 1024 байта). */
         const val READ_CHUNK_BYTES = 3_200
 
-        /** Сколько сэмплов речи максимум держим в буфере одной фразы. */
-        val MAX_UTTERANCE_SAMPLES: Int =
-            (VoiceSegmenter.MAX_UTTERANCE_MS * SAMPLE_RATE / 1000).toInt()
+        /** Тишина после речи → конец фразы. 600мс — баланс между «обрезает» и «тормозит». */
+        const val END_OF_SPEECH_MS = 600L
+
+        /** Сколько ждать первого слова до таймаута. */
+        const val NO_SPEECH_TIMEOUT_MS = 8_000L
+
+        /** Сколько сэмплов речи максимум держим в буфере одной фразы (30 сек). */
+        val MAX_UTTERANCE_SAMPLES: Int = (30 * SAMPLE_RATE)
 
         /** Сколько названий приложений и синонимов вмещать в подсказку. */
         const val APPS_IN_PROMPT = 8
 
-        /**
-         * Базовый словарь. Собран из того, что Амалия реально умеет делать, —
-         * чтобы «включи блютуз» распознавалось одинаково у всех.
-         */
         const val BASE_PROMPT =
             "Амалия, вайфай, блютуз, яркость, громкость, фонарик, будильник, " +
                 "таймер, погода, ютуб, телеграм, вкл, выкл"

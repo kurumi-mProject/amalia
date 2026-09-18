@@ -113,7 +113,6 @@ import com.my.amali.ui.theme.Spacing
 import com.my.amali.ui.theme.glassSurface
 import com.my.amali.ui.theme.iconAccent
 import com.my.amali.ui.theme.paletteChip
-import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 
 /**
@@ -828,12 +827,6 @@ private fun WelcomeCard(
  */
 @Composable
 private fun ListeningCard(transcript: String) {
-    var connecting by remember { mutableStateOf(true) }
-    LaunchedEffect(Unit) {
-        delay(CONNECTING_HINT_MS)
-        connecting = false
-    }
-
     GlassCard(
         modifier = Modifier.padding(horizontal = Spacing.screen),
         cornerRadius = Radius.lg,
@@ -844,11 +837,6 @@ private fun ListeningCard(transcript: String) {
         )
         Spacer(Modifier.height(Spacing.xs))
         when {
-            connecting -> Text(
-                text = stringResource(R.string.assistant_connecting),
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-            )
             transcript.isBlank() -> TypingDots()
             else -> Text(
                 text = transcript,
@@ -1459,7 +1447,6 @@ private fun welcomeSuggestions(): List<String> = listOf(
 private const val VISIBLE_TOOL_ROWS = 3
 
 /** Через сколько миллисекунд подсказка «подключаюсь» сменяется точками. */
-private const val CONNECTING_HINT_MS = 1_100L
 
 /** Потолок высоты текста ответа: дальше — внутренний скролл, а не рост карточки. */
 private val ReplyMaxHeight = 180.dp
