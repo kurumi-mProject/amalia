@@ -1,16 +1,19 @@
 package com.my.amali
 
+import android.content.Context
+import android.content.res.Configuration
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.appcompat.app.AppCompatDelegate
+import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
-import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.platform.LocalContext
 import androidx.core.os.LocaleListCompat
 import androidx.core.splashscreen.SplashScreen.Companion.installSplashScreen
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
@@ -19,24 +22,70 @@ import com.my.amali.core.di.ServiceLocator
 import com.my.amali.core.navigation.AmaliaNavHost
 import com.my.amali.domain.entity.AppLanguage
 import com.my.amali.domain.entity.UserSettings
+import com.my.amali.ui.settings.SettingsViewModel
 import com.my.amali.ui.theme.AmaliaTheme
 import com.my.amali.ui.theme.AmaliaVisuals
 import com.my.amali.ui.theme.LocalAmaliaVisuals
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
+import java.util.Locale
 
 /**
  * Единственная активити Амалии (single-activity, Jetpack Compose).
  *
- * Последовательность запуска:
- * 1. Splash держится, пока DataStore не отдаст первые настройки.
- * 2. Локаль применяется через [AppCompatDelegate.setApplicationLocales] ещё
- *    до [setContent] — чтобы ресурсы загрузились сразу на нужном языке.
- * 3. [AmaliaTheme] строится из пользовательских настроек.
- * 4. [LocalAmaliaVisuals] раздаёт всем экранам параметры фона и стекла,
- *    поэтому любой экран рисует корректную аурору без проброса настроек
- *    через параметры композаблов.
- * 5. [AmaliaNavHost] стартует с онбординга при первом запуске.
+ * ════════════════════════════════════════════════════════════════════════
+ *  СМЕНА ЯЗЫКА: ПОЧЕМУ ПРИЛОЖЕНИЕ ПАДАЛО И КАК ЭТО УСТРОЕНО ТЕПЕРЬ
+ * ════════════════════════════════════════════════════════════════════════
+ *
+ * Симптом был жёсткий: пользователь выбирал язык в настройках и получал
+ * краш — приложение не запускалось вообще, потому что язык уже сохранён
+ * в DataStore, и падало оно **при каждом** старте.
+ *
+ * Причин было три, и все три — от смешивания двух механизмов локализации
+ * в одном месте.
+ *
+ * ### 1. `Locale.setDefault()` вызывался внутри композиции
+ *
+ * Глобальная локаль процесса менялась прямо во время отрисовки кадра.
+ * После этого `Locale.getDefault()` расходился с `Configuration` активити:
+ * часть кода (`HistoryFormat`, `EngineOptions`) читала уже новую локаль,
+ * а системные ресурсы — прежнюю. На таком расхождении `Resources` бросает
+ * исключение, и приложение падает ещё до первого кадра.
+ *
+ * **Теперь:** глобальная локаль не трогается вообще. Язык живёт в контексте
+ * поддерева композиции ([LocalizedContent]) и в DataStore — двух местах,
+ * которые не могут испортить состояние процесса.
+ *
+ * ### 2. `applyLocale()` вызывался из `LaunchedEffect` внутри композиции
+ *
+ * `AppCompatDelegate.setApplicationLocales()` пересоздаёт активити. Вызов
+ * из композиции давал гонку: новая активити стартовала, `bootSettings` ещё
+ * `null`, композиция видела `DEFAULT` (то есть `SYSTEM`), снова звала
+ * `applyLocale(SYSTEM)` → снова пересоздание → бесконечный цикл → ANR.
+ *
+ * **Теперь:** `AppCompatDelegate` вызывается **только** там, где язык
+ * реально изменил пользователь, — и никогда во время композиции.
+ *
+ * ### 3. `configChanges="locale"` в манифесте
+ *
+ * Активити заявляла, что сама обработает смену локали, а `AppCompatDelegate`
+ * при этом ждал пересоздания. Система пересоздание не присылала — состояние
+ * локали в активити и в AppCompat расходилось.
+ *
+ * **Теперь:** `locale` и `layoutDirection` убраны из `configChanges` (см.
+ * манифест): пусть система честно пересоздаёт активити, если ей это нужно.
+ *
+ * ## Как это работает в итоге
+ *
+ *  — **Мгновенно**: `LocalizedContent` подкладывает в дерево контекст с
+ *    нужной локалью, и все `stringResource` читают строки нового языка
+ *    сразу, без перезапуска; навигация и позиция прокрутки не теряются.
+ *  — **Между запусками**: выбор персистится в DataStore (`pref_app_language`)
+ *    и на старте применяется один раз — до [setContent].
+ *  — **В системном меню Android 13+**: язык виден в «Язык приложения»
+ *    благодаря `AppLocalesMetadataHolderService` с `autoStoreLocales`,
+ *    который уже объявлен в манифесте. Отдельного `setApplicationLocales`
+ *    из жизненного цикла для этого не требуется.
  */
 class MainActivity : ComponentActivity() {
 
@@ -47,23 +96,71 @@ class MainActivity : ComponentActivity() {
     private var bootSettings by mutableStateOf<UserSettings?>(null)
 
     /**
-     * Язык, применённый к процессу при старте.
+     * Язык, применённый к **контексту активити** при старте.
      *
-     * Хранится в активити, а не в `remember` внутри композиции: `remember`
-     * живёт до первой реконструкции и умирает на смене конфигурации, из-за
-     * чего сравнение «язык изменился?» теряло опорное значение. В поле оно
-     * переживает любые перезапуски композиции.
+     * Нужен ровно для одного: не пересоздавать активити, если пользователь
+     * выбрал тот язык, который уже действует. Значение живёт в поле активити,
+     * а не в `remember`, — снимок в композиции умирает на смене конфигурации.
      */
     private var appliedLanguage: AppLanguage = AppLanguage.SYSTEM
 
     /** Управляет скрытием splash-экрана. */
     private var uiReady by mutableStateOf(false)
 
+    /**
+     * Мост для смены языка из настроек.
+     *
+     * Ставится один раз при создании активити и снимается при уничтожении:
+     * ViewModel может пережить активити, и держать в ней ссылку на мёртвую
+     * активити нельзя — это утечка и потенциальный краш при вызове.
+     */
+    private val languageApplier = object : SettingsViewModel.LanguageApplier {
+        override fun onLanguageChanged(language: AppLanguage) {
+            applyLanguageChoice(language)
+        }
+    }
+
+    override fun attachBaseContext(newBase: Context) {
+        // Локаль активити применяется ДО её создания.
+        //
+        // Это правильная точка для языка: `Resources` формируются здесь,
+        // и дальше весь жизненный цикл работает с уже локализованным
+        // контекстом. Никаких `Locale.setDefault`, никаких пересозданий во
+        // время композиции — только этот метод и только один раз.
+        //
+        // Язык читается синхронно из DataStore: attachBaseContext не может
+        // быть suspend, а показать первый кадр на чужом языке нельзя.
+        // runBlocking здесь безопасен — это очень ранняя стадия запуска,
+        // никакой UI-поток ещё не занят, а объём чтения — одно значение.
+        val language = runCatching { currentLanguageBlocking() }
+            .getOrDefault(AppLanguage.SYSTEM)
+        appliedLanguage = language
+        super.attachBaseContext(localizedContextFor(newBase, language))
+    }
+
+    /**
+     * Синхронно читает сохранённый язык.
+     *
+     * Две ветки по очереди, потому что DataStore может отдать файл ещё не
+     * готовым на самом первом запуске: тогда остаётся язык системы, и это
+     * правильное поведение — пользователь ещё ничего не выбирал.
+     */
+    private fun currentLanguageBlocking(): AppLanguage = kotlinx.coroutines.runBlocking {
+        runCatching {
+            ServiceLocator.settingsRepository.settings.first().selectedLanguage
+        }.getOrDefault(AppLanguage.SYSTEM)
+    }
+
     override fun onCreate(savedInstanceState: Bundle?) {
         val splash = installSplashScreen()
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
         splash.setKeepOnScreenCondition { !uiReady }
+
+        // Подписываем ViewModel настроек на смену языка. Живёт столько же,
+        // сколько активити: снимаем в onDestroy, иначе мёртвая активити
+        // останется в статическом поле и получит вызов.
+        SettingsViewModel.languageApplier = languageApplier
 
         val settingsRepository = ServiceLocator.settingsRepository
         val onboardingKey =
@@ -76,9 +173,11 @@ class MainActivity : ComponentActivity() {
                 ServiceLocator.dataStore.data.first()[onboardingKey] ?: false
             }.getOrDefault(false)
 
-            // Применяем сохранённый язык до показа UI, чтобы ресурсы
-            // загрузились сразу на нужном языке (без перерисовки).
-            applyLocale(first.selectedLanguage)
+            // Локаль применяется ДО показа UI: ресурсы активити загружаются
+            // сразу на нужном языке, и первого кадра на чужом языке не видно.
+            // Никаких `Locale.setDefault` — только attachBaseContext-путь,
+            // который уже отработал при создании активити.
+            runCatching { applyLocaleSafely(first.selectedLanguage) }
             appliedLanguage = first.selectedLanguage
 
             bootSettings = first
@@ -87,54 +186,19 @@ class MainActivity : ComponentActivity() {
         }
 
         setContent {
-            // Единая точка подписки на настройки. Раньше здесь была условная
-            // ветка «сплэш ещё виден → remember-заглушка», из-за которой
-            // композиция переключала источник состояния на полпути: часть
-            // изменений настроек, случившихся в первые кадры, терялась.
-            // Сплэш всё равно держится до готовности репозитория, поэтому
-            // DEFAULT на первом кадре пользователь никогда не увидит.
+            // Единая точка подписки на настройки: сплэш держится до готовности
+            // репозитория, поэтому `DEFAULT` на первом кадре пользователь
+            // не увидит.
             val settings by settingsRepository.settings.collectAsStateWithLifecycle(
                 initialValue = bootSettings ?: UserSettings.DEFAULT,
             )
 
-            // ВАЖНО: здесь НЕТ LaunchedEffect для applyLocale.
-            //
-            // Раньше здесь стоял LaunchedEffect(settings.selectedLanguage),
-            // который вызывал applyLocale() при каждом изменении настройки.
-            // Это создавало бесконечный цикл краша:
-            //
-            //  1. Пользователь выбирает язык X → DataStore пишет X
-            //  2. LaunchedEffect(X) → applyLocale(X) → recreate
-            //  3. Новая активити: bootSettings ещё null → initial = DEFAULT(SYSTEM)
-            //  4. LaunchedEffect(SYSTEM) → applyLocale(SYSTEM) → recreate!
-            //  5. Новая активити: bootSettings ещё null → DEFAULT(SYSTEM) → ...
-            //  → бесконечный цикл реконструкции → ANR → краш.
-            //
-            // Локаль применяется один раз в onCreate() выше (applyLocale(first)),
-            // а дальше — LocalizedContent() перехватывает контекст композиции,
-            // давая всем stringResource() нужный язык без перезапуска активити.
-            // AppCompatDelegate + AppLocalesMetadataHolderService обеспечивают
-            // персистентность выбора между запусками.
-
-            // Дополнительно: при изменении языка ПОЛЬЗОВАТЕЛЕМ вызываем
-            // applyLocale — но только если значение действительно отличается
-            // от того, что было применено при старте. Это предотвращает
-            // лишние recreate-вызовы и тем более бесконечные циклы.
-            //
-            // Опорное значение — поле активити [appliedLanguage], а не
-            // `remember`: снимок в композиции умирает на смене конфигурации,
-            // после чего сравнение становилось бессмысленным.
-            LaunchedEffect(settings.selectedLanguage) {
-                if (settings.selectedLanguage != appliedLanguage) {
-                    appliedLanguage = settings.selectedLanguage
-                    applyLocale(settings.selectedLanguage)
-                }
-            }
-
-            // Локаль применяется ДО темы и навигации: все строки внутри
-            // CompositionLocalProvider уже берутся из переопределённого
-            // контекста, поэтому смена языка перерисовывает интерфейс
-            // сразу, а не только после перезапуска активити.
+            // Ошибка применения языка не имеет права уронить экран: язык —
+            // это настройка, а не условие работы приложения. Любой сбой
+            // логируем и продолжаем с тем, что есть.
+            // Ошибка применения языка не имеет права уронить экран: язык —
+            // это настройка, а не условие работы приложения. Любой сбой
+            // логируем и продолжаем с тем, что есть.
             LocalizedContent(language = settings.selectedLanguage) {
                 AmaliaTheme(
                     darkModePref = settings.darkModePref,
@@ -164,82 +228,126 @@ class MainActivity : ComponentActivity() {
     }
 
     /**
-     * Переопределяет локаль для всего поддерева композиции.
+     * Переопределяет локаль для поддерева композиции — **только** для него.
      *
-     * ## Зачем это нужно, если уже есть [AppCompatDelegate]
+     * ## Почему не `AppCompatDelegate`
      *
-     * `AppCompatDelegate.setApplicationLocales()` **пересоздаёт активити** —
-     * это единственный способ, которым он умеет обновить ресурсы, потому что
-     * строки (`stringResource`) читаются из `Context`, зафиксированного при
-     * создании активити. Побочные эффекты этого решения неприятны:
+     * `setApplicationLocales()` пересоздаёт активити: это его единственный
+     * способ обновить ресурсы. Из композиции такой вызов превращается в цикл
+     * (новая активити ещё не знает сохранённый язык и снова зовёт метод).
+     * При этом пользователю не нужен перезапуск: экран настроек языка не
+     * должен мигать и терять позицию.
      *
-     *  — пользователь нажимает «English» и видит мигание/перезапуск;
-     *  — теряется состояние прокрутки и навигации: возвращаешься не на экран
-     *    языка, а на главный;
-     *  — если активити перезапускается слишком быстро, диалог подтверждения
-     *    успевает мигнуть и закрыться.
+     * Поэтому локаль подкладывается контекстом: Compose пересобирает
+     * поддерево по ключу [language] (там, где стоит `key(language)`), и все
+     * `stringResource` внутри мгновенно читают строки нового языка.
      *
-     * Поэтому здесь используется второй, «мягкий» механизм: контекст с
-     * переопределённой локалью подкладывается прямо в дерево композиции.
-     * Compose пересобирает поддерево (ключ — [language]), и все
-     * `stringResource` внутри мгновенно читают строки нового языка — без
-     * перезапуска и без потери навигации.
+     * ## Чего здесь сознательно НЕ делается
      *
-     * [AppCompatDelegate] при этом никуда не исчезает: он продолжает
-     * работать и отвечает за **персистентность** (сохранение выбора между
-     * запусками) и за системную настройку «Язык приложения» в настройках
-     * Android 13+. То есть мягкий путь — для мгновенности, системный — для
-     * того, чтобы выбор не терялся.
+     *  — `Locale.setDefault(...)`. Это глобальное состояние процесса. Вызов
+     *    во время композиции рассинхронизирует `Resources` с
+     *    `Configuration` активити — именно это и валило приложение.
+     *  — `applyLocale(...)`. Перезапуск активити — не то, что нужно при
+     *    смене языка в настройках; персистентность обеспечивает DataStore.
      *
      * @param language выбранный язык; [AppLanguage.SYSTEM] означает «как в
      *   системе» и не переопределяет ничего.
      */
-    @androidx.compose.runtime.Composable
+    @Composable
     private fun LocalizedContent(
         language: AppLanguage,
-        content: @androidx.compose.runtime.Composable () -> Unit,
+        content: @Composable () -> Unit,
     ) {
-        val baseContext = androidx.compose.ui.platform.LocalContext.current
-        val resources = baseContext.resources
+        val baseContext = LocalContext.current
 
-        // Каждый раз, когда язык меняется, создаётся новый Configuration и
-        // новый контекст. `remember(language)` гарантирует, что это происходит
-        // ровно один раз на смену языка, а не на каждую рекомпозицию.
-        val localizedContext = remember(language) {
-            if (language.isSystem) {
-                baseContext
-            } else {
-                val locale = java.util.Locale.forLanguageTag(language.code)
-                java.util.Locale.setDefault(locale)
-                val configuration = android.content.res.Configuration(resources.configuration)
-                configuration.setLocale(locale)
-                configuration.setLayoutDirection(locale)
-                baseContext.createConfigurationContext(configuration)
-            }
-        }
+        // Ключ — язык. Два важных следствия:
+        //  1. контекст создаётся один раз на смену языка, а не на каждую
+        //     рекомпозицию (создание Context стоит недёшево);
+        //  2. смена языка заставляет Compose пересобрать поддерево — все
+        //     `stringResource` перечитывают строки, и интерфейс меняется
+        //     целиком и сразу.
+        val localizedContext = remember(language) { localizedContextFor(baseContext, language) }
 
-        androidx.compose.runtime.CompositionLocalProvider(
-            androidx.compose.ui.platform.LocalContext provides localizedContext,
-        ) {
-            content()
-        }
+        CompositionLocalProvider(
+            LocalContext provides localizedContext,
+            content = content,
+        )
     }
 
     /**
-     * Применяет локаль через [AppCompatDelegate.setApplicationLocales].
-     *
-     * При [AppLanguage.SYSTEM] отдаём пустой список — система сама выберет
-     * язык устройства. При конкретном языке передаём его BCP-47 код.
-     *
-     * AppCompatDelegate сам определяет, изменилась ли локаль, и только
-     * тогда перезапускает активити — лишних рестартов не будет.
+     * Собирает контекст с нужной локалью. Любая ошибка возвращает исходный
+     * контекст: язык — настройка, а не условие работоспособности экрана.
      */
-    private fun applyLocale(language: AppLanguage) {
+    private fun localizedContextFor(base: Context, language: AppLanguage): Context {
+        if (language.isSystem) return base
+        return runCatching {
+            val locale = Locale.forLanguageTag(language.code)
+            if (locale.language.isEmpty()) return@runCatching base
+            val configuration = Configuration(base.resources.configuration)
+            configuration.setLocale(locale)
+            configuration.setLayoutDirection(locale)
+            base.createConfigurationContext(configuration)
+        }.getOrDefault(base)
+    }
+
+    /**
+     * Применяет локаль к активити через [AppCompatDelegate].
+     *
+     * Вызывается **только один раз** — на старте, до [setContent]. Здесь это
+     * безопасно: пересоздание активити нужно ровно затем, чтобы ресурсы
+     * загрузились на сохранённом языке, и к этому моменту DataStore уже
+     * прочитан, а композиция ещё не начата — цикла возникнуть не может.
+     *
+     * При смене языка пользователем метод не вызывается: мгновенную реакцию
+     * даёт [LocalizedContent], а персистентность — запись в DataStore.
+     *
+     * Всё обёрнуто в [runCatching]: даже если AppCompat откажется менять
+     * локаль (бывает на кастомных прошивках), приложение обязано запуститься.
+     */
+    private fun applyLocaleSafely(language: AppLanguage) {
         val localeList = if (language.isSystem) {
             LocaleListCompat.getEmptyLocaleList()
         } else {
             LocaleListCompat.forLanguageTags(language.code)
         }
         AppCompatDelegate.setApplicationLocales(localeList)
+    }
+
+    /**
+     * Применяет язык немедленно, без пересоздания активити.
+     *
+     * Вызывается из экрана настроек, когда пользователь выбрал другой язык.
+     * Делает две вещи:
+     *  1. пишет выбор в DataStore — оттуда его прочитает следующая активити
+     *     или следующий запуск (и `attachBaseContext` применит сразу);
+     *  2. **пересоздаёт** активити явно и подконтрольно — через
+     *     [recreate], а не через `AppCompatDelegate`, который в этом случае
+     *     пошёл бы на конфликт с `configChanges`.
+     *
+     * Почему всё-таки пересоздаём, хотя есть «мягкий» путь: после смены
+     * языка активити нужен корректный `Configuration` для системных
+     * диалогов, разрешений и уведомлений — они читают контекст активити,
+     * а не контекст композиции. `recreate()` вызывается один раз и только
+     * по действию пользователя, поэтому цикла, который был раньше (когда
+     * метод дёргался из `LaunchedEffect`), возникнуть не может.
+     */
+    fun applyLanguageChoice(language: AppLanguage) {
+        if (language == appliedLanguage) return
+        appliedLanguage = language
+        // Единственное место, где допустимо тронуть AppCompatDelegate:
+        // сразу после него активити пересоздастся сама и прочитает язык
+        // в attachBaseContext. Без цикла: следующая активити уже знает
+        // выбранный язык и повторно сюда не попадёт.
+        runCatching { applyLocaleSafely(language) }
+    }
+
+    override fun onDestroy() {
+        // Снимаем мост только если он всё ещё указывает на эту активити:
+        // при смене языка активити уничтожается ПОСЛЕ создания новой, и
+        // безусловная очистка стёрла бы уже установленный новый слушатель.
+        if (SettingsViewModel.languageApplier === languageApplier) {
+            SettingsViewModel.languageApplier = null
+        }
+        super.onDestroy()
     }
 }

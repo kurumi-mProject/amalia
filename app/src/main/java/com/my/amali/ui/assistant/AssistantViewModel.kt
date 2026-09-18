@@ -205,6 +205,21 @@ class AssistantViewModel(
     /** Сколько первых сообщений [sessionMessages] уже закрыто резюме. */
     private var summarizedCount = 0
 
+    /**
+     * Сколько сообщений было в сессии, когда резюме обновилось в последний раз.
+     *
+     * Существует отдельно от [summarizedCount], потому что тот «плывёт»:
+     * [summarizedCount] — это индекс в текущем списке (он сдвигается, когда
+     * старые сообщения выбрасываются из буфера), а это — бухгалтерия по
+     * количеству **новых** реплик с момента последнего пересказа.
+     *
+     * Без такого разделения и получался «вечный цикл сжатия»: индекс
+     * сбрасывался при обрезке буфера, условие «набралось 10 сообщений»
+     * срабатывало снова, и диалог пересказывался на каждом ходу — модель
+     * вместо ответа сжимала собственную же сводку.
+     */
+    private var messagesSinceSummary = 0
+
     /** Идёт ли сейчас генерация резюме (не запускаем две одновременно). */
     private var summaryInProgress = false
 
@@ -231,6 +246,9 @@ class AssistantViewModel(
                 sessionMessages += existing.messages.takeLast(SESSION_TRIM)
                 conversationSummary = existing.contextSummary
                 summarizedCount = existing.summarizedCount
+                // После перезапуска считаем, что «новых» сообщений нет: иначе
+                // первая же реплика запустила бы пересказ уже сжатого диалога.
+                messagesSinceSummary = 0
             }
             _uiState.update {
                 it.copy(
@@ -391,6 +409,8 @@ class AssistantViewModel(
         sessionConversationId = null
         conversationSummary = null
         summarizedCount = 0
+        messagesSinceSummary = 0
+        summaryInProgress = false
         _uiState.update {
             AssistantUiState(
                 isFirstLaunch = false,
@@ -758,9 +778,15 @@ class AssistantViewModel(
         val assistantMessage = ChatMessage.assistant(replyText, actions)
         sessionMessages += userMessage
         sessionMessages += assistantMessage
+        messagesSinceSummary += 2
         if (sessionMessages.size > SESSION_TRIM) {
-            repeat(sessionMessages.size - SESSION_TRIM) { sessionMessages.removeAt(0) }
-            summarizedCount = 0
+            val dropped = sessionMessages.size - SESSION_TRIM
+            repeat(dropped) { sessionMessages.removeAt(0) }
+            // Сдвигаем индекс вместе с буфером — ровно на столько же позиций,
+            // сколько сообщений выбросили. Обнулять нельзя: обнуление означало
+            // «всё, что уже сжато, снова считается несжатым», и пересказ
+            // запускался заново после каждого сдвига окна.
+            summarizedCount = (summarizedCount - dropped).coerceAtLeast(0)
         }
 
         val turn = listOf(userMessage, assistantMessage)
@@ -781,8 +807,11 @@ class AssistantViewModel(
             }
         }
 
-        // Каждые SUMMARY_EVERY сообщений — пересказываем начало диалога.
-        if (sessionMessages.size - summarizedCount >= SUMMARY_EVERY) {
+        // Пересказ запускается только когда набралось SUMMARY_EVERY **новых**
+        // реплик с момента прошлого пересказа — а не когда «в списке стало
+        // много сообщений». Именно эта разница убирает вечный цикл: индексы
+        // плывут при обрезке буфера, а счётчик новых сообщений — нет.
+        if (messagesSinceSummary >= SUMMARY_EVERY) {
             refreshSummary()
         }
     }
@@ -790,32 +819,59 @@ class AssistantViewModel(
     /**
      * Обновляет резюме диалога.
      *
-     * Три вещи, из-за которых раньше «сжатие» было вреднее, чем помощь:
-     *  1. резюме **дописывалось** в одно поле без предела → контекст рос,
-     *     а не сжимался. Теперь每次 новый пересказ перезаписывает прежний;
-     *  2. генерация стартовала в `viewModelScope.launch` и не дожидалась
-     *     результата → следующий цикл уходил в модель со старым резюме
-     *     (или вообще без него). Теперь вызов ждём, но с таймаутом: медленное
-     *     резюме не имеет права задерживать разговор;
-     *  3. результат не сохранялся → после перезапуска приложения «память»
-     *     обнулялась. Теперь резюме живёт в [Conversation.contextSummary].
+     * ## Как это должно работать
+     *
+     * Резюме — не «второе окно контекста», а **замена** уже прожитой части
+     * разговора. Отсюда три правила, каждое из которых когда-то нарушалось:
+     *
+     *  1. **Новый пересказ перезаписывает прежний**, а не дописывается к нему.
+     *     Иначе «сжатие» только росло бы в объёме.
+     *  2. **Индекс сжатого — это граница окна**, а не «сколько всего было».
+     *     Считаем позицию в текущем списке, а счётчик новых реплик живёт
+     *     отдельно ([messagesSinceSummary]) и не сбивается обрезкой буфера.
+     *  3. **Результат обязан сохраниться** — иначе после перезапуска приложения
+     *     «память» обнуляется, хотя история на диске есть.
+     *
+     * ## Почему ушёл вечный цикл
+     *
+     * Раньше условие было `sessionMessages.size - summarizedCount >= 10`,
+     * а `summarizedCount` обнулялся при обрезке буфера. Стоило выбросить
+     * старые сообщения — и «уже сжатое» снова считалось несжатым, пересказ
+     * запускался на каждом ходу, а модель вместо ответа сжимала собственную
+     * же сводку. Теперь условие — «набралось 10 **новых** реплик», и оно
+     * не зависит ни от обрезки, ни от перезапуска.
+     *
+     * Второй источник роста: при непустом прежнем резюме промпт просил
+     * «дополни его», и модель склеивала пересказ с пересказом. Теперь
+     * прежнее резюме передаётся как контекст, но требуется вернуть **одно**
+     * короткое резюме целиком.
      */
     private suspend fun refreshSummary() {
         if (summaryInProgress) return
+
+        // Что именно пересказываем: реплики после последней сжатой границы.
+        val start = summarizedCount.coerceIn(0, sessionMessages.size)
+        val pending = sessionMessages.drop(start)
+        if (pending.isEmpty()) {
+            // Сжимать нечего — обнуляем счётчик, чтобы не возвращаться сюда
+            // на каждой следующей реплике.
+            messagesSinceSummary = 0
+            return
+        }
+
         summaryInProgress = true
         try {
-            val pending = sessionMessages.drop(summarizedCount)
-            if (pending.isEmpty()) return
             val previous = conversationSummary
             val prompt = buildString {
-                append(
-                    if (previous.isNullOrBlank()) {
-                        "Сожми этот диалог в 3 коротких предложения: только темы, факты и решения."
-                    } else {
-                        "Прежнее резюме: $previous\nДополни его новыми репликами и верни ОДНО резюме " +
-                            "в 3 коротких предложения."
-                    },
-                )
+                if (previous.isNullOrBlank()) {
+                    append("Сожми этот диалог в 3 коротких предложения: только темы, факты и решения.")
+                } else {
+                    append("Вот прежнее резюме разговора:\n")
+                    append(previous)
+                    append("\n\nНиже — новые реплики. Верни ОДНО новое резюме целиком, ")
+                    append("в 3 коротких предложения: прежнее и новое вместе, без повторов ")
+                    append("и без вступлений вроде «вот резюме».")
+                }
                 append('\n')
                 pending.forEach { msg ->
                     when (msg.role) {
@@ -844,7 +900,10 @@ class AssistantViewModel(
             val newSummary = generated.toString().trim().take(SUMMARY_MAX_CHARS)
             if (newSummary.isNotBlank()) {
                 conversationSummary = newSummary
+                // Граница сжатия — текущий конец списка, а не «сколько всего
+                // пришло»: следующий пересказ начнётся ровно с этой позиции.
                 summarizedCount = sessionMessages.size
+                messagesSinceSummary = 0
                 _uiState.update {
                     it.copy(
                         contextCompressed = true,
@@ -1052,7 +1111,14 @@ class AssistantViewModel(
         /** Максимальный размер памяти сессии. */
         const val SESSION_TRIM = 40
 
-        /** Каждые N новых сообщений — пересказываем начало диалога. */
+        /**
+         * Сколько **новых** реплик должно накопиться, чтобы пересказать диалог.
+         *
+         * Считаются именно новые сообщения с момента прошлого пересказа.
+         * Раньше условие опиралось на размер списка и «индекс сжатой границы»,
+         * который сдвигался при обрезке буфера, — из-за чего пересказ
+         * запускался снова и снова, пока модель сжимала собственную сводку.
+         */
         const val SUMMARY_EVERY = 10
 
         /** Потолок длины резюме: оно обязано оставаться коротким. */

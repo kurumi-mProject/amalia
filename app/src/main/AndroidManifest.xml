@@ -132,7 +132,7 @@
             android:label="@string/app_name"
             android:theme="@style/Theme.Amalia.Splash"
             android:windowSoftInputMode="adjustResize"
-            android:configChanges="orientation|screenSize|screenLayout|keyboardHidden|uiMode|locale|layoutDirection|fontScale">
+            android:configChanges="orientation|screenSize|screenLayout|keyboardHidden|uiMode|fontScale">
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
                 <category android:name="android.intent.category.LAUNCHER" />

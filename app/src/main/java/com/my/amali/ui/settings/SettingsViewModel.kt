@@ -29,6 +29,31 @@ class SettingsViewModel : ViewModel() {
     private val settingsRepository: SettingsRepository = ServiceLocator.settingsRepository
     private val conversationRepository: ConversationRepository = ServiceLocator.conversationRepository
 
+    /**
+     * Мост к активити для смены языка.
+     *
+     * ## Почему не через AppCompatDelegate напрямую
+     *
+     * `AppCompatDelegate.setApplicationLocales()` пересоздаёт активити.
+     * Вызванный из ViewModel (или из композиции) он попадает в гонку:
+     * новая активити стартует, ещё не прочитав настройки, и снова просит
+     * смену языка — так и получался бесконечный цикл перезапусков.
+     *
+     * Поэтому смена языка идёт через этот интерфейс: активити подписывается
+     * на него сама, а метод вызывается ровно один раз — по нажатию
+     * пользователя. Ничего самоподдерживающегося тут нет.
+     */
+    interface LanguageApplier {
+        /** Пользователь выбрал язык: применить его и обновить интерфейс. */
+        fun onLanguageChanged(language: AppLanguage)
+    }
+
+    /** Провайдер слушателя: его ставит активити при старте. */
+    companion object {
+        @Volatile
+        var languageApplier: LanguageApplier? = null
+    }
+
     /** Текущие настройки; стартовое значение — системные умолчания. */
     val settings: StateFlow<UserSettings> = settingsRepository.settings
         .stateIn(
@@ -68,6 +93,14 @@ class SettingsViewModel : ViewModel() {
 
     fun setLanguage(language: AppLanguage) = viewModelScope.launch {
         settingsRepository.setLanguage(language)
+        // Сообщаем активити, что язык изменился по воле пользователя.
+        //
+        // Раньше это делалось из композиции через LaunchedEffect с вызовом
+        // AppCompatDelegate — и превращалось в бесконечный цикл пересозданий
+        // (новая активити ещё не знала сохранённый язык и снова просила
+        // смену). Теперь инициатива исходит строго от действия пользователя,
+        // и цикл невозможен по построению.
+        languageApplier?.onLanguageChanged(language)
     }
 
     // ── Голос ────────────────────────────────────────────────────────────

@@ -91,7 +91,9 @@ class MockLanguageModel : LanguageModel {
             .filter { it.isNotBlank() }
             .withIndex()
         ) {
-            emit(LLMEvent.ContentDelta(if (index == 0) word else " $word"))
+            // Заглушка всегда отвечает «как надо», поэтому восстановление текста
+        // ей не требуется — но событие обязано быть в языке типов.
+        emit(LLMEvent.ContentDelta(if (index == 0) word else " $word"))
             delay(WORD_DELAY_MS + random.nextLong(WORD_DELAY_JITTER_MS))
         }
         emit(LLMEvent.Completed(FinishReason.STOP))

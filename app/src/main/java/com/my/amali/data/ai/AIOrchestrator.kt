@@ -406,6 +406,7 @@ class AIOrchestrator(
             round++
 
             val collected = StringBuilder()
+            val recovered = StringBuilder()
             val calls = mutableListOf<ToolCall>()
 
             llmEngine.chatWithTools(
@@ -416,15 +417,45 @@ class AIOrchestrator(
             ).collect { event ->
                 when (event) {
                     is LLMEvent.ContentDelta -> collected.append(event.text)
+                    // Восстановленный текст — это уже готовая реплика,
+                    // а не сырой JSON: собираем её отдельно, чтобы
+                    // extractReply не пытался искать поле reply в прозе.
+                    is LLMEvent.ReplyRecovered -> recovered.append(event.text)
                     is LLMEvent.ToolCallDetected -> calls += event.call
                     is LLMEvent.Completed -> Unit
                 }
             }
 
             // В UI и в историю уходит только человеческий текст.
-            extractReply(collected.toString()).takeIf { it.isNotBlank() }?.let { text ->
-                reply = if (reply.isBlank() || reply.contains(text)) text else "$reply $text"
-                emit(AiResponse.ReplyDelta(text, reply))
+            //
+            // `collected` содержит сырой стрим модели: обычно это JSON
+            // `{"reply":…,"tools":[…]}`. Если `extractReply` вернула пусто,
+            // берём текст через ту же терпимую к формату логику, что и
+            // движок: иначе ответ, который модель уже сгенерировала, терялся
+            // бы здесь и превращался в «модель не дала ответа».
+            val rawCollected = collected.toString()
+            // Приоритет: уже восстановленный движком текст → честный JSON →
+            // терпимый разбор сырого потока. Порядок важен: восстановленный
+            // текст — самое достоверное, что у нас есть.
+            val text = recovered.toString().takeIf { it.isNotBlank() }
+                ?: extractReply(rawCollected).ifBlank { recoverPlainText(rawCollected) }
+                    .takeIf { it.isNotBlank() }
+
+            if (text == null && rawCollected.isNotBlank()) {
+                AmaliaLog.w(
+                    AmaliaLog.tagWith("ORC"),
+                    "unparsable model output (${rawCollected.length} chars), no reply field: " +
+                        rawCollected.take(140),
+                )
+            }
+
+            text?.let { replyText ->
+                reply = if (reply.isBlank() || reply.contains(replyText)) {
+                    replyText
+                } else {
+                    "$reply $replyText"
+                }
+                emit(AiResponse.ReplyDelta(replyText, reply))
             }
 
             if (calls.isEmpty()) return reply.ifBlank { fallbackReply(executedNames) }
@@ -524,6 +555,42 @@ class AIOrchestrator(
             ?: ERROR_UNKNOWN
         lastError = message
         emit(AiResponse.Error(message))
+    }
+
+    /**
+     * Спасает текст ответа из ответа модели, который не удалось разобрать
+     * как JSON.
+     *
+     * Три уровня терпимости — те же, что в движке:
+     *  1. поле `reply` регуляркой (работает и на оборванной строке);
+     *  2. снятие JSON-обвязки, если текст всё-таки структурный;
+     *  3. проза как есть.
+     *
+     * Возвращает пустую строку только если текста нет вообще.
+     */
+    private fun recoverPlainText(raw: String): String {
+        val trimmed = raw.trim()
+        if (trimmed.isEmpty()) return ""
+        if (trimmed.startsWith("```")) {
+            val fenced = stripCodeFences(trimmed).trim()
+            if (fenced.isNotEmpty() && fenced != trimmed) return recoverPlainText(fenced)
+        }
+        Regex("\"reply\"\\s*:\\s*\"((?:[^\"\\\\]|\\\\.)*)")
+            .find(trimmed)?.groupValues?.get(1)?.takeIf { it.isNotBlank() }
+            ?.let { return it.replace("\\n", " ").replace("\\\"", "\"").trim() }
+
+        if (trimmed.startsWith("{")) {
+            val stripped = trimmed
+                .substringBefore("\"tools\"")
+                .replace(Regex("[{}\\[\\]\"]"), " ")
+                .replace(Regex("\\breply\\b\\s*:"), " ")
+                .replace(Regex("\\s+"), " ")
+                .trim()
+            if (stripped.isNotBlank()) return stripped
+        }
+        // Единственный случай, когда возвращаем пусто: в тексте нет букв —
+        // то есть это обломки структуры, а не ответ.
+        return if (trimmed.any { it.isLetter() }) trimmed else ""
     }
 
     /** Склеивает уже финализированный текст с текущей гипотезой. */

@@ -93,14 +93,25 @@ class GroqLLM : LanguageModel {
             }
             val source = resp.body?.source()
                 ?: throw EngineException("Groq вернул пустой ответ.")
-            var emittedAnything = false
+            val collected = StringBuilder()
+            var chunks = 0
             streamDeltaOnly(source) { delta ->
                 if (delta.isNotEmpty()) {
-                    emittedAnything = true
+                    chunks++
+                    collected.append(delta)
                     send(delta)
                 }
             }
-            if (!emittedAnything) {
+            // Пустой стрим — единственный случай, когда действительно нечего
+            // произносить. Раньше сообщение «модель не дала ответа» выдавалось
+            // и тогда, когда текст приходил, но не проходил разбор формата;
+            // теперь сюда попадаем только при реально пустом потоке, и в логе
+            // видно, сколько символов и чанков мы получили.
+            if (collected.isEmpty()) {
+                AmaliaLog.e(
+                    AmaliaLog.tagWith("LLM"),
+                    "generateResponse: EMPTY stream | chunks=$chunks",
+                )
                 throw EngineException("Модель не дала ответа. Попробуй переспросить.")
             }
         }
@@ -139,33 +150,63 @@ class GroqLLM : LanguageModel {
             val source = resp.body?.source()
                 ?: throw EngineException("Groq вернул пустой ответ.")
             val accumulated = StringBuilder()
+            var rawChars = 0
 
             streamDeltaOnly(source) { delta ->
+                rawChars += delta.length
                 accumulated.append(delta)
                 // Стримим сырой текст как есть — для live preview
                 send(LLMEvent.ContentDelta(delta))
             }
 
-            // Парсим финальный JSON.
+            // ── Разбор ответа ─────────────────────────────────────────────
             //
-            // Модель регулярно заворачивает ответ в markdown-фенс (```json … ```)
-            // вопреки контракту:JSONObject на таком тексте бросает исключение,
-            // tool-calls молча терялись, а сырой текст с фигурными скобками
-            // уезжал в TTS и озвучивался голосом. Фенс срезается до парсинга.
-            val rawJson = stripCodeFences(accumulated.toString())
-            if (rawJson.isEmpty()) {
+            // Здесь раньше терялось «каждый второй ответ». Причины, все три
+            // встречаются на живом трафике:
+            //
+            //  1. **Пустой стрим вообще.** Модель закрыла поток, не отдав ни
+            //     символа (перегрузка, `/v1` отдал 200 и пустое тело). В логе
+            //     это выглядело как «responseText is blank» без малейших
+            //     подробностей.
+            //  2. **Ответ не JSON.** qwen отвечает прозой вопреки контракту —
+            //     `JSONObject` бросает исключение, `reply` остаётся пустым.
+            //  3. **Обрыв на середине JSON.** Стрим закончился внутри строки
+            //     `{"reply":"…` — валидного JSON нет, а текст ответа уже есть.
+            //
+            // Общий знаменатель один: код молча терял уже полученный текст.
+            // Извлекаем его из любого состояния — сначала честный JSON, потом
+            // регулярка по полю `reply`, потом просто текст без служебной
+            // обвязки. Пользователь должен услышать ответ даже тогда, когда
+            // модель нарушила формат.
+            val raw = accumulated.toString()
+            val cleaned = stripCodeFences(raw).trim()
+
+            AmaliaLog.d(
+                AmaliaLog.tagWith("LLM"),
+                "stream closed | chars=$rawChars | head=${cleaned.take(120)}",
+            )
+
+            if (cleaned.isEmpty()) {
+                AmaliaLog.e(
+                    AmaliaLog.tagWith("LLM"),
+                    "model returned an EMPTY stream (0 chars) — nothing to speak",
+                )
                 send(LLMEvent.Completed(FinishReason.STOP))
                 return@use
             }
 
-            val parsed = runCatching { JSONObject(rawJson) }.getOrElse {
-                // Кривой JSON — возвращаем как текст
-                send(LLMEvent.Completed(FinishReason.STOP))
-                return@use
+            val parsed = runCatching { JSONObject(cleaned) }.getOrNull()
+            val reply = parsed?.optString("reply", "").orEmpty().ifBlank {
+                extractReplyText(cleaned)
             }
+            val toolsArray = parsed?.optJSONArray("tools")
 
-            val reply = parsed.optString("reply", "")
-            val toolsArray = parsed.optJSONArray("tools")
+            if (parsed == null) {
+                AmaliaLog.w(
+                    AmaliaLog.tagWith("LLM"),
+                    "response is not valid JSON — recovered text via fallback",
+                )
+            }
 
             // Если есть tools — эмитим их как ToolCallDetected
             if (toolsArray != null && toolsArray.length() > 0) {
@@ -174,10 +215,10 @@ class GroqLLM : LanguageModel {
                     val name = toolObj.optString("name", "")
                     val argsObj = toolObj.optJSONObject("args") ?: JSONObject()
                     if (name.isEmpty()) continue
-                    
+
                     val argsMap = argsObj.keys().asSequence()
                         .associateWith { argsObj.opt(it) }
-                    
+
                     send(LLMEvent.ToolCallDetected(
                         ToolCall(
                             id = "call_${System.currentTimeMillis()}_$i",
@@ -186,6 +227,19 @@ class GroqLLM : LanguageModel {
                         )
                     ))
                 }
+            }
+
+            // Текст, добытый из невалидного JSON, уходит как обычная дельта.
+            //
+            // Это ключевая деталь: оркестратор собирает ответ только из
+            // [LLMEvent.ContentDelta], а раньше поток дельт содержал сырой
+            // JSON. Если JSON не разобрался,ContentDelta оставались
+            // нечитаемыми — и ответ пропадал. Теперь «спасённый» текст
+            // эмитится отдельной дельтой, а стрим дельт выше (сырой JSON)
+            // тем не менее уже ушёл в live-preview, где он безопасен:
+            // превью не показывается в карточке ответа.
+            if (parsed == null && reply.isNotBlank()) {
+                send(LLMEvent.ReplyRecovered(reply))
             }
 
             send(LLMEvent.Completed(
@@ -197,6 +251,53 @@ class GroqLLM : LanguageModel {
             ))
         }
     }.flowOn(Dispatchers.IO)
+
+    /**
+     * Достаёт текст ответа из чего угодно.
+     *
+     * Вызывается только тогда, когда `JSONObject` не собрался — то есть
+     * модель нарушила контракт. Раньше в этом случае ответ **терялся
+     * целиком**, и пользователь видел «модель не дала ответа» при том, что
+     * текст уже был сгенерирован и оплачен токенами. Теперь текст
+     * вытаскивается тремя уровнями терпимости:
+     *
+     *  1. регулярка по полю `reply` — спасает обрыв на середине строки
+     *     (`{"reply":"всё нормально, только`), где JSON невалиден, а текст есть;
+     *  2. снятие служебной обвязки (`{`, `}`, `"`, `tools`) — на случай,
+     *     когда модель написала JSON «почти правильно»;
+     *  3. как есть, если это обычная проза без всякой структуры.
+     *
+     * Пустая строка возвращается только если текст реально пуст.
+     */
+    private fun extractReplyText(raw: String): String {
+        val trimmed = raw.trim()
+        if (trimmed.isEmpty()) return ""
+
+        // Уровень 1: поле reply, даже если строка оборвана.
+        Regex("\"reply\"\\s*:\\s*\"((?:[^\"\\\\]|\\\\.)*)")
+            .find(trimmed)
+            ?.groupValues
+            ?.get(1)
+            ?.let { text ->
+                if (text.isNotBlank()) {
+                    return text.replace("\\n", " ").replace("\\\"", "\"").trim()
+                }
+            }
+
+        // Уровень 2: убрать JSON-обвязку и служебные ключи.
+        if (trimmed.startsWith("{")) {
+            val stripped = trimmed
+                .substringBefore("\"tools\"")
+                .replace(Regex("[{}\\[\\]\"]"), " ")
+                .replace(Regex("\\breply\\b\\s*:"), " ")
+                .replace(Regex("\\s+"), " ")
+                .trim()
+            if (stripped.isNotBlank()) return stripped
+        }
+
+        // Уровень 3: это не JSON — обычный текст, отдаём как есть.
+        return trimmed
+    }
 
     // ── Сборщики сообщений и инструментов ───────────────────────────────
 
