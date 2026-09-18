@@ -3,6 +3,11 @@ package com.my.amali.data.ai
 import com.my.amali.data.model.ChatMessage
 import com.my.amali.data.model.MessageRole
 import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.FlowCollector
 import kotlinx.coroutines.flow.catch
@@ -85,6 +90,44 @@ class AIOrchestrator(
     @Volatile
     var lastVoiceError: String? = null
         private set
+
+    /**
+     * Скоуп для озвучки, **независимый** от корутины разговора.
+     *
+     * `runPipeline` вызывается из UI-цикла, а тот живёт внутри
+     * `conversationJob`. Отмена этого job (новый вопрос, «Стоп», hands-free,
+     * смена сессии) убивала и LLM-фазу, и TTS-фазу, то есть до озвучки
+     * дело не доходило вообще, хотя текст уже был сгенерирован. В логе это
+     * выглядело как «pipeline cancelled during LLM phase» и полная тишина при
+     * полностью исправном плеере.
+     *
+     * SupervisorJob гарантирует, что падение одного прогона не утащит
+     * соседний, а сам скоуп гасится только явно — из cancelSpeech,
+     * то есть по воле пользователя, а не по воле предыдущего цикла.
+     */
+    private val ttsScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
+
+    /**
+     * Активная задача озвучки (для отмены и диагностики).
+     *
+     * Хранится отдельно от [ttsScope], чтобы [cancelSpeech] мог погасить
+     * ровно текущую речь, не трогая скоуп целиком. — следующий ответ должен
+     * получить возможность заговорить сразу.
+     */
+    @Volatile
+    private var ttsJob: Job? = null
+
+    /**
+     * Гасит активные озвучки немедленно.
+     *
+     * Единственный случай, когда обрывать речь на середине — правильно:
+     * пользователь сам попросил замолчать.
+     */
+    fun cancelSpeech() {
+        AmaliaLog.i(AmaliaLog.tagWith("ORC"), "cancelSpeech() — aborting TTS")
+        ttsJob?.cancel()
+        ttsJob = null
+    }
 
     /** Инициализирует все движки. Идемпотентно. */
     suspend fun initialize() {
@@ -206,50 +249,91 @@ class AIOrchestrator(
         options: EngineOptions,
         emit: suspend (AiResponse) -> Unit,
     ) = kotlinx.coroutines.coroutineScope {
+        AmaliaLog.i(AmaliaLog.tagWith("ORC"), "runPipeline | text=${commandText.take(80)} | historySize=${history.size}")
         emit(AiResponse.Thinking(true))
 
         lastExecutedTools = emptyList()
 
         val responseText: String = try {
             if (llmEngine.supportsTools && registry.names.isNotEmpty()) {
+                AmaliaLog.d(AmaliaLog.tagWith("ORC"), "using tool-aware path | tools=${registry.names}")
                 runToolLoop(commandText, history, options, emit)
             } else {
+                AmaliaLog.d(AmaliaLog.tagWith("ORC"), "using legacy free-text path")
                 runLegacyFreeText(commandText, history, options, emit)
             }
         } catch (e: CancellationException) {
+            AmaliaLog.w(AmaliaLog.tagWith("ORC"), "pipeline cancelled during LLM phase")
             emit(AiResponse.Thinking(false))
             throw e
         } catch (e: Throwable) {
+            AmaliaLog.e(AmaliaLog.tagWith("ORC"), "pipeline error in LLM phase: ${e.message}", e)
             emit(AiResponse.Thinking(false))
             throw e
         }
 
         emit(AiResponse.Thinking(false))
+
         if (responseText.isBlank()) {
+            AmaliaLog.e(AmaliaLog.tagWith("ORC"), "responseText is blank — throwing EngineException")
             throw EngineException("Модель не дала ответа. Попробуй переспросить.")
         }
 
-        // ── Фаза 2: TTS синтезирует и стримит аудио ──────────────────────
+        AmaliaLog.i(AmaliaLog.tagWith("ORC"), "★ LLM response ready | length=${responseText.length} | preview=${responseText.take(80)}")
+
+        // ── TTS фаза ──────────────────────────────────────────────────────
         //
-        // Озвучка — НЕ условие ответа. Раньше любое исключение синтеза
-        // поднималось наверх и превращало успешный цикл в экран ошибки:
-        // модель ответила, текст был готов, но пользователь видел «ошибка»
-        // и терял ответ целиком. Теперь сбой голоса только фиксируется —
-        // текст остаётся, разговор продолжается.
+        // Озвучка запускается в отдельном скоупе ([ttsScope]) и НЕ ждётся
+        // здесь. Два следствия, и оба важны:
+        //
+        //  1. Отмена корутины разговора (новый вопрос, «Стоп», hands-free,
+        //     смена сессии) больше не обрывает речь на середине. Раньше
+        //     `collect` жил внутри `coroutineScope` разговора, и отмена
+        //     убивала озвучку вместе с ним — в логе это выглядело как
+        //     «TTS cancelled» и полная тишина при живом плеере.
+        //  2. `runPipeline` возвращается сразу после запуска речи, поэтому
+        //     UI не обязан ждать конца звука, чтобы показать текст ответа.
+        //
+        // UI по-прежнему узнаёт о конце озвучки: `playJob` в ViewModel
+        // завершается, когда плеер доиграл последний чанк, и сбрасывает
+        // `Speaking` сам. То есть состояние экрана по-прежнему отражает
+        // реальность, но уже не зависит от времени жизни корутины разговора.
+        AmaliaLog.i(AmaliaLog.tagWith("ORC"), "► starting TTS in independent scope | len=${responseText.trim().length}")
         emit(AiResponse.Speaking(true))
-        try {
-            ttsEngine.speak(responseText.trim(), options).collect { chunk ->
-                emit(AiResponse.Audio(chunk))
+
+        val voiceText = responseText.trim()
+        val voiceOptions = options
+        val voiceEmit = emit
+        ttsJob = ttsScope.launch {
+            var ttsChunks = 0
+            try {
+                ttsEngine.speak(voiceText, voiceOptions).collect { chunk ->
+                    ttsChunks++
+                    if (ttsChunks == 1) {
+                        AmaliaLog.i(AmaliaLog.tagWith("ORC"), "★ first Audio chunk from TTS → audioChannel")
+                    }
+                    voiceEmit(AiResponse.Audio(chunk))
+                }
+                AmaliaLog.i(AmaliaLog.tagWith("ORC"), "TTS stream collected | total chunks=$ttsChunks")
+                lastVoiceError = null
+            } catch (e: CancellationException) {
+                // Отмена по воле пользователя — не ошибка, а приказ замолчать.
+                AmaliaLog.w(AmaliaLog.tagWith("ORC"), "TTS cancelled by user (chunks emitted=$ttsChunks)")
+                voiceEmit(AiResponse.Speaking(false))
+                throw e
+            } catch (e: Throwable) {
+                AmaliaLog.e(AmaliaLog.tagWith("ORC"), "TTS error: ${e.message}", e)
+                // Ошибку озвучки не затираем молча: пользователь должен видеть,
+                // почему нет звука, пока новая озвучка не пройдёт успешно.
+                lastVoiceError = e.message ?: ERROR_VOICE
+                voiceEmit(AiResponse.Speaking(false))
+                return@launch
             }
-            lastVoiceError = null
-        } catch (e: CancellationException) {
-            emit(AiResponse.Speaking(false))
-            throw e
-        } catch (e: Throwable) {
-            lastVoiceError = e.message ?: ERROR_VOICE
+            voiceEmit(AiResponse.Speaking(false))
         }
-        emit(AiResponse.Speaking(false))
+
         lastError = null
+        AmaliaLog.i(AmaliaLog.tagWith("ORC"), "pipeline done (LLM phase) | responseText length=${responseText.length}")
         emit(AiResponse.Finished(responseText))
     }
 

@@ -74,14 +74,18 @@ class FishAudioTTS : TextToSpeechEngine {
      * Возвращает поток [AudioChunk] (PCM 24кГц) по мере получения данных.
      */
     override fun speak(text: String, options: EngineOptions): Flow<AudioChunk> = flow {
-        // Свой ключ важнее зашитого в сборку: за чужим ключом стоит чужая
-        // квота, и когда она кончается, приложение замолкает у всех сразу.
         val apiKey = options.api.fishAudioKey.trim().ifBlank { API_KEY }
+        AmaliaLog.d(AmaliaLog.tagWith("TTS"), "speak() called | text=${text.take(80)}… | keyBlank=${apiKey.isBlank()}")
+
         if (apiKey.isBlank()) {
+            AmaliaLog.e(AmaliaLog.tagWith("TTS"), "API key is blank — throwing")
             throw EngineException("Не задан ключ Fish Audio. Впиши его в настройках «API и модели».")
         }
         val clean = text.trim()
-        if (clean.isEmpty()) return@flow
+        if (clean.isEmpty()) {
+            AmaliaLog.w(AmaliaLog.tagWith("TTS"), "text is empty after trim — returning without emit")
+            return@flow
+        }
 
         val model = ModelCatalog.resolveForRequest(
             ModelCatalog.Provider.FISH_AUDIO,
@@ -89,37 +93,39 @@ class FishAudioTTS : TextToSpeechEngine {
         )
         val voice = options.api.fishVoiceId.trim().ifBlank { DEFAULT_REFERENCE_ID }
 
+        AmaliaLog.d(AmaliaLog.tagWith("TTS"), "model=$model | voice=$voice | rate=${options.speechRate}")
+
         val body = JSONObject().apply {
             put("text", clean)
             put("reference_id", voice)
             put("format", "pcm")
             put("sample_rate", SAMPLE_RATE)
             put("normalize", true)
-            // `low` — минимальная задержка (в схеме API есть ещё balanced/normal).
-            // Для ассистента важнее начать звучать, чем выиграть доли в качестве.
             put("latency", "low")
             put("prosody", JSONObject().apply {
-                // Скорость речи из настроек: сервис применяет её к синтезу,
-                // поэтому ползунок «скорость» работает по-настоящему.
                 put("speed", options.speechRate.coerceIn(0.5f, 2f).toDouble())
-                // volume=1 = нормальная громкость. Раньше здесь был 0,
-                // и Fish Audio молча синтезировал тишину.
                 put("volume", 1)
             })
         }
 
-        val request = Request.Builder()
-            .url(HTTP_ENDPOINT)
-            .post(body.toString().toRequestBody(JSON_MEDIA_TYPE))
-            .header("Authorization", "Bearer $apiKey")
-            .header("model", model)
-            .build()
+        AmaliaLog.d(AmaliaLog.tagWith("TTS"), "HTTP POST → $HTTP_ENDPOINT | body=${body.toString().take(200)}")
 
+        val t0 = System.currentTimeMillis()
         val response = try {
-            client.newCall(request).execute()
+            client.newCall(
+                Request.Builder()
+                    .url(HTTP_ENDPOINT)
+                    .post(body.toString().toRequestBody(JSON_MEDIA_TYPE))
+                    .header("Authorization", "Bearer $apiKey")
+                    .header("model", model)
+                    .build()
+            ).execute()
         } catch (e: Exception) {
+            AmaliaLog.e(AmaliaLog.tagWith("TTS"), "network error: ${e.message}", e)
             throw EngineException("Fish Audio недоступен: ${e.message ?: "ошибка сети"}", e)
         }
+
+        AmaliaLog.d(AmaliaLog.tagWith("TTS"), "HTTP response: ${response.code} in ${System.currentTimeMillis()-t0}ms")
 
         response.use { resp ->
             if (!resp.isSuccessful) {
@@ -127,22 +133,40 @@ class FishAudioTTS : TextToSpeechEngine {
                 val detail = runCatching {
                     JSONObject(errorBody.orEmpty()).optString("message")
                 }.getOrNull()
-                throw EngineException(
-                    if (!detail.isNullOrBlank()) "Fish Audio: $detail"
-                    else "Fish Audio ошибка ${resp.code}"
-                )            }
+                val msg = if (!detail.isNullOrBlank()) "Fish Audio: $detail"
+                          else "Fish Audio ошибка ${resp.code}"
+                AmaliaLog.e(AmaliaLog.tagWith("TTS"), "API error: $msg | body=$errorBody")
+                throw EngineException(msg)
+            }
 
             val source = resp.body?.source()
-                ?: throw EngineException("Fish Audio вернул пустой ответ.")
+                ?: run {
+                    AmaliaLog.e(AmaliaLog.tagWith("TTS"), "response body is null!")
+                    throw EngineException("Fish Audio вернул пустой ответ.")
+                }
 
-            // Читаем PCM стримом чанками по ~20мс (960 сэмплов × 2 байта = 1920 байт)
+            var chunkCount = 0
+            var totalBytes = 0L
+            var firstChunkMs = -1L
+
             val buffer = ByteArray(CHUNK_BYTES)
             while (!source.exhausted()) {
                 val read = source.read(buffer)
-                if (read <= 0) break
+                if (read <= 0) {
+                    AmaliaLog.w(AmaliaLog.tagWith("TTS"), "source.read returned $read — breaking")
+                    break
+                }
+                if (firstChunkMs < 0) {
+                    firstChunkMs = System.currentTimeMillis() - t0
+                    AmaliaLog.i(AmaliaLog.tagWith("TTS"), "★ FIRST CHUNK in ${firstChunkMs}ms | read=$read bytes")
+                }
+                chunkCount++
+                totalBytes += read
                 val chunk = if (read == buffer.size) buffer.copyOf() else buffer.copyOf(read)
                 emit(AudioChunk(data = chunk, sampleRate = SAMPLE_RATE))
             }
+
+            AmaliaLog.i(AmaliaLog.tagWith("TTS"), "stream done | chunks=$chunkCount | totalBytes=$totalBytes | totalMs=${System.currentTimeMillis()-t0}ms")
         }
     }.flowOn(Dispatchers.IO)
 

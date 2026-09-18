@@ -107,25 +107,36 @@ class AudioPlayer {
         onLevel: (Float) -> Unit = {},
     ) = withContext(Dispatchers.IO) {
         val myGeneration = generation.incrementAndGet()
+        // Запоминаем метку прогона на время воспроизведения: логи плеера
+        // должны нести тот же идентификатор, что и логи синтеза, иначе
+        // связать «чей это звук» по логу невозможно.
+        val runTag = AmaliaLog.tagWith("PCM")
+        AmaliaLog.d(runTag, "play() start | generation=$myGeneration")
         carry = null
         val queue = ArrayBlockingQueue<AudioChunk>(QUEUE_CAPACITY)
 
         coroutineScope {
-            // ── Продюсер: Flow → очередь, с гарантией чётности кадров ──────
+            // ── Продюсер ──────────────────────────────────────────────────
             val producerJob = launch(Dispatchers.IO) {
+                var produced = 0
                 try {
                     chunks.collect { chunk ->
                         if (chunk.data.isEmpty()) return@collect
-                        if (generation.get() != myGeneration) return@collect
+                        if (generation.get() != myGeneration) {
+                            AmaliaLog.w(runTag, "producer: generation mismatch — stopping collection")
+                            return@collect
+                        }
                         val aligned = align(chunk.data)
                         if (aligned.isNotEmpty()) {
                             queue.put(AudioChunk(aligned, chunk.sampleRate))
+                            produced++
+                            if (produced == 1) AmaliaLog.i(runTag, "★ first chunk queued | ${aligned.size} bytes | sr=${chunk.sampleRate}")
                         }
                         onLevel(chunk.level())
                     }
+                    AmaliaLog.d(runTag, "producer: flow collected | total chunks queued=$produced")
                 } finally {
-                    // offer с таймаутом, а не put: потребитель мог выйти раньше,
-                    // и put навсегда повесил бы эту корутину.
+                    AmaliaLog.d(runTag, "producer: finally — offering EOS | produced=$produced")
                     runCatching { queue.offer(endOfStream, OFFER_TIMEOUT_SECONDS, TimeUnit.SECONDS) }
                 }
             }
@@ -133,6 +144,7 @@ class AudioPlayer {
             // ── Потребитель: очередь → AudioTrack ───────────────────────────
             launch(Dispatchers.IO) {
                 Process.setThreadPriority(Process.THREAD_PRIORITY_URGENT_AUDIO)
+                AmaliaLog.d(runTag, "consumer: started | generation=$myGeneration")
 
                 var current: AudioTrack? = null
                 var sampleRate = 0
@@ -142,6 +154,8 @@ class AudioPlayer {
                     val min = AudioTrack.getMinBufferSize(
                         sr, AudioFormat.CHANNEL_OUT_MONO, AudioFormat.ENCODING_PCM_16BIT,
                     ).coerceAtLeast(MIN_BUFFER_FLOOR)
+
+                    AmaliaLog.d(runTag, "buildTrack sr=$sr | minBuf=$min | totalBuf=${min * BUFFER_MULTIPLIER}")
 
                     val built = runCatching {
                         AudioTrack.Builder()
@@ -165,11 +179,13 @@ class AudioPlayer {
                     }.getOrNull()
 
                     if (built == null || built.state != AudioTrack.STATE_INITIALIZED) {
+                        AmaliaLog.e(runTag, "buildTrack FAILED | state=${built?.state} | built=$built")
                         runCatching { built?.release() }
                         current = null
                         track = null
                         return false
                     }
+                    AmaliaLog.d(runTag, "buildTrack OK | sessionId=${built.audioSessionId}")
                     current = built
                     track = built
                     return true
@@ -222,14 +238,6 @@ class AudioPlayer {
                 }
 
                 try {
-                    // ══════════════════════════════════════════════════════
-                    //  ФАЗА 1 — ПРЕФОЛЛ
-                    // ══════════════════════════════════════════════════════
-                    //
-                    // Набираем небольшой запас перед первым звуком и уходим
-                    // играть. Ждём ограниченное время: если синтез молчит,
-                    // играть всё равно нечего, а вешать UI на «говорю» без
-                    // звука нельзя.
                     var waitedMs = 0L
 
                     while (generation.get() == myGeneration && waitedMs < PREFILL_WAIT_MS) {
@@ -237,23 +245,23 @@ class AudioPlayer {
 
                         if (chunk == null) {
                             waitedMs += POLL_TIMEOUT_MS
-                            // Уже есть чем играть — не ждём остального.
+                            AmaliaLog.d(runTag, "prefill: poll timeout | waited=${waitedMs}ms | trackReady=${current != null}")
                             if (current != null) break
                             continue
                         }
                         if (chunk === endOfStream) {
-                            // Поток закрыт. Маркер возвращаем: фаза 2 обязана
-                            // увидеть конец, иначе будет ждать ещё один таймаут.
+                            AmaliaLog.d(runTag, "prefill: got EOS — returning marker and breaking")
                             runCatching { queue.offer(endOfStream, 0, TimeUnit.SECONDS) }
                             break
                         }
-                        if (!ensureTrack(chunk.sampleRate)) break
+                        if (!ensureTrack(chunk.sampleRate)) {
+                            AmaliaLog.e(runTag, "prefill: ensureTrack FAILED for sr=${chunk.sampleRate}")
+                            break
+                        }
 
                         val consumed = writeSome(chunk.data, blocking = false)
+                        AmaliaLog.d(runTag, "prefill: wrote $consumed/${chunk.data.size} bytes")
                         if (consumed < chunk.data.size) {
-                            // Буфер полон — остаток возвращаем в начало очереди
-                            // и допишем его уже играющим треком. Не потерять
-                            // эти байты критично: это середина фразы.
                             queue.offer(
                                 AudioChunk(
                                     chunk.data.copyOfRange(consumed, chunk.data.size),
@@ -262,72 +270,67 @@ class AudioPlayer {
                                 0,
                                 TimeUnit.MILLISECONDS,
                             )
+                            AmaliaLog.d(runTag, "prefill: buffer full — returning ${chunk.data.size - consumed} bytes and breaking")
                             break
                         }
                     }
 
-                    // ══════════════════════════════════════════════════════
-                    //  СТАРТ — безусловный, если есть куда играть
-                    // ══════════════════════════════════════════════════════
-                    //
-                    // Именно здесь раньше терялся весь звук: `play()` стоял
-                    // под условием `current != null`, и если префолл вышел по
-                    // пустым опросам, аудио не играло вообще.
                     if (current != null && generation.get() == myGeneration) {
                         val started = runCatching { current?.play() }.isSuccess
+                        AmaliaLog.i(runTag, "★ AudioTrack.play() called | success=$started | generation=$myGeneration")
                         if (!started) {
+                            AmaliaLog.e(runTag, "play() failed — flushing track")
                             runCatching { current?.flush() }
                         }
+                    } else {
+                        AmaliaLog.w(runTag, "play() SKIPPED | current=$current | generation=${generation.get()} myGen=$myGeneration")
                     }
 
-                    // ══════════════════════════════════════════════════════
-                    //  ФАЗА 2 — STEADY STATE
-                    // ══════════════════════════════════════════════════════
-                    //
-                    // Работает, пока есть очередь и поколение совпадает —
-                    // независимо от того, как закончился префолл.
                     var endSeen = false
+                    var steadyChunks = 0
                     while (generation.get() == myGeneration && !endSeen) {
                         val chunk = queue.poll(POLL_TIMEOUT_MS, TimeUnit.MILLISECONDS)
                         if (chunk == null) {
-                            // Тишина на входе: если трека нет (синтез не дал
-                            // данных вообще) — выходим, иначе ждём продолжения.
-                            if (current == null) break
+                            if (current == null) {
+                                AmaliaLog.w(runTag, "steady: no track and no data — breaking")
+                                break
+                            }
                             continue
                         }
                         if (chunk === endOfStream) {
+                            AmaliaLog.d(runTag, "steady: EOS received | steadyChunks=$steadyChunks")
                             endSeen = true
                             break
                         }
-                        if (!ensureTrack(chunk.sampleRate)) break
+                        if (!ensureTrack(chunk.sampleRate)) {
+                            AmaliaLog.e(runTag, "steady: ensureTrack FAILED")
+                            break
+                        }
 
                         var accepted = writeSome(chunk.data, blocking = true)
-                        // Ремонт трека: `write` сорвался не из-за отмены —
-                        // система отобрала фокус или драйвер уронил поток.
-                        // Пересобираем трек и дописываем остаток: терять
-                        // реплику из-за одного сбоя аудио нельзя.
+                        steadyChunks++
                         if (accepted < chunk.data.size && generation.get() == myGeneration) {
+                            AmaliaLog.w(runTag, "steady: write incomplete $accepted/${chunk.data.size} — rebuilding track")
                             val rest = chunk.data.copyOfRange(accepted, chunk.data.size)
                             val broken = current
                             runCatching { broken?.stop() }
                             runCatching { broken?.release() }
                             current = null
-                            // Ссылку в [track] сбрасываем только если она
-                            // указывала на сломанный трек: иначе старый
-                            // потребитель затрёт указатель на новый.
                             if (track === broken) track = null
                             if (rest.isNotEmpty() && ensureTrack(chunk.sampleRate)) {
                                 accepted += writeSome(rest, blocking = true)
                             }
-                            if (accepted < chunk.data.size) break
+                            if (accepted < chunk.data.size) {
+                                AmaliaLog.e(runTag, "steady: write failed after rebuild — breaking")
+                                break
+                            }
                         }
                     }
 
-                    // Хвост тишины: без него stop() обрывает последние слова,
-                    // которые ещё не сошли из буфера в динамик. Достройка
-                    // остатка буфера отдана `finally` — так она выполняется
-                    // при любом выходе, а не только по концу фразы.
+                    AmaliaLog.d(runTag, "steady state done | steadyChunks=$steadyChunks | endSeen=$endSeen")
+
                     if (current != null && sampleRate > 0 && generation.get() == myGeneration) {
+                        AmaliaLog.d(runTag, "writing tail silence ${TAIL_SILENCE_MS}ms")
                         writeAll(silenceFor(sampleRate, TAIL_SILENCE_MS), blocking = true)
                     }
                 } finally {
@@ -335,20 +338,18 @@ class AudioPlayer {
                     if (generation.get() == myGeneration) onLevel(0f)
                     val finished = current
                     current = null
-                    // Сбрасываем ссылку только на СВОЙ трек: иначе старый
-                    // потребитель затрёт указатель уже на новый, играющий.
                     if (track === finished) track = null
-                    // Поток закрылся, а звук ещё в буфере: перед закрытием
-                    // трека отдаём ему доиграть. Отмена (поколение выросло)
-                    // сюда не заходит — она обязана замолчать мгновенно.
                     if (finished != null &&
                         sampleRate > 0 &&
                         generation.get() == myGeneration
                     ) {
+                        AmaliaLog.d(runTag, "drain: waiting for buffer to play out")
                         drain(finished, sampleRate)
                     }
+                    AmaliaLog.d(runTag, "consumer: releasing track | generation=$myGeneration")
                     runCatching { finished?.stop() }
                     runCatching { finished?.release() }
+                    AmaliaLog.i(runTag, "★ play() finished | generation=$myGeneration")
                 }
             }
         }
@@ -394,8 +395,13 @@ class AudioPlayer {
      * «ответ пришёл, а озвучка отменилась».
      */
     fun stopImmediately() {
-        generation.incrementAndGet()
+        val gen = generation.incrementAndGet()
+        // Здесь метку прогона не берём из play(): стоп вызывается снаружи,
+        // когда воспроизведения может уже не быть. Логируется общая метка.
+        val genTag = AmaliaLog.tagWith("PCM")
+        AmaliaLog.i(genTag, "stopImmediately() | new generation=$gen")
         val active = track ?: return
+        AmaliaLog.d(genTag, "stopImmediately: pausing and flushing track")
         runCatching { active.pause() }
         runCatching { active.flush() }
     }

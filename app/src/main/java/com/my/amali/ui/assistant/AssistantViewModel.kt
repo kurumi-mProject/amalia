@@ -2,6 +2,7 @@ package com.my.amali.ui.assistant
 
 import androidx.annotation.StringRes
 import androidx.lifecycle.ViewModel
+import com.my.amali.data.ai.AmaliaLog
 import androidx.lifecycle.viewModelScope
 import com.my.amali.R
 import com.my.amali.core.di.ServiceLocator
@@ -20,7 +21,10 @@ import com.my.amali.data.repository.SettingsRepository
 import com.my.amali.domain.entity.UserSettings
 import com.my.amali.domain.entity.VoiceState
 import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
+import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -178,6 +182,20 @@ class AssistantViewModel(
      */
     private var stoppedByUser: Boolean = false
 
+    /**
+     * Скоуп воспроизведения — **независимый** от корутин разговора.
+     *
+     * [SupervisorJob]: падение плеера в одном прогоне не должно утаскивать
+     * остальные. Скоуп живёт ровно столько, сколько ViewModel, и гасится
+     * только явно — по кнопке «Стоп» или при сбросе сессии.
+     *
+     * Почему это отдельный скоуп, а не `viewModelScope`: `conversationJob`
+     * отменяется при каждом новом вопросе, и если плеер жил бы в том же
+     * дереве, отмена разговора обрывала бы уже начатую речь. Именно так
+     * и выглядел исходный баг «модель ответила — озвучка отменилась».
+     */
+    private val ttsScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
+
     /** Сообщения текущей сессии — контекст для модели и для истории. */
     private val sessionMessages = mutableListOf<ChatMessage>()
 
@@ -317,14 +335,17 @@ class AssistantViewModel(
      * дёргается как аварийный стоп только если корутины почему-то не успели.
      */
     fun cancelConversation() {
+        AmaliaLog.i(AmaliaLog.tagWith("VM"), "cancelConversation() called | stoppedByUser=true")
         stoppedByUser = true
+        // Порядок важен: сперва глушим источники (разговор и синтез),
+        // и только потом трогаем плеер. Иначе между отменой задач и стопом
+        // трека успевает проскочить следующий чанк и звучит «огрызок» фразы.
         conversationJob?.cancel()
         conversationJob = null
+        orchestrator.cancelSpeech()
         playJob?.cancel()
         playJob = null
-        // Страховка: если играющий трек ещё жив (отмена корутины не успела
-        // дойти до finally), глушим его точечно — но уже ПОСЛЕ отмены задач,
-        // а не до неё.
+        AmaliaLog.d(AmaliaLog.tagWith("VM"), "cancelConversation: calling player.stopImmediately()")
         player.stopImmediately()
         _uiState.update {
             it.copy(
@@ -358,9 +379,11 @@ class AssistantViewModel(
         stoppedByUser = false
         conversationJob?.cancel()
         conversationJob = null
+        orchestrator.cancelSpeech()
         playJob?.cancel()
         playJob = null
         player.stopImmediately()
+        ttsScope.coroutineContext[Job]?.children?.forEach { it.cancel() }
         sessionMessages.clear()
         sessionConversationId = null
         conversationSummary = null
@@ -385,6 +408,7 @@ class AssistantViewModel(
         conversationJob?.cancel()
         playJob?.cancel()
         player.stopImmediately()
+        ttsScope.cancel()
         super.onCleared()
     }
 
@@ -396,13 +420,16 @@ class AssistantViewModel(
      * @param prompt null → полный голосовой цикл; иначе — текстовая команда.
      */
     private fun launchCycle(prompt: String?) {
+        AmaliaLog.i(AmaliaLog.tagWith("VM"), "launchCycle | prompt=${prompt?.take(60) ?: "<voice>"}")
         conversationJob?.cancel()
-        // Старый playJob отменяем — он дочерний к предыдущему разговору.
-        // player.stopImmediately() здесь НЕ вызывается: он убил бы новый
-        // playJob ещё до того как тот успел запустить AudioTrack.
-        // Явный стоп — только в cancelConversation() по кнопке пользователя.
+        // Старый плеер умолкает, старый синтез отменяется — и только потом
+        // поднимается новый цикл. Без отмены речи предыдущий ответ продолжал
+        // бы звучать поверх нового (два голоса), а без отмены плеера на нём
+        // оставался бы старый трек.
+        orchestrator.cancelSpeech()
         playJob?.cancel()
         playJob = null
+        AmaliaLog.d(AmaliaLog.tagWith("VM"), "launchCycle: old jobs cancelled — NO stopImmediately here")
         stoppedByUser = false
 
         val handsFree = settings.value.autoListen
@@ -446,12 +473,19 @@ class AssistantViewModel(
             )
             val audioChannel = Channel<AudioChunk>(capacity = Channel.UNLIMITED)
             val historySnapshot = historyForModel()
+            // Идентификатор прогона: по нему в logcat видно судьбу конкретного
+            // ответа целиком, даже если циклов одновременно несколько.
+            // Все модули ([VM], [ORC], [TTS], [PCM]) добавляют метку сами —
+            // см. AmaliaLog.tagWith.
+            AmaliaLog.enter("VM", AmaliaLog.newRunId())
 
-            // playJob живёт в viewModelScope — независимо от conversationJob.
-            // Это критично: даже если conversationJob отменяется (пользователь
-            // нажал новый вопрос), уже запущенный TTS обязан доиграть до конца.
-            // Убить его может только явный cancelConversation/startNewSession.
-            playJob = viewModelScope.launch(Dispatchers.IO) {
+            AmaliaLog.i(AmaliaLog.tagWith("VM"), "► launchCycle | prompt=${prompt?.take(60) ?: "<voice>"} | history=${historySnapshot.size}")
+
+            // playJob живёт на СОБСТВЕННОМ скоупе плеера, а не в viewModelScope
+            // разговора: озвучка обязана доиграть, даже когда корутина диалога
+            // уже отменена новым вопросом или кнопкой «Стоп».
+            playJob = ttsScope.launch {
+                AmaliaLog.i(AmaliaLog.tagWith("VM"), "playJob: started | waiting for audio chunks")
                 player.play(audioChannel.receiveAsFlow()) { level ->
                     _uiState.update { state ->
                         if (state.voiceState == VoiceState.Speaking) {
@@ -461,9 +495,10 @@ class AssistantViewModel(
                         }
                     }
                 }
-                // AudioPlayer доиграл — сбрасываем Speaking состояние
+                AmaliaLog.i(AmaliaLog.tagWith("VM"), "playJob: AudioPlayer.play() returned — audio finished")
                 _uiState.update { state ->
                     if (state.isSpeaking) {
+                        AmaliaLog.d(AmaliaLog.tagWith("VM"), "playJob: resetting Speaking → Idle")
                         state.copy(
                             isSpeaking = false,
                             audioLevel = 0f,
@@ -563,22 +598,21 @@ class AssistantViewModel(
 
                         is AiResponse.Speaking -> _uiState.update { state ->
                             if (event.isSpeaking) {
-                                // Оркестратор сигнализирует о начале TTS —
-                                // переводим UI в Speaking.
+                                AmaliaLog.i(AmaliaLog.tagWith("VM"), "Speaking(true) received — setting VoiceState.Speaking")
                                 state.copy(
                                     voiceState = VoiceState.Speaking,
                                     isSpeaking = true,
                                 )
                             } else {
-                                // Speaking(false) из оркестратора означает что
-                                // чанки ОТПРАВЛЕНЫ в канал, но AudioPlayer ещё
-                                // играет их. Не трогаем voiceState и isSpeaking —
-                                // они сбросятся после playJob.join() ниже.
+                                AmaliaLog.d(AmaliaLog.tagWith("VM"), "Speaking(false) received — ignoring (playJob controls state)")
                                 state
                             }
                         }
 
-                        is AiResponse.Audio -> audioChannel.send(event.chunk)
+                        is AiResponse.Audio -> {
+                            AmaliaLog.d(AmaliaLog.tagWith("VM"), "Audio chunk → audioChannel | bytes=${event.chunk.data.size}")
+                            audioChannel.send(event.chunk)
+                        }
 
                         is AiResponse.Finished -> {
                             replyText = event.responseText
