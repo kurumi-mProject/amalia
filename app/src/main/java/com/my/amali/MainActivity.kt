@@ -86,10 +86,35 @@ class MainActivity : ComponentActivity() {
                 initialValue = bootSettings ?: UserSettings.DEFAULT,
             )
 
-            // Реактивно применяем язык при каждом изменении настройки —
-            // AppCompatDelegate перезапустит активити, если locale изменился.
+            // ВАЖНО: здесь НЕТ LaunchedEffect для applyLocale.
+            //
+            // Раньше здесь стоял LaunchedEffect(settings.selectedLanguage),
+            // который вызывал applyLocale() при каждом изменении настройки.
+            // Это создавало бесконечный цикл краша:
+            //
+            //  1. Пользователь выбирает язык X → DataStore пишет X
+            //  2. LaunchedEffect(X) → applyLocale(X) → recreate
+            //  3. Новая активити: bootSettings ещё null → initial = DEFAULT(SYSTEM)
+            //  4. LaunchedEffect(SYSTEM) → applyLocale(SYSTEM) → recreate!
+            //  5. Новая активити: bootSettings ещё null → DEFAULT(SYSTEM) → ...
+            //  → бесконечный цикл реконструкции → ANR → краш.
+            //
+            // Локаль применяется один раз в onCreate() выше (applyLocale(first)),
+            // а дальше — LocalizedContent() перехватывает контекст композиции,
+            // давая всем stringResource() нужный язык без перезапуска активити.
+            // AppCompatDelegate + AppLocalesMetadataHolderService обеспечивают
+            // персистентность выбора между запусками.
+
+            // Дополнительно: при изменении языка ПОЛЬЗОВАТЕЛЕМ вызываем
+            // applyLocale — но только если значение действительно отличается
+            // от того, что было применено при старте. Это предотвращает
+            // лишние recreate-вызовы и тем более бесконечные циклы.
+            val currentLang = remember { mutableStateOf(first.selectedLanguage) }
             LaunchedEffect(settings.selectedLanguage) {
-                applyLocale(settings.selectedLanguage)
+                if (settings.selectedLanguage != currentLang.value) {
+                    currentLang.value = settings.selectedLanguage
+                    applyLocale(settings.selectedLanguage)
+                }
             }
 
             // Локаль применяется ДО темы и навигации: все строки внутри

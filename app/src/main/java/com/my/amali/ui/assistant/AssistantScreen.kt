@@ -60,6 +60,7 @@ import androidx.compose.material.icons.rounded.Refresh
 import androidx.compose.material.icons.rounded.Settings
 import androidx.compose.material.icons.rounded.Tune
 import androidx.compose.material.icons.rounded.WarningAmber
+import androidx.compose.material.icons.rounded.WbTwilight
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
@@ -100,6 +101,7 @@ import com.my.amali.ui.components.GlassIconButton
 import com.my.amali.ui.components.GradientBackground
 import com.my.amali.ui.components.MicButton
 import com.my.amali.ui.components.SuggestionChips
+import com.my.amali.ui.components.CircadianPreviewDialog
 import com.my.amali.ui.theme.AmaliaTheme
 import com.my.amali.ui.theme.AmaliaVisuals
 import com.my.amali.ui.theme.CircadianPhase
@@ -204,6 +206,13 @@ fun AssistantScreen(
         }
     }
 
+    // Диалог превью циркадного света (рассвет → закат)
+    var showCircadianPreview by remember { mutableStateOf(false) }
+
+    if (showCircadianPreview) {
+        CircadianPreviewDialog(onDismissRequest = { showCircadianPreview = false })
+    }
+
     AssistantScreenContent(
         state = state,
         onMicClick = vm::toggleConversation,
@@ -228,6 +237,7 @@ fun AssistantScreen(
         },
         onNavigateToHistory = onNavigateToHistory,
         onNavigateToSettings = onNavigateToSettings,
+        onShowCircadianPreview = { showCircadianPreview = true },
         modifier = modifier,
     )
 }
@@ -252,6 +262,7 @@ fun AssistantScreenContent(
     onOpenAppSettings: () -> Unit,
     onNavigateToHistory: () -> Unit,
     onNavigateToSettings: () -> Unit,
+    onShowCircadianPreview: () -> Unit = {},
     modifier: Modifier = Modifier,
 ) {
     val visuals = LocalAmaliaVisuals.current
@@ -294,9 +305,10 @@ fun AssistantScreenContent(
                 onNewSession = onNewSession,
                 onNavigateToHistory = onNavigateToHistory,
                 onNavigateToSettings = onNavigateToSettings,
+                onShowCircadianPreview = onShowCircadianPreview,
             )
 
-            Spacer(Modifier.weight(if (compact) 0.18f else 0.32f))
+            Spacer(Modifier.weight(if (compact) 0.12f else 0.22f))
 
             // === ДИАЛОГ: единственная гибкая область экрана ===
             Box(
@@ -322,7 +334,7 @@ fun AssistantScreenContent(
                         // экранах воздух жертвуется первым.
                         if (phase == DialogPhase.Welcome && !compact) {
                             GreetingHero()
-                            Spacer(Modifier.height(Spacing.lg))
+                            Spacer(Modifier.height(Spacing.md))
                         }
                         when (phase) {
                             DialogPhase.Welcome -> WelcomeCard(
@@ -361,12 +373,12 @@ fun AssistantScreenContent(
                 }
             }
 
-            Spacer(Modifier.height(if (compact) Spacing.sm else Spacing.md))
+            Spacer(Modifier.height(if (compact) Spacing.xs else Spacing.sm))
 
             // === ГЕРОЙ: состояние + главное действие + подпись ===
             StatusLabel(state = state.voiceState)
 
-            Spacer(Modifier.height(if (compact) Spacing.xs else Spacing.sm))
+            Spacer(Modifier.height(if (compact) Spacing.xxs else Spacing.xs))
 
             MicButton(
                 isActive = state.voiceState != VoiceState.Idle &&
@@ -388,7 +400,7 @@ fun AssistantScreenContent(
                     stringResource(R.string.assistant_welcome_hint)
                 },
                 style = MaterialTheme.typography.labelSmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.72f),
+                color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.60f),
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis,
                 modifier = Modifier.padding(horizontal = Spacing.md),
@@ -445,21 +457,21 @@ private fun GreetingHero(modifier: Modifier = Modifier) {
     ) {
         Text(
             text = stringResource(greetingRes),
-            style = MaterialTheme.typography.displaySmall,
+            style = MaterialTheme.typography.headlineMedium,
             color = MaterialTheme.colorScheme.onBackground,
             textAlign = TextAlign.Center,
         )
-        Spacer(Modifier.height(Spacing.xs))
+        Spacer(Modifier.height(Spacing.xxs))
         Text(
             text = stringResource(R.string.greeting_prompt),
-            style = MaterialTheme.typography.bodyMedium,
-            color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.85f),
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.80f),
             textAlign = TextAlign.Center,
         )
         Spacer(Modifier.height(Spacing.sm))
         Box(
             modifier = Modifier
-                .size(width = 46.dp, height = 3.dp)
+                .size(width = 38.dp, height = 2.5.dp)
                 .clip(RoundedCornerShape(Radius.chip))
                 .background(
                     Brush.horizontalGradient(
@@ -519,24 +531,25 @@ private fun AssistantTopBar(
     onNewSession: () -> Unit,
     onNavigateToHistory: () -> Unit,
     onNavigateToSettings: () -> Unit,
+    onShowCircadianPreview: () -> Unit = {},
     modifier: Modifier = Modifier,
 ) {
     Row(
         modifier = modifier
             .fillMaxWidth()
             .padding(
-                start = Spacing.screen,
-                end = Spacing.sm,
-                top = Spacing.xs,
+                start = Spacing.md,
+                end = Spacing.xs,
+                top = Spacing.xxs,
             ),
         verticalAlignment = Alignment.CenterVertically,
     ) {
         StatePulse(voiceState = voiceState)
-        Spacer(Modifier.width(Spacing.sm))
+        Spacer(Modifier.width(Spacing.xs))
         Column(Modifier.weight(1f)) {
             Text(
                 text = stringResource(R.string.app_name),
-                style = MaterialTheme.typography.titleMedium,
+                style = MaterialTheme.typography.titleSmall,
                 color = MaterialTheme.colorScheme.onBackground,
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis,
@@ -565,7 +578,16 @@ private fun AssistantTopBar(
                         label = lightLabel,
                         cct = cct,
                         isWarm = cct <= 3200,
-                        modifier = Modifier.padding(start = Spacing.xs),
+                        modifier = Modifier.padding(start = Spacing.xxs),
+                    )
+                }
+                // Кнопка-превью рассвет→закат: только когда bio-time включён,
+                // иначе превью не имеет контекста (фон не меняется).
+                AnimatedVisibility(visible = showLight) {
+                    GlassIconButton(
+                        icon = Icons.Rounded.WbTwilight,
+                        contentDescription = "Превью света суток",
+                        onClick = onShowCircadianPreview,
                     )
                 }
             }
@@ -586,6 +608,7 @@ private fun AssistantTopBar(
             onClick = onNavigateToHistory,
             badge = conversationCount > 0,
         )
+        // Настройки — через overflow-меню: шапка не должна перегружаться.
         GlassIconButton(
             icon = Icons.Rounded.Settings,
             contentDescription = stringResource(R.string.nav_settings),
@@ -610,10 +633,10 @@ private fun LightChip(
 ) {
     Row(
         modifier = modifier
-            .heightIn(min = 24.dp)
+            .heightIn(min = 22.dp)
             .clip(RoundedCornerShape(Radius.chip))
             .glassSurface(shape = RoundedCornerShape(Radius.chip))
-            .padding(horizontal = Spacing.xs, vertical = 3.dp)
+            .padding(horizontal = Spacing.xs, vertical = 2.dp)
             .semantics { contentDescription = "$label, $cct K" },
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(4.dp),
@@ -628,14 +651,14 @@ private fun LightChip(
         }
         Box(
             modifier = Modifier
-                .size(7.dp)
+                .size(6.dp)
                 .clip(CircleShape)
                 .background(dotColor),
         )
         Text(
             text = "$label · ${cct}K",
             style = MaterialTheme.typography.labelSmall,
-            color = MaterialTheme.colorScheme.tertiary.copy(alpha = 0.92f),
+            color = MaterialTheme.colorScheme.tertiary.copy(alpha = 0.88f),
             maxLines = 1,
         )
     }
@@ -666,18 +689,18 @@ private fun StatePulse(voiceState: VoiceState) {
     )
 
     Box(
-        modifier = Modifier.size(22.dp),
+        modifier = Modifier.size(18.dp),
         contentAlignment = Alignment.Center,
     ) {
         Box(
             modifier = Modifier
-                .size(22.dp)
+                .size(18.dp)
                 .clip(CircleShape)
                 .background(color.copy(alpha = 0.14f * breath)),
         )
         Box(
             modifier = Modifier
-                .size(9.dp)
+                .size(7.dp)
                 .clip(CircleShape)
                 .background(color.copy(alpha = 0.55f + 0.45f * breath)),
         )
@@ -713,7 +736,7 @@ private fun StatusLabel(state: VoiceState, modifier: Modifier = Modifier) {
     ) { target ->
         Text(
             text = voiceStateLabel(target),
-            style = MaterialTheme.typography.titleLarge,
+            style = MaterialTheme.typography.titleMedium,
             color = color,
             textAlign = TextAlign.Center,
             maxLines = 1,
@@ -753,29 +776,31 @@ private fun WelcomeCard(
         cornerRadius = Radius.lg,
     ) {
         Row(verticalAlignment = Alignment.CenterVertically) {
-            AmaliaAvatar()
+            AmaliaAvatar(size = 34.dp)
             Spacer(Modifier.width(Spacing.sm))
             Column(Modifier.weight(1f)) {
                 Text(
                     text = stringResource(R.string.assistant_welcome_hint),
-                    style = MaterialTheme.typography.titleMedium,
+                    style = MaterialTheme.typography.titleSmall,
                     color = MaterialTheme.colorScheme.onSurface,
                 )
-                Spacer(Modifier.height(Spacing.xxs))
+                Spacer(Modifier.height(2.dp))
                 Text(
                     text = stringResource(R.string.assistant_welcome_desc),
-                    style = MaterialTheme.typography.bodyMedium,
+                    style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    maxLines = 2,
+                    overflow = TextOverflow.Ellipsis,
                 )
             }
         }
 
         if (suggestions.isNotEmpty()) {
-            Spacer(Modifier.height(Spacing.md))
+            Spacer(Modifier.height(Spacing.sm))
             Text(
                 text = stringResource(R.string.assistant_welcome_chips),
                 style = MaterialTheme.typography.labelSmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.80f),
+                color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.75f),
             )
             Spacer(Modifier.height(Spacing.xs))
             SuggestionChips(
@@ -801,7 +826,7 @@ private fun ListeningCard(transcript: String) {
     }
 
     GlassCard(
-        modifier = Modifier.padding(horizontal = Spacing.screen),
+        modifier = Modifier.padding(horizontal: Spacing.screen),
         cornerRadius = Radius.lg,
     ) {
         CardLabel(
@@ -812,13 +837,13 @@ private fun ListeningCard(transcript: String) {
         when {
             connecting -> Text(
                 text = stringResource(R.string.assistant_connecting),
-                style = MaterialTheme.typography.bodyMedium,
+                style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
             transcript.isBlank() -> TypingDots()
             else -> Text(
                 text = transcript,
-                style = MaterialTheme.typography.bodyLarge,
+                style = MaterialTheme.typography.bodyMedium,
                 color = MaterialTheme.colorScheme.onSurface,
                 maxLines = 4,
                 overflow = TextOverflow.Ellipsis,
@@ -839,8 +864,8 @@ private fun ThinkingCard(
         if (prompt.isNotBlank()) {
             Text(
                 text = prompt,
-                style = MaterialTheme.typography.bodyMedium,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.85f),
                 maxLines = 2,
                 overflow = TextOverflow.Ellipsis,
             )
@@ -1002,7 +1027,7 @@ private fun ReplyCard(
         ) {
             Text(
                 text = visible,
-                style = MaterialTheme.typography.bodyLarge,
+                style = MaterialTheme.typography.bodyMedium,
                 color = MaterialTheme.colorScheme.onSurface,
             )
         }
@@ -1186,7 +1211,7 @@ private fun ContextChip(literalCount: Int, modifier: Modifier = Modifier) {
 @Composable
 private fun AmaliaAvatar(
     modifier: Modifier = Modifier,
-    size: Dp = 38.dp,
+    size: Dp = 34.dp,
 ) {
     val accent = iconAccent()
     val label = stringResource(R.string.app_name)
@@ -1388,7 +1413,7 @@ private const val VISIBLE_TOOL_ROWS = 3
 private const val CONNECTING_HINT_MS = 1_100L
 
 /** Потолок высоты текста ответа: дальше — внутренний скролл, а не рост карточки. */
-private val ReplyMaxHeight = 200.dp
+private val ReplyMaxHeight = 180.dp
 
 /**
  * Отступ под плавающую нижнюю навигацию.
@@ -1398,7 +1423,7 @@ private val ReplyMaxHeight = 200.dp
  * не наехала на подпись под орбом. Прежние 84dp были меньше фактической
  * высоты панели (88dp), и подпись уходила под стекло на 4dp.
  */
-private val BottomBarReserve = 96.dp
+private val BottomBarReserve = 88.dp
 
 // ============================================================
 //  PREVIEW
@@ -1542,6 +1567,7 @@ private fun PreviewShell(state: AssistantUiState) {
         onOpenAppSettings = {},
         onNavigateToHistory = {},
         onNavigateToSettings = {},
+        onShowCircadianPreview = {},
         modifier = PreviewModifier,
     )
 }

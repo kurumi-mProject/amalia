@@ -93,7 +93,9 @@ class FishAudioTTS : TextToSpeechEngine {
                 // Скорость речи из настроек: сервис применяет её к синтезу,
                 // поэтому ползунок «скорость» работает по-настоящему.
                 put("speed", options.speechRate.coerceIn(0.5f, 2f).toDouble())
-                put("volume", 0)
+                // volume=1 = нормальная громкость. Раньше здесь был 0,
+                // и Fish Audio молча синтезировал тишину.
+                put("volume", 1)
             })
         }
 

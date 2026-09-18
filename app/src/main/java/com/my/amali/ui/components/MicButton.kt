@@ -60,16 +60,16 @@ import com.my.amali.ui.theme.accentGlow
 // ════════════════════════════════════════════════════════════
 
 /** Полный размер сенсорного поля — сюда попадает большой палец. */
-private val OrbTouchSize = 172.dp
+private val OrbTouchSize = 148.dp
 
 /** Диаметр светящегося ореола вокруг ядра. */
-private val OrbHaloSize = 150.dp
+private val OrbHaloSize = 128.dp
 
 /** Диаметр стеклянного кольца-оправы. */
-private val OrbRingSize = 128.dp
+private val OrbRingSize = 108.dp
 
 /** Диаметр ядра — «капли» с микрофоном. */
-private val OrbCoreSize = 104.dp
+private val OrbCoreSize = 84.dp
 
 /**
  * MicButton — главный CTA приложения: живой голосовой орб Амалии.
@@ -369,7 +369,7 @@ fun MicButton(
                     } else {
                         onAccent
                     },
-                    modifier = Modifier.size(if (active) 34.dp else 40.dp),
+                    modifier = Modifier.size(if (active) 28.dp else 34.dp),
                 )
             }
         }

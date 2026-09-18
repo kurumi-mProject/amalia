@@ -122,7 +122,7 @@ data class EngineOptions(
             "zh" to "китайском",
         )
 
-        /** Языки, поддерживаемые моделью Deepgram nova-2. */
+        /** Языки, поддерживаемые моделью Deepgram nova-3. */
         private val SUPPORTED_STT = setOf("ru", "en", "es", "de", "fr", "hi", "ja", "zh")
 
         /** Строит параметры из пользовательских настроек. */
@@ -395,7 +395,7 @@ data class AIConfig(
     companion object {
         /** Реальный продакшен-конвейер. */
         val Live: AIConfig = AIConfig(
-            sttEngineName = "Deepgram nova-2",
+            sttEngineName = "Deepgram nova-3",
             ttsEngineName = "Fish Audio drama-3-preview",
             llmEngineName = "Groq qwen3.8-27b + tools",
         )

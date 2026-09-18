@@ -28,7 +28,7 @@ import java.util.concurrent.atomic.AtomicLong
 import kotlin.math.sqrt
 
 /**
- * Движок распознавания речи на Deepgram nova-2 (WebSocket, потоковый режим).
+ * Движок распознавания речи на Deepgram nova-3 (WebSocket, потоковый режим).
  *
  * ## Как определяется конец фразы
  * Поток закрывается сам, когда срабатывает любое из условий:

@@ -149,7 +149,7 @@ object ServiceLocator {
 
     /**
      * Оркестратор AI-конвейера STT → LLM → TTS.
-     * Реальные движки: Deepgram nova-2, Groq qwen3.8-27b, Fish Audio drama-3-preview.
+     * Реальные движки: Deepgram nova-3, Groq qwen3.8-27b, Fish Audio drama-3-preview.
      * Поверх LLM — [toolRegistry] с реальным списком инструментов.
      */
     val aiOrchestrator: AIOrchestrator by lazy {

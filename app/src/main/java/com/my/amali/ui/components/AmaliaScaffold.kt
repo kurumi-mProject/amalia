@@ -204,7 +204,7 @@ fun GlassIconButton(
 
     Box(
         modifier = modifier
-            .size(48.dp)
+            .size(42.dp)
             .semantics {
                 role = Role.Button
                 this.contentDescription = contentDescription
@@ -218,7 +218,7 @@ fun GlassIconButton(
     ) {
         Box(
             modifier = Modifier
-                .size(44.dp)
+                .size(38.dp)
                 .scale(scale)
                 .glassSurface(shape = CircleShape),
             contentAlignment = Alignment.Center,
@@ -227,14 +227,14 @@ fun GlassIconButton(
             // суток, а не висит белым пятном на цветном фоне.
             Box(
                 modifier = Modifier
-                    .size(30.dp)
+                    .size(26.dp)
                     .paletteChip(shape = CircleShape, strength = if (badge) 1.25f else 0.9f, outlined = false),
             )
             Icon(
                 imageVector = icon,
                 contentDescription = null,
                 tint = tint,
-                modifier = Modifier.size(20.dp),
+                modifier = Modifier.size(18.dp),
             )
         }
         if (badge) {
