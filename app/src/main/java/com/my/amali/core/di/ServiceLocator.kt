@@ -398,4 +398,16 @@ object ServiceLocator {
 
     @Suppress("unused")
     private fun nowId(): String = ChatMessage.newId()
+
+    private companion object {
+        /**
+         * Разделитель полей в отпечатке конфигурации.
+         *
+         * Символ выбран так, чтобы не встречаться в ключах и именах моделей:
+         * склейка «ключ + разделитель + модель» не должна давать ложных
+         * совпадений, когда два разных набора настроек складываются в одну
+         * и ту же строку.
+         */
+        const val FINGERPRINT_SEPARATOR = "\u0001"
+    }
 }

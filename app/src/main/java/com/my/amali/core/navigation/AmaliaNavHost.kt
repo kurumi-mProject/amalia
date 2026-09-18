@@ -166,7 +166,8 @@ fun AmaliaNavHost(
             }
             composable("${Destinations.Settings.route}/api") {
                 ApiKeysSettings(onBack = { navController.popBackStack() })
-            }            composable("${Destinations.Settings.route}/device") {
+            }
+            composable("${Destinations.Settings.route}/device") {
                 DeviceControlSettings(onBack = { navController.popBackStack() })
             }
             composable("${Destinations.Settings.route}/privacy") {
