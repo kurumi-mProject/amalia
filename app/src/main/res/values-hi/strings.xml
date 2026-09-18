@@ -101,6 +101,7 @@
 
     <string name="voice_tts_engine">स्पीच इंजन</string>
     <string name="voice_tts_engine_mock">टेस्ट इंजन</string>
+    <string name="voice_stt_engine_live_desc">डिवाइस पर ही आवाज़ पहचान, सर्वर का इंतज़ार नहीं</string>
     <string name="voice_speech_rate">बोलने की गति</string>
     <string name="voice_speech_pitch">आवाज़ की पिच</string>
     <string name="voice_voice_id">आवाज़</string>
@@ -310,7 +311,12 @@
     <string name="settings_api_status_value">अपनी कुंजियाँ: 3 में से %1$d</string>
     <string name="settings_api_status_hint">खाली फ़ील्ड बिल्ड कुंजी लेती है। अपनी कुंजी आपकी कोटा खर्च करती है।</string>
     <string name="settings_api_llm">टेक्स्ट · Groq</string>
-    <string name="settings_api_stt">सुनना · Deepgram</string>
+    <string name="settings_api_stt">सुनना · Groq Whisper</string>
+    <string name="settings_stt_title">भाषण पहचान</string>
+    <string name="settings_stt_key_shared">सुनना उसी Groq कुंजी पर चलता है जिस पर दिमाग — अलग कुंजी की ज़रूरत नहीं।</string>
+    <string name="settings_stt_chunk_title">पहले टेक्स्ट तक कितनी बात जमा करें</string>
+    <string name="settings_stt_chunk_desc">छोटा — सबटाइटल जल्दी आते हैं, पर अनुरोध ज़्यादा। बड़ा — कोटा बचता है।</string>
+    <string name="settings_stt_chunk_hint">बदलें अगर सबटाइटल पीछे चलें या बहुत जल्दी बदलें।</string>
     <string name="settings_api_tts">आवाज़ · Fish Audio</string>
     <string name="settings_api_key_label">%1$s कुंजी</string>
     <string name="settings_api_key_placeholder">कंसोल से कुंजी चिपकाएँ</string>

@@ -101,6 +101,7 @@
 
     <string name="voice_tts_engine">Moteur vocal</string>
     <string name="voice_tts_engine_mock">Moteur de test</string>
+    <string name="voice_stt_engine_live_desc">Détection vocale sur l\'appareil, sans attente du serveur</string>
     <string name="voice_speech_rate">Débit de parole</string>
     <string name="voice_speech_pitch">Tonalité</string>
     <string name="voice_voice_id">Voix</string>
@@ -310,7 +311,12 @@
     <string name="settings_api_status_value">Clés personnelles : %1$d sur 3</string>
     <string name="settings_api_status_hint">Un champ vide utilise la clé de la build. Votre clé dépense votre quota, pas le commun.</string>
     <string name="settings_api_llm">Texte · Groq</string>
-    <string name="settings_api_stt">Écoute · Deepgram</string>
+    <string name="settings_api_stt">Écoute · Groq Whisper</string>
+    <string name="settings_stt_title">Reconnaissance vocale</string>
+    <string name="settings_stt_key_shared">L\'écoute utilise la même clé Groq que le cerveau — pas de clé séparée.</string>
+    <string name="settings_stt_chunk_title">Combien de parole avant le premier texte</string>
+    <string name="settings_stt_chunk_desc">Plus court : les sous-titres arrivent plus vite, mais plus de requêtes. Plus long : économe en quota.</string>
+    <string name="settings_stt_chunk_hint">Change-le si les sous-titres traînent ou clignotent trop souvent.</string>
     <string name="settings_api_tts">Voix · Fish Audio</string>
     <string name="settings_api_key_label">Clé %1$s</string>
     <string name="settings_api_key_placeholder">collez la clé de la console</string>

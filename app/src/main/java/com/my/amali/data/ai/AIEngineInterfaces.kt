@@ -3,12 +3,11 @@ package com.my.amali.data.ai
 import com.my.amali.data.model.ChatMessage
 import com.my.amali.data.model.DeviceStatus
 import com.my.amali.domain.entity.AiProfile
-import com.my.amali.domain.entity.AppLanguage
+import com.my.amali.domain.entity.SpeechLanguage
 import com.my.amali.domain.entity.UserApiSettings
 import com.my.amali.domain.entity.UserSettings
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.emptyFlow
-import java.util.Locale
 
 /**
  * Приложение, которое пользователь отметил в настройках как «своё».
@@ -38,8 +37,6 @@ data class KnownApp(
  * Строятся из [UserSettings], поэтому изменение настроек мгновенно влияет
  * на следующий запрос без пересоздания движков.
  *
- * @property languageCode двухбуквенный код языка ("ru", "en", …) — уже разрешённый,
- *   то есть [AppLanguage.SYSTEM] заменён на язык устройства.
  * @property speechRate множитель скорости синтеза, [0.5, 2.0].
  * @property speechPitch множитель высоты голоса, [0.5, 2.0].
  * @property deviceStatus текущее состояние устройства — передаётся в системный промпт
@@ -55,6 +52,11 @@ data class KnownApp(
  * @property appAliases пользовательские синонимы «как говорю» → пакет.
  *   Передаются рядом с приложениями: модель должна видеть ровно тот
  *   словарь, которым человек разговаривает.
+ * @property languageCode код языка для распознавания речи. Пустая строка
+ *   означает «язык не определён»: интерфейс переведён на девять языков, но
+ *   телефон может говорить на любом другом. Тогда Whisper определяет язык
+ *   сам — это лучше, чем подсказать неверный и получить перевод фразы
+ *   вместо текста.
  */
 data class EngineOptions(
     val languageCode: String = "ru",
@@ -132,6 +134,13 @@ data class EngineOptions(
     companion object {
         val Default: EngineOptions = EngineOptions()
 
+        /**
+         * Названия языков в предложном падеже — для фразы «отвечай на …».
+         *
+         * Пустой код (язык системы не из списка) отсутствует в таблице, и
+         * тогда [languageName] вернёт русский: модель обязана отвечать на
+         * конкретном языке, а русский — основной язык приложения.
+         */
         private val LANGUAGE_NAMES = mapOf(
             "ru" to "русском",
             "en" to "английском",
@@ -144,12 +153,15 @@ data class EngineOptions(
             "zh" to "китайском",
         )
 
-        /** Языки, поддерживаемые моделью Deepgram nova-3. */
-        private val SUPPORTED_STT = setOf("ru", "en", "es", "de", "fr", "hi", "ja", "zh")
-
-        /** Строит параметры из пользовательских настроек. */
+        /**
+         * Строит параметры из пользовательских настроек.
+         *
+         * Язык разрешается через [SpeechLanguage]: правило «системный язык
+         * или явный выбор» живёт там, рядом с самим перечислением языков,
+         * а не расползается по движкам.
+         */
         fun from(settings: UserSettings): EngineOptions = EngineOptions(
-            languageCode = resolveLanguage(settings.selectedLanguage),
+            languageCode = SpeechLanguage.resolve(settings.selectedLanguage),
             speechRate = settings.speechRate.coerceIn(0.5f, 2f),
             speechPitch = settings.speechPitch.coerceIn(0.5f, 2f),
             api = settings.api,
@@ -159,14 +171,6 @@ data class EngineOptions(
             aiProfile = settings.aiProfile,
         )
 
-        private fun resolveLanguage(language: AppLanguage): String {
-            val code = if (language.isSystem) {
-                Locale.getDefault().language.lowercase(Locale.ROOT)
-            } else {
-                language.code
-            }
-            return if (code in SUPPORTED_STT) code else "ru"
-        }
     }
 }
 
@@ -433,7 +437,7 @@ data class AIConfig(
     companion object {
         /** Реальный продакшен-конвейер. */
         val Live: AIConfig = AIConfig(
-            sttEngineName = "Deepgram nova-3",
+            sttEngineName = "Groq Whisper large-v3-turbo",
             ttsEngineName = "Fish Audio drama-3-preview",
             llmEngineName = "Groq qwen3.8-27b + tools",
         )

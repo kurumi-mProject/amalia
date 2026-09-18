@@ -38,7 +38,10 @@ android {
         // зависимостей, это делается фильтром `androidResources.localeFilters`.
 
         // API keys injected at build time — never stored in source code
-        buildConfigField("String", "DEEPGRAM_API_KEY",   "\"${secret("DEEPGRAM_API_KEY")}\"")
+        //
+        // DEEPGRAM_API_KEY больше не нужен: распознавание речи переехало на
+        // Groq Whisper и работает на ключе GROQ_API_KEY. Поле убрано, чтобы
+        // не заводить секрет в CI ради функции, которой больше нет.
         buildConfigField("String", "GROQ_API_KEY",       "\"${secret("GROQ_API_KEY")}\"")
         buildConfigField("String", "FISH_AUDIO_API_KEY", "\"${secret("FISH_AUDIO_API_KEY")}\"")
 
@@ -139,6 +142,18 @@ dependencies {
 
     // ===== Networking =====
     implementation("com.squareup.okhttp3:okhttp:4.12.0")
+
+    // ===== VAD (детектор речи) =====
+    //
+    // Silero VAD — нейросетевая модель на ONNX (~2 МБ), которая отличает
+    // человеческую речь от шума и тишины прямо на устройстве. Она заменяет
+    // серверный endpointing: решение «человек договорил» принимается за
+    // 5–10 мс на чанке, без сети и без единого отправленного байта.
+    //
+    // Внутри AAR лежит сама модель и рантайм ONNX, поэтому дополнительно
+    // ничего подключать не нужно. Версия зафиксирована: 2.0.9 — последняя
+    // проверенная сборка, у которой есть и silero, и webrtc артефакты.
+    implementation("com.github.gkonovalov.android-vad:silero:2.0.9")
 
     // ===== Desugaring =====
     coreLibraryDesugaring("com.android.tools:desugar_jdk_libs:2.1.4")

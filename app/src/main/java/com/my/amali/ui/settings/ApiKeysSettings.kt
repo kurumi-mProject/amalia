@@ -34,6 +34,7 @@ import androidx.compose.material.icons.rounded.RecordVoiceOver
 import androidx.compose.material.icons.rounded.RestartAlt
 import androidx.compose.material3.Button
 import androidx.compose.material3.Icon
+import androidx.compose.material3.Slider
 import androidx.compose.material3.Text
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.runtime.Composable
@@ -81,8 +82,13 @@ import com.my.amali.ui.theme.Spacing
  * Ключ, зашитый в сборку, — общий ресурс: он принадлежит сборке, а не
  * человеку. Когда его квота заканчивается, приложение замолкает у всех
  * сразу, и сделать с этим пользователь не может ничего — разве что ждать
- * новой версии. Три провайдера конвейера (Groq — текст, Deepgram — слух,
- * Fish Audio — голос) требуют трёх ключей, и все три теперь вводятся здесь.
+ * новой версии. Два провайдера конвейера (Groq — текст и слух, Fish Audio —
+ * голос) требуют двух ключей, и оба вводятся здесь.
+ *
+ * Ключ Groq стоит один, а не два: распознавание речи теперь тоже идёт в
+ * Groq (Whisper), поэтому «мозг» и «слух» — это одна строка на экране и
+ * один бесплатный лимит. Раньше слух жил на отдельном аккаунте Deepgram,
+ * и пользователю приходилось заводить второй ключ ради одной функции.
  *
  * Пустое поле означает «взять ключ из сборки»: приложение остаётся
  * рабочим сразу после установки, а свой ключ — это улучшение, а не
@@ -120,7 +126,7 @@ fun ApiKeysSettings(
             // ── Профиль Амалии ────────────────────────────────────────────
             //
             // Стоит первым, до ключей: это самый важный выбор на экране, и
-            // он объясняет, зачем здесь вообще появился OpenRouter. Переключение
+            // он определяет, каким промптом Амалия отвечает. Переключение
             // мгновенное — менять ключи и модели не нужно, они уже
             // разложены по профилям.
             AiProfileCard(
@@ -160,18 +166,19 @@ fun ApiKeysSettings(
                 onChange = { e, m, k -> vm.setCustomProvider(e, m, k) },
             )
 
+            // ── Слух ──────────────────────────────────────────────────────
+            //
+            // Слух и мозг живут на одном ключе Groq, поэтому здесь нет поля
+            // для ключа: это была бы та же самая строка, введённая дважды.
+            // Блок отвечает только за модель распознавания и длину сегмента —
+            // то, что действительно можно настроить.
             SectionTitle(stringResource(R.string.settings_api_stt))
-            ProviderGroup(
-                provider = ModelCatalog.Provider.DEEPGRAM,
-                icon = Icons.Rounded.GraphicEq,
-                keyValue = api.deepgramKey,
+
+            GroqSttGroup(
                 modelValue = api.sttModel,
-                modelTitle = stringResource(R.string.settings_api_model_stt),
-                modelSubtitle = stringResource(R.string.settings_api_model_stt_desc),
-                keyLabel = stringResource(R.string.settings_api_key_label, "Deepgram"),
-                onKeyChange = { vm.setProviderKey(ModelCatalog.Provider.DEEPGRAM, it) },
-                onKeyClear = { vm.clearProviderKey(ModelCatalog.Provider.DEEPGRAM) },
-                onModelChange = { vm.setProviderModel(ModelCatalog.Provider.DEEPGRAM, it) },
+                chunkSeconds = api.sttChunkSeconds,
+                onModelChange = { vm.setProviderModel(ModelCatalog.Provider.GROQ_STT, it) },
+                onChunkChange = { vm.setSttChunkSeconds(it) },
             )
 
             SectionTitle(stringResource(R.string.settings_api_tts))
@@ -372,8 +379,10 @@ private fun ProfileOption(
 /**
  * Блок своего эндпоинта: адрес, модель, ключ.
  *
- * Показывается только у профиля «Своя модель»: в остальных случаях это
- * поля, которые ничего не меняют, и они только сбивали бы с толку.
+ * Поля видны всегда, а не только при активном профиле: иначе получается
+ * замкнутый круг — профиль нельзя выбрать, пока поля пусты, а поля не
+ * показать, пока профиль не выбран. Человек должен сначала ввести данные,
+ * и только потом включить профиль (кнопка появляется сама).
  *
  * Все три поля пишутся разом при каждом изменении — так исключается
  * состояние «адрес есть, модели нет», в котором профиль включён, но
@@ -493,6 +502,132 @@ private fun CustomProviderGroup(
 }
 
 /**
+ * Блок распознавания речи: модель Whisper и длина сегмента.
+ *
+ * ## Почему здесь нет поля для ключа
+ *
+ * Слух и мозг работают на одном ключе Groq — распознавание идёт в Whisper
+ * внутри того же аккаунта. Второе поле с тем же значением было бы не
+ * настройкой, а ловушкой: человек вписал бы ключ в одно из них, не понял,
+ * почему не работает, и решил, что приложение сломано. Поэтому у блока
+ * ровно две настройки — те, что действительно меняют результат.
+ *
+ * ## Что означает «длина сегмента»
+ *
+ * Это не «через сколько отправить запрос», а «сколько речи набирать, прежде
+ * чем показать распознанный текст на экране». Меньше — субтитры живее, но
+ * запросов к Whisper больше; больше — экономнее, но текст появляется реже.
+ * Границы и значение по умолчанию заданы в [UserApiSettings] по живому
+ * замеру лимита.
+ */
+@Composable
+private fun GroqSttGroup(
+    modelValue: String,
+    chunkSeconds: Float,
+    onModelChange: (String) -> Unit,
+    onChunkChange: (Float) -> Unit,
+) {
+    val options = remember { modelOptionsFor(ModelCatalog.Provider.GROQ_STT) }
+    val provider = ModelCatalog.Provider.GROQ_STT
+
+    GlassGroup(modifier = Modifier.padding(top = Spacing.xs)) {
+        Column(Modifier.padding(Spacing.md)) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Icon(
+                    imageVector = Icons.Rounded.GraphicEq,
+                    contentDescription = null,
+                    tint = MaterialTheme.colorScheme.primary,
+                    modifier = Modifier.size(18.dp),
+                )
+                Spacer(Modifier.width(Spacing.xs))
+                Column(Modifier.weight(1f)) {
+                    Text(
+                        text = provider.displayName,
+                        style = MaterialTheme.typography.titleSmall,
+                        color = MaterialTheme.colorScheme.onSurface,
+                    )
+                    Text(
+                        text = stringResource(R.string.settings_stt_key_shared, "Groq"),
+                        style = MaterialTheme.typography.labelSmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.75f),
+                        maxLines = 2,
+                        overflow = TextOverflow.Ellipsis,
+                    )
+                }
+            }
+
+            Spacer(Modifier.height(Spacing.sm))
+
+            ModelSelector(
+                title = stringResource(R.string.settings_api_model_stt),
+                subtitle = stringResource(R.string.settings_api_model_stt_desc),
+                models = options,
+                selectedId = ModelCatalog.resolveForRequest(provider, modelValue),
+                customSentinel = ModelCatalog.CUSTOM_SENTINEL,
+                onSelect = { picked ->
+                    onModelChange(if (picked == ModelCatalog.CUSTOM_SENTINEL) "" else picked)
+                },
+                onCustomChange = onModelChange,
+            )
+
+            Spacer(Modifier.height(Spacing.xxs))
+            GlassDivider()
+            Spacer(Modifier.height(Spacing.sm))
+
+            // Длина сегмента: слайдер с шагом 0.2 с. Формат «1.6 s» без
+            // перевода — секунды одинаковы во всех языках, а приписка
+            // словами только удлинила бы строку.
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Column(Modifier.weight(1f)) {
+                    Text(
+                        text = stringResource(R.string.settings_stt_chunk_title),
+                        style = MaterialTheme.typography.bodyLarge,
+                        color = MaterialTheme.colorScheme.onSurface,
+                    )
+                    Spacer(Modifier.height(2.dp))
+                    Text(
+                        text = stringResource(R.string.settings_stt_chunk_desc),
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                }
+                Spacer(Modifier.width(Spacing.sm))
+                Text(
+                    text = "%.1f с".format(chunkSeconds),
+                    style = MaterialTheme.typography.labelLarge,
+                    color = MaterialTheme.colorScheme.primary,
+                )
+            }
+
+            Slider(
+                value = chunkSeconds,
+                onValueChange = onChunkChange,
+                valueRange = UserApiSettings.STT_CHUNK_MIN_SECONDS..
+                    UserApiSettings.STT_CHUNK_MAX_SECONDS,
+                steps = STT_CHUNK_STEPS,
+                modifier = Modifier.fillMaxWidth(),
+            )
+
+            Text(
+                text = stringResource(R.string.settings_stt_chunk_hint),
+                style = MaterialTheme.typography.labelSmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.8f),
+            )
+        }
+    }
+}
+
+/**
+ * Число промежуточных делений слайдера.
+ *
+ * Диапазон 0.6…4.0 с шагом 0.2 — это 17 возможных значений, то есть 16
+ * промежуточных точек между крайними. Считается здесь, а не вводится
+ * числом: иначе при смене границ слайдер начал бы «дробить» значения
+ * неравномерно.
+ */
+private const val STT_CHUNK_STEPS: Int = 16
+
+/**
  * Обычное текстовое поле без маскировки — для адреса и имени модели.
  *
  * Отдельно от [SecretField], потому что маскировать адрес бессмысленно:
@@ -536,7 +671,10 @@ private fun PlainField(
 @Composable
 private fun ApiStatusCard(api: UserApiSettings, configured: Int) {
     val title = stringResource(R.string.settings_api_status_title)
-    val ready = configured == 3
+    // Провайдеров теперь три: ключ Groq закрывает сразу текст и слух,
+    // поэтому «полностью настроено» — это три заполненных пункта, а не
+    // четыре, как было при отдельном аккаунте распознавания.
+    val ready = configured >= UserApiSettings.PROVIDER_COUNT
 
     GlassCard(cornerRadius = Radius.lg, elevated = true) {
         Row(verticalAlignment = Alignment.CenterVertically) {

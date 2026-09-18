@@ -51,10 +51,20 @@ object ModelCatalog {
             displayName = "Groq",
             consoleUrl = "console.groq.com/keys",
         ),
-        DEEPGRAM(
-            key = "deepgram",
-            displayName = "Deepgram",
-            consoleUrl = "console.deepgram.com",
+        /**
+         * Groq — он же отдаёт и слух.
+         *
+         * Раньше распознавание шло в Deepgram, и это был отдельный ключ,
+         * отдельный аккаунт и отдельный счёт. Теперь слух живёт там же, где
+         * мозг: одна строка ключа, один бесплатный тариф, один лимит.
+         * Провайдер остаётся отдельной записью каталога, потому что у него
+         * свой список моделей и своя подпись на экране, но ключ — общий с
+         * [GROQ].
+         */
+        GROQ_STT(
+            key = "groq_stt",
+            displayName = "Groq Whisper",
+            consoleUrl = "console.groq.com/keys",
         ),
         FISH_AUDIO(
             key = "fish_audio",
@@ -85,33 +95,35 @@ object ModelCatalog {
         val recommended: Boolean = false,
     )
 
-    /** Модели для распознавания речи (Deepgram). */
+    /**
+     * Модели распознавания речи (Groq Whisper).
+     *
+     * Обе модели — большие Whisper, но с разной ценой внимания:
+     *
+     *  — `turbo` — та же архитектура large-v3, но с ускоренным декодером.
+     *    На живом замере 1 секунды русской речи отвечает за **0.17–0.22 с**
+     *    против 0.33 с у полной модели. Именно она стоит по умолчанию:
+     *    в голосовом ассистенте задержка важнее последнего процента
+     *    точности, а разница в качестве на коротких командах не слышна.
+     *  — `large-v3` — чуть точнее на длинных сложных фразах, но в два раза
+     *    медленнее. Разумный выбор, если человек диктует длинные тексты.
+     *
+     * Лимит у обеих одинаковый (2000 запросов и 7200 секунд аудио в сутки
+     * на бесплатном тарифе) и общий с моделью текста, поэтому список
+     * намеренно короткий: каждая лишняя строка — соблазн выбрать модель,
+     * которой потом не хватит квоты.
+     */
     val sttModels: List<ModelOption> = listOf(
         ModelOption(
-            id = "nova-3",
-            title = "Nova-3",
-            note = "Точнее всех на живом голосе, лучшая пунктуация",
+            id = "whisper-large-v3-turbo",
+            title = "Whisper Large v3 Turbo",
+            note = "Основная: 0.2 с на фразу, отличный русский",
             recommended = true,
         ),
         ModelOption(
-            id = "nova-3-general",
-            title = "Nova-3 General",
-            note = "То же качество, но без мультиязычных надстроек",
-        ),
-        ModelOption(
-            id = "nova-2",
-            title = "Nova-2",
-            note = "Предыдущее поколение: чуть дешевле, чуть медленнее",
-        ),
-        ModelOption(
-            id = "enhanced",
-            title = "Enhanced",
-            note = "Старая модель: работает там, где Nova недоступна",
-        ),
-        ModelOption(
-            id = "base",
-            title = "Base",
-            note = "Самая дешёвая, для черновиков и тестов",
+            id = "whisper-large-v3",
+            title = "Whisper Large v3",
+            note = "Точнее на длинных фразах, но вдвое медленнее",
         ),
     )
 
@@ -194,7 +206,7 @@ object ModelCatalog {
     /** Готовый список моделей для провайдера. */
     fun modelsFor(provider: Provider): List<ModelOption> = when (provider) {
         Provider.GROQ -> llmModels
-        Provider.DEEPGRAM -> sttModels
+        Provider.GROQ_STT -> sttModels
         Provider.FISH_AUDIO -> ttsModels
     }
 

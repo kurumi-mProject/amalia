@@ -33,3 +33,16 @@
 -keep class okio.** { *; }
 -dontwarn okhttp3.**
 -dontwarn okio.**
+
+# ===== Silero VAD / ONNX Runtime =====
+#
+# Детектор речи работает через нативный рантайм ONNX: классы `ai.onnxruntime`
+# и обёртки `com.konovalov.vad` вызывают JNI-методы по имени. R8 вырезает
+# такие классы, если их никто не «использует» из Java-кода, — и тогда вместо
+# падения приложения детектор молча уходит в RMS-fallback, то есть качество
+# распознавания тихо деградирует. Поэтому держим их явно.
+-keep class ai.onnxruntime.** { *; }
+-keep class com.microsoft.onnxruntime.** { *; }
+-keep class com.konovalov.vad.** { *; }
+-dontwarn ai.onnxruntime.**
+-dontwarn com.microsoft.onnxruntime.**

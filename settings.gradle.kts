@@ -17,6 +17,11 @@ dependencyResolutionManagement {
     repositories {
         google()
         mavenCentral()
+        // JitPack нужен ровно для одной зависимости — Silero VAD
+        // (`com.github.gkonovalov.android-vad:silero`). Модель в этом
+        // репозитории лежит как ONNX-файл внутри AAR, поэтому детектор речи
+        // работает офлайн: ни сети, ни ключа, ни задержки на запрос.
+        maven { url = uri("https://jitpack.io") }
     }
 }
 

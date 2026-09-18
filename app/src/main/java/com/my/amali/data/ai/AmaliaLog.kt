@@ -13,7 +13,7 @@ import android.util.Log
  *   [PCM]   — AudioPlayer
  *   [LLM]   — GroqLLM
  *   [ORC]   — AIOrchestrator / pipeline
- *   [STT]   — DeepgramSTT
+ *   [STT]   — GroqWhisperStt
  *   [VM]    — AssistantViewModel
  *   [TOOL]  — AmaliaTools / ToolRegistry
  */

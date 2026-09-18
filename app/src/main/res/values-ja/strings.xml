@@ -101,6 +101,7 @@
 
     <string name="voice_tts_engine">音声エンジン</string>
     <string name="voice_tts_engine_mock">テストエンジン</string>
+    <string name="voice_stt_engine_live_desc">端末内での音声検出。サーバー待ちはありません</string>
     <string name="voice_speech_rate">話す速さ</string>
     <string name="voice_speech_pitch">声のピッチ</string>
     <string name="voice_voice_id">声</string>
@@ -310,7 +311,12 @@
     <string name="settings_api_status_value">自分のキー：3件中%1$d件</string>
     <string name="settings_api_status_hint">空欄ならビルドのキーを使用。自分のキーは自分のクォータを消費します。</string>
     <string name="settings_api_llm">テキスト · Groq</string>
-    <string name="settings_api_stt">聞き取り · Deepgram</string>
+    <string name="settings_api_stt">聞き取り · Groq Whisper</string>
+    <string name="settings_stt_title">音声認識</string>
+    <string name="settings_stt_key_shared">聞き取りは頭脳と同じ Groq キーで動きます。別のキーは不要です。</string>
+    <string name="settings_stt_chunk_title">最初のテキストまでに集める音声の長さ</string>
+    <string name="settings_stt_chunk_desc">短いほど字幕は速く出ますが、リクエストは増えます。長いほど枠を節約できます。</string>
+    <string name="settings_stt_chunk_hint">字幕が遅れる、または忙しすぎるなら調整してください。</string>
     <string name="settings_api_tts">声 · Fish Audio</string>
     <string name="settings_api_key_label">%1$s のキー</string>
     <string name="settings_api_key_placeholder">コンソールのキーを貼り付け</string>

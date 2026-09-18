@@ -113,6 +113,8 @@
     <!-- === Голос === -->
     <string name="voice_tts_engine">Движок синтеза речи</string>
     <string name="voice_tts_engine_mock">Демо (заглушка)</string>
+    <string name="voice_stt_engine_live_desc">Локальный детектор речи, без ожидания сервера</string>
+    <string name="voice_stt_engine_live_desc">Локальный детектор речи, без ожидания сервера</string>
     <string name="voice_speech_rate">Скорость речи</string>
     <string name="voice_speech_pitch">Тон голоса</string>
     <string name="voice_voice_id">Голос</string>
@@ -327,7 +329,12 @@
     <string name="settings_api_status_value">Своих ключей: %1$d из 3</string>
     <string name="settings_api_status_hint">Пустое поле — берётся ключ из сборки. Свой ключ расходует твою квоту, а не общую.</string>
     <string name="settings_api_llm">Текст · Groq</string>
-    <string name="settings_api_stt">Слух · Deepgram</string>
+    <string name="settings_api_stt">Слух · Groq Whisper</string>
+    <string name="settings_stt_title">Настройки распознавания речи</string>
+    <string name="settings_stt_key_shared">Слух работает на том же ключе Groq, что и мозг — отдельный ключ не нужен.</string>
+    <string name="settings_stt_chunk_title">Сколько речи набирать до первого текста</string>
+    <string name="settings_stt_chunk_desc">Короче — субтитры появляются живее, но запросов больше. Длиннее — экономнее по квоте.</string>
+    <string name="settings_stt_chunk_hint">Меняй, если субтитры отстают или наоборот мелькают слишком часто.</string>
     <string name="settings_api_tts">Голос · Fish Audio</string>
     <string name="settings_api_key_label">Ключ %1$s</string>
     <string name="settings_api_key_placeholder">вставь ключ из консоли</string>

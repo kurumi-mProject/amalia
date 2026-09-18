@@ -48,11 +48,14 @@ import com.my.amali.ui.theme.DarkModePreference
  * провайдера»: конвейер обязан оставаться рабочим на дефолтной конфигурации,
  * иначе первый запуск приложения без ключей выглядел бы сломанным.
  *
- * @property groqKey ключ Groq (генерация текста и вызов инструментов).
- * @property deepgramKey ключ Deepgram (распознавание речи).
+ * @property groqKey ключ Groq: он же и мозг (генерация текста и вызов
+ *   инструментов), и слух (распознавание речи через Whisper). Один ключ на
+ *   две роли — так задумано: пользователю не нужно заводить второй аккаунт,
+ *   а бесплатный лимит распознавания (2000 запросов в сутки) расходуется
+ *   из общей квоты, которую видно в одном месте.
  * @property fishAudioKey ключ Fish Audio (синтез голоса).
  * @property llmModel идентификатор модели Groq; пусто → рекомендованная.
- * @property sttModel идентификатор модели Deepgram; пусто → рекомендованная.
+ * @property sttModel идентификатор модели Whisper; пусто → рекомендованная.
  * @property ttsModel идентификатор модели Fish Audio; пусто → рекомендованная.
  * @property fishVoiceId reference_id голоса Амалии в библиотеке Fish Audio.
  *   Вынесен сюда потому, что голос — это тоже выбор пользователя: у Fish
@@ -60,12 +63,24 @@ import com.my.amali.ui.theme.DarkModePreference
  */
 data class UserApiSettings(
     val groqKey: String = "",
-    val deepgramKey: String = "",
     val fishAudioKey: String = "",
     val llmModel: String = "",
     val sttModel: String = "",
     val ttsModel: String = "",
     val fishVoiceId: String = "",
+    /**
+     * Длина сегмента распознавания в секундах.
+     *
+     * От неё зависит, как часто приложение обращается к Whisper за живыми
+     * субтитрами. Меньше — текст на экране появляется проворнее, но и
+     * запросов больше; больше — экономнее по квоте, но субтитры отстают.
+     *
+     * Допустимый диапазон задан константами [STT_CHUNK_MIN_SECONDS] и
+     * [STT_CHUNK_MAX_SECONDS]: границы выбраны по живому замеру лимита
+     * «43 секунды между запросами» — при 1.6 с паузы между чанками
+     * пользователь их не замечает, а квота расходуется предсказуемо.
+     */
+    val sttChunkSeconds: Float = STT_CHUNK_DEFAULT_SECONDS,
     /**
      * Своя точка подключения: адрес OpenAI-совместимого эндпоинта.
      *
@@ -102,19 +117,18 @@ data class UserApiSettings(
 
     /** Задан ли хотя бы один собственный ключ. */
     val hasAnyKey: Boolean
-        get() = groqKey.isNotBlank() || deepgramKey.isNotBlank() ||
+        get() = groqKey.isNotBlank() ||
             fishAudioKey.isNotBlank() || customEndpoint.isNotBlank()
 
     /**
      * Сколько провайдеров настроено своими ключами (для строки-сводки).
      *
-     * Считаются четыре: три обязательных плюс своя точка подключения. Она
-     * засчитывается по адресу, а не по ключу: локальный сервер обычно
-     * работает без авторизации, и требовать ключ значило бы запрещать
-     * рабочий сценарий.
+     * Считаются три: мозг и слух живут на одном ключе Groq, поэтому дают
+     * одну строку, а не две — иначе сводка обещала бы пользователю больше
+     * независимых сервисов, чем у него есть.
      */
     val configuredProviders: Int
-        get() = listOf(groqKey, deepgramKey, fishAudioKey, customEndpoint)
+        get() = listOf(groqKey, fishAudioKey, customEndpoint)
             .count { it.isNotBlank() }
 
     /**
@@ -126,6 +140,32 @@ data class UserApiSettings(
      */
     val customReady: Boolean
         get() = customEndpoint.isNotBlank() && customModel.isNotBlank()
+
+    companion object {
+        /**
+         * Сколько позиций считается «настроено своими ключами».
+         *
+         * Три: Groq (мозг и слух на одном ключе), Fish Audio (голос) и своя
+         * точка подключения. Число живёт рядом с [configuredProviders], чтобы
+         * подпись на экране и подсчёт не разъезжались.
+         */
+        const val PROVIDER_COUNT: Int = 3
+
+        /** Нижняя граница длины сегмента распознавания, секунды. */
+        const val STT_CHUNK_MIN_SECONDS: Float = 0.6f
+
+        /** Верхняя граница длины сегмента распознавания, секунды. */
+        const val STT_CHUNK_MAX_SECONDS: Float = 4f
+
+        /**
+         * Значение по умолчанию: 1.6 с.
+         *
+         * Выбрано по живому замеру: столько занимает пауза между запросами
+         * к Whisper, и на этой длине живые субтитры успевают за речью, а
+         * квота «43 секунды между запросами» не превращается в отказ.
+         */
+        const val STT_CHUNK_DEFAULT_SECONDS: Float = 1.6f
+    }
 }
 
 data class UserSettings(

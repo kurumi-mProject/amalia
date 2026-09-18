@@ -25,7 +25,6 @@ jobs:
 
       - name: Build debug APK
         env:
-          DEEPGRAM_API_KEY:   ${{ secrets.DEEPGRAM_API_KEY }}
           GROQ_API_KEY:       ${{ secrets.GROQ_API_KEY }}
           FISH_AUDIO_API_KEY: ${{ secrets.FISH_AUDIO_API_KEY }}
         run: ./gradlew assembleDebug --no-daemon --stacktrace

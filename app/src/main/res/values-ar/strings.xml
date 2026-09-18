@@ -101,6 +101,7 @@
 
     <string name="voice_tts_engine">محرك النطق</string>
     <string name="voice_tts_engine_mock">محرك تجريبي</string>
+    <string name="voice_stt_engine_live_desc">كشف الصوت على الجهاز نفسه، بلا انتظار للخادم</string>
     <string name="voice_speech_rate">سرعة الكلام</string>
     <string name="voice_speech_pitch">نبرة الصوت</string>
     <string name="voice_voice_id">الصوت</string>
@@ -310,7 +311,12 @@
     <string name="settings_api_status_value">المفاتيح الخاصة: %1$d من 3</string>
     <string name="settings_api_status_hint">الحقل الفارغ يستخدم مفتاح البناء. مفتاحك يستهلك حصتك أنت.</string>
     <string name="settings_api_llm">النص · Groq</string>
-    <string name="settings_api_stt">السمع · Deepgram</string>
+    <string name="settings_api_stt">السمع · Groq Whisper</string>
+    <string name="settings_stt_title">التعرف على الكلام</string>
+    <string name="settings_stt_key_shared">يعمل السمع على مفتاح Groq نفسه الذي يعمل عليه العقل — لا حاجة لمفتاح منفصل.</string>
+    <string name="settings_stt_chunk_title">مقدار الكلام قبل ظهور النص</string>
+    <string name="settings_stt_chunk_desc">أقصر: تظهر الترجمة أسرع لكن الطلبات أكثر. أطول: أوفر للحصة.</string>
+    <string name="settings_stt_chunk_hint">غيّره إن كانت الترجمة متأخرة أو تتغير بسرعة كبيرة.</string>
     <string name="settings_api_tts">الصوت · Fish Audio</string>
     <string name="settings_api_key_label">مفتاح %1$s</string>
     <string name="settings_api_key_placeholder">الصق المفتاح من وحدة التحكم</string>

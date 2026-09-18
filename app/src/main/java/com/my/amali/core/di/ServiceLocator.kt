@@ -10,9 +10,9 @@ import androidx.datastore.preferences.preferencesDataStore
 import com.my.amali.BuildConfig
 import com.my.amali.data.ai.AIConfig
 import com.my.amali.data.ai.AIOrchestrator
-import com.my.amali.data.ai.DeepgramSTT
 import com.my.amali.data.ai.FishAudioTTS
 import com.my.amali.data.ai.GroqLLM
+import com.my.amali.data.ai.GroqWhisperStt
 import com.my.amali.data.ai.MockLanguageModel
 import com.my.amali.data.ai.MockSpeechToTextEngine
 import com.my.amali.data.ai.MockTextToSpeechEngine
@@ -116,26 +116,29 @@ object ServiceLocator {
     }
 
     /**
-     * True, если в сборку зашиты все три ключа и конвейер может работать
+     * True, если в сборку зашиты все ключи конвейера и он может работать
      * с реальными сервисами. Иначе приложение поднимает офлайн-заглушки,
      * чтобы интерфейс оставался полностью рабочим, а не падал в ошибку.
+     *
+     * Ключей два, а не три: слух и мозг живут на одном ключе Groq. Это
+     * следствие смены движка распознавания — раньше у Deepgram был свой
+     * аккаунт, и сборка без него считалась «неполной».
      */
     val hasLiveKeys: Boolean
-        get() = BuildConfig.DEEPGRAM_API_KEY.isNotBlank() &&
-            BuildConfig.GROQ_API_KEY.isNotBlank() &&
+        get() = BuildConfig.GROQ_API_KEY.isNotBlank() &&
             BuildConfig.FISH_AUDIO_API_KEY.isNotBlank()
 
     /**
      * Хватит ли ключей, чтобы поднять реальный конвейер.
      *
      * Свой ключ пользователя считается наравне с ключом сборки: если человек
-     * вписал только Groq и Fish Audio (а Deepgram у него нет), конвейер всё
-     * равно поднимается живым — иначе введённые ключи не давали бы ничего,
-     * пока не заполнены все три поля.
+     * вписал только Groq (а Fish Audio у него нет), конвейер всё равно
+     * поднимается живым — иначе введённый ключ не давал бы ничего, пока не
+     * заполнены все поля.
      *
      * Правило простое: реальные движки нужны, когда **текст и голос** есть
      * (это минимальный осмысленный ассистент), а распознавание подтянется
-     * любым доступным ключом.
+     * тем же ключом Groq, что и текст.
      */
     private fun effectiveKeys(): Triple<String, String, String> {
         val api = runCatching {
@@ -143,9 +146,12 @@ object ServiceLocator {
                 settingsRepository.settings.first().api
             }
         }.getOrDefault(UserApiSettings())
+        val groq = api.groqKey.trim().ifBlank { BuildConfig.GROQ_API_KEY }
         return Triple(
-            api.groqKey.trim().ifBlank { BuildConfig.GROQ_API_KEY },
-            api.deepgramKey.trim().ifBlank { BuildConfig.DEEPGRAM_API_KEY },
+            groq,
+            // Слух — тот же ключ, что и мозг: отдельного поля для него нет,
+            // потому что распознавание идёт в Groq Whisper.
+            groq,
             api.fishAudioKey.trim().ifBlank { BuildConfig.FISH_AUDIO_API_KEY },
         )
     }
@@ -179,12 +185,15 @@ object ServiceLocator {
             val api = apiSnapshot()
             return listOf(
                 api.groqKey,
-                api.deepgramKey,
                 api.fishAudioKey,
                 api.llmModel,
                 api.sttModel,
                 api.ttsModel,
                 api.fishVoiceId,
+                api.customEndpoint,
+                api.customModel,
+                api.customKey,
+                api.sttChunkSeconds.toString(),
             ).joinToString(FINGERPRINT_SEPARATOR)
         }
 
@@ -226,7 +235,7 @@ object ServiceLocator {
 
     private fun buildOrchestrator(): AIOrchestrator = if (hasCoreKeys) {
         AIOrchestrator(
-            sttEngine = DeepgramSTT(appContext),
+            sttEngine = GroqWhisperStt(appContext),
             llmEngine = GroqLLM(),
             ttsEngine = ttsEngine,
             registry = toolRegistry,
@@ -321,7 +330,8 @@ object ServiceLocator {
             }
             JSONObject().put("query", query).put("results", arr).toString()
         } catch (e: Throwable) {
-            "{\"error\":\"${e.message?.replace("\"", "'") ?: "search failed"}\"}"
+            val reason = e.message?.replace('"', '\'') ?: "search failed"
+            JSONObject().put("error", reason).toString()
         }
     }
 
@@ -341,7 +351,8 @@ object ServiceLocator {
             }
             JSONObject().put("count", all.size).put("conversations", arr).toString()
         } catch (e: Throwable) {
-            "{\"error\":\"${e.message?.replace("\"", "'") ?: "failed"}\"}"
+            val reason = e.message?.replace('"', '\'') ?: "failed"
+            JSONObject().put("error", reason).toString()
         }
     }
 
@@ -351,7 +362,8 @@ object ServiceLocator {
             conversationRepository.clearAll()
             JSONObject().put("deleted", count).toString()
         } catch (e: Throwable) {
-            "{\"error\":\"${e.message?.replace("\"", "'") ?: "failed"}\"}"
+            val reason = e.message?.replace('"', '\'') ?: "failed"
+            JSONObject().put("error", reason).toString()
         }
     }
 

@@ -101,6 +101,7 @@
 
     <string name="voice_tts_engine">语音引擎</string>
     <string name="voice_tts_engine_mock">测试引擎</string>
+    <string name="voice_stt_engine_live_desc">设备本地语音检测，无需等待服务器</string>
     <string name="voice_speech_rate">语速</string>
     <string name="voice_speech_pitch">音调</string>
     <string name="voice_voice_id">声音</string>
@@ -310,7 +311,12 @@
     <string name="settings_api_status_value">自有密钥：3 个中的 %1$d 个</string>
     <string name="settings_api_status_hint">留空则使用构建密钥。自己的密钥消耗你自己的额度。</string>
     <string name="settings_api_llm">文本 · Groq</string>
-    <string name="settings_api_stt">听觉 · Deepgram</string>
+    <string name="settings_api_stt">听觉 · Groq Whisper</string>
+    <string name="settings_stt_title">语音识别</string>
+    <string name="settings_stt_key_shared">听觉与大脑使用同一个 Groq 密钥，无需单独的密钥。</string>
+    <string name="settings_stt_chunk_title">出现文字前收集多少语音</string>
+    <string name="settings_stt_chunk_desc">越短字幕出现越快，但请求更多。越长越省额度。</string>
+    <string name="settings_stt_chunk_hint">如果字幕滞后或闪动过快，可以调整。</string>
     <string name="settings_api_tts">语音 · Fish Audio</string>
     <string name="settings_api_key_label">%1$s 密钥</string>
     <string name="settings_api_key_placeholder">粘贴控制台中的密钥</string>

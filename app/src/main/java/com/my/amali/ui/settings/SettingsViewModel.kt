@@ -179,6 +179,17 @@ class SettingsViewModel : ViewModel() {
         settingsRepository.setFishVoiceId(voiceId)
     }
 
+    /**
+     * Длина сегмента распознавания в секундах.
+     *
+     * Меняется на лету: следующий же сегмент речи будет нарезан новой
+     * длиной. Перезапуск приложения не нужен — движок читает настройку
+     * из свежих [com.my.amali.data.ai.EngineOptions] на каждом запросе.
+     */
+    fun setSttChunkSeconds(seconds: Float) = viewModelScope.launch {
+        settingsRepository.setSttChunkSeconds(seconds)
+    }
+
     // ── Приватность ──────────────────────────────────────────────────────
 
     fun setDataRetentionDays(days: Int) = viewModelScope.launch {

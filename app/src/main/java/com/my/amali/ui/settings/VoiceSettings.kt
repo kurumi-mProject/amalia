@@ -28,6 +28,7 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.my.amali.R
 import com.my.amali.core.di.ServiceLocator
+import com.my.amali.domain.entity.UserApiSettings
 import com.my.amali.ui.components.AmaliaBadge
 import com.my.amali.ui.components.AmaliaScreen
 import com.my.amali.ui.components.GlassCard
@@ -111,6 +112,21 @@ fun VoiceSettings(
 
             TtsEngineCard()
 
+            // ── Слух ──────────────────────────────────────────────────────
+            //
+            // Настройка распознавания живёт здесь, а не только на экране
+            // ключей: именно на этом экране человек отвечает на вопрос
+            // «почему она меня плохо слышит», и держать ответ в другом
+            // разделе значило бы отправлять его искать.
+            SectionTitle(stringResource(R.string.settings_stt_title))
+
+            SttEngineCard()
+
+            SttChunkSlider(
+                value = settings.api.sttChunkSeconds,
+                onValueChange = { vm.setSttChunkSeconds(it) },
+            )
+
             Spacer(Modifier.height(96.dp))
         }
     }
@@ -175,4 +191,81 @@ private fun TtsEngineCard(modifier: Modifier = Modifier) {
             AmaliaBadge(text = if (live) "LIVE" else "DEMO")
         }
     }
+}
+
+/**
+ * Карточка «чем Амалия слышит».
+ *
+ * Симметрична [TtsEngineCard] и по той же причине перестала быть статичной:
+ * экран обязан показывать то, что действительно работает, а не то, что было
+ * задумано при написании кода. Название движка совпадает с описанием в
+ * [com.my.amali.data.ai.AIConfig], поэтому расхождение видно сразу.
+ */
+@Composable
+private fun SttEngineCard(modifier: Modifier = Modifier) {
+    val live = remember { runCatching { ServiceLocator.hasLiveKeys }.getOrDefault(false) }
+
+    GlassCard(modifier = modifier, cornerRadius = Radius.md) {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Icon(
+                imageVector = Icons.Rounded.GraphicEq,
+                contentDescription = null,
+                tint = MaterialTheme.colorScheme.primary,
+                modifier = Modifier.width(22.dp),
+            )
+            Spacer(Modifier.width(Spacing.sm))
+            Column(Modifier.weight(1f)) {
+                Text(
+                    text = if (live) {
+                        // Названия продуктов не переводятся: это бренд движка.
+                        "Groq Whisper large-v3-turbo"
+                    } else {
+                        stringResource(R.string.voice_tts_engine_mock)
+                    },
+                    style = MaterialTheme.typography.bodyLarge,
+                    color = MaterialTheme.colorScheme.onSurface,
+                )
+                Spacer(Modifier.height(2.dp))
+                Text(
+                    text = if (live) {
+                        // Отдельно подчёркиваем локальность детектора: именно
+                        // он отвечает за «она поняла, что я закончил», и
+                        // пользователю важно знать, что это не сеть.
+                        stringResource(R.string.voice_stt_engine_live_desc)
+                    } else {
+                        stringResource(R.string.ai_engine_not_connected)
+                    },
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
+            Spacer(Modifier.width(Spacing.sm))
+            AmaliaBadge(text = if (live) "LIVE" else "DEMO")
+        }
+    }
+}
+
+/**
+ * Слайдер «сколько речи набирать до первого текста».
+ *
+ * Вынесен на экран голоса, потому что это единственная настройка
+ * распознавания, которую человек действительно может оценить на слух:
+ * подвигав ползунок, он слышит, как меняется живость субтитров.
+ */
+@Composable
+private fun SttChunkSlider(
+    value: Float,
+    onValueChange: (Float) -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    GlassSlider(
+        modifier = modifier,
+        label = stringResource(R.string.settings_stt_chunk_title),
+        // Секунды одинаковы во всех локалях — держим короткий формат.
+        valueText = "%.1f с".format(value),
+        value = value,
+        valueRange = UserApiSettings.STT_CHUNK_MIN_SECONDS..
+            UserApiSettings.STT_CHUNK_MAX_SECONDS,
+        onValueChange = onValueChange,
+    )
 }

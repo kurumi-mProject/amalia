@@ -101,6 +101,7 @@
 
     <string name="voice_tts_engine">Motor de voz</string>
     <string name="voice_tts_engine_mock">Motor de prueba</string>
+    <string name="voice_stt_engine_live_desc">Detección de voz en el dispositivo, sin esperar al servidor</string>
     <string name="voice_speech_rate">Velocidad del habla</string>
     <string name="voice_speech_pitch">Tono de voz</string>
     <string name="voice_voice_id">Voz</string>
@@ -310,7 +311,12 @@
     <string name="settings_api_status_value">Claves propias: %1$d de 3</string>
     <string name="settings_api_status_hint">Un campo vacío usa la clave de la build. Tu clave gasta tu cuota, no la compartida.</string>
     <string name="settings_api_llm">Texto · Groq</string>
-    <string name="settings_api_stt">Escucha · Deepgram</string>
+    <string name="settings_api_stt">Escucha · Groq Whisper</string>
+    <string name="settings_stt_title">Reconocimiento de voz</string>
+    <string name="settings_stt_key_shared">La escucha usa la misma clave de Groq que el cerebro: no hace falta otra.</string>
+    <string name="settings_stt_chunk_title">Cuánta voz reunir antes del primer texto</string>
+    <string name="settings_stt_chunk_desc">Más corto: los subtítulos aparecen antes, pero hay más solicitudes. Más largo: ahorra cuota.</string>
+    <string name="settings_stt_chunk_hint">Cámbialo si los subtítulos se retrasan o parpadean demasiado.</string>
     <string name="settings_api_tts">Voz · Fish Audio</string>
     <string name="settings_api_key_label">Clave de %1$s</string>
     <string name="settings_api_key_placeholder">pega la clave de la consola</string>
