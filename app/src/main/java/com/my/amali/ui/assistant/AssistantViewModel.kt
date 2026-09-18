@@ -553,15 +553,20 @@ class AssistantViewModel(
                         }
 
                         is AiResponse.Speaking -> _uiState.update { state ->
-                            state.copy(
-                                voiceState = if (event.isSpeaking) {
-                                    VoiceState.Speaking
-                                } else {
-                                    state.voiceState
-                                },
-                                isSpeaking = event.isSpeaking,
-                                audioLevel = if (event.isSpeaking) state.audioLevel else 0f,
-                            )
+                            if (event.isSpeaking) {
+                                // Оркестратор сигнализирует о начале TTS —
+                                // переводим UI в Speaking.
+                                state.copy(
+                                    voiceState = VoiceState.Speaking,
+                                    isSpeaking = true,
+                                )
+                            } else {
+                                // Speaking(false) из оркестратора означает что
+                                // чанки ОТПРАВЛЕНЫ в канал, но AudioPlayer ещё
+                                // играет их. Не трогаем voiceState и isSpeaking —
+                                // они сбросятся после playJob.join() ниже.
+                                state
+                            }
                         }
 
                         is AiResponse.Audio -> audioChannel.send(event.chunk)
