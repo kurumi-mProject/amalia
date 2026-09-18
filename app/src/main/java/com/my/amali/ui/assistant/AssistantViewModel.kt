@@ -397,13 +397,12 @@ class AssistantViewModel(
      */
     private fun launchCycle(prompt: String?) {
         conversationJob?.cancel()
-        // Старый плеер обязан замолчать ДО старта нового: иначе его трек
-        // продолжает играть параллельно новому и слышны два голоса.
-        // Раньше здесь стоял `player.stopImmediately()` — он же и убивал
-        // звук самого нового цикла (см. [cancelConversation]).
+        // Старый playJob отменяем — он дочерний к предыдущему разговору.
+        // player.stopImmediately() здесь НЕ вызывается: он убил бы новый
+        // playJob ещё до того как тот успел запустить AudioTrack.
+        // Явный стоп — только в cancelConversation() по кнопке пользователя.
         playJob?.cancel()
         playJob = null
-        player.stopImmediately()
         stoppedByUser = false
 
         val handsFree = settings.value.autoListen
@@ -448,12 +447,11 @@ class AssistantViewModel(
             val audioChannel = Channel<AudioChunk>(capacity = Channel.UNLIMITED)
             val historySnapshot = historyForModel()
 
-            // Проигрыватель живёт параллельно: звук начинает играть сразу,
-            // не дожидаясь конца генерации ответа.
-            // Ссылку на проигрывание храним в поле, а не в локальной
-            // переменной: только так её можно отменить снаружи (новый цикл,
-            // «Стоп», «Новый разговор») и не тащить за собой вечный join.
-            playJob = launch {
+            // playJob живёт в viewModelScope — независимо от conversationJob.
+            // Это критично: даже если conversationJob отменяется (пользователь
+            // нажал новый вопрос), уже запущенный TTS обязан доиграть до конца.
+            // Убить его может только явный cancelConversation/startNewSession.
+            playJob = viewModelScope.launch(Dispatchers.IO) {
                 player.play(audioChannel.receiveAsFlow()) { level ->
                     _uiState.update { state ->
                         if (state.voiceState == VoiceState.Speaking) {
@@ -462,6 +460,17 @@ class AssistantViewModel(
                             state
                         }
                     }
+                }
+                // AudioPlayer доиграл — сбрасываем Speaking состояние
+                _uiState.update { state ->
+                    if (state.isSpeaking) {
+                        state.copy(
+                            isSpeaking = false,
+                            audioLevel = 0f,
+                            voiceState = if (state.voiceState == VoiceState.Speaking)
+                                VoiceState.Idle else state.voiceState,
+                        )
+                    } else state
                 }
             }
 
@@ -619,14 +628,12 @@ class AssistantViewModel(
                     )
                 }
             } finally {
+                // Закрываем канал — продюсер в playJob увидит конец стрима
+                // и AudioPlayer доиграет оставшиеся чанки до конца.
+                // playJob при этом НЕ отменяем — он независимый и должен
+                // доиграть даже если conversationJob уже завершился.
                 audioChannel.close()
             }
-
-            // Ждём именно СВОЁ проигрывание: ссылка в поле могла уже
-            // смениться новым циклом, и join по чужой корутине подвесил бы
-            // этот запуск до конца следующего разговора.
-            playJob?.join()
-            playJob = null
 
             if (failed) {
                 _uiState.update {
@@ -637,11 +644,11 @@ class AssistantViewModel(
 
             persistTurn(userText, replyText, reports.map { it.summary })
 
+            // voiceState и isSpeaking НЕ сбрасываем здесь — это делает
+            // playJob после того как AudioPlayer реально доиграл последний чанк.
+            // Сбрасывать раньше = микрофон уходит в покой пока TTS ещё играет.
             _uiState.update {
                 it.copy(
-                    voiceState = VoiceState.Idle,
-                    audioLevel = 0f,
-                    isSpeaking = false,
                     replyProgress = 1f,
                     suggestions = followUpSuggestions(reports.isNotEmpty()),
                     activeTools = emptyList(),
