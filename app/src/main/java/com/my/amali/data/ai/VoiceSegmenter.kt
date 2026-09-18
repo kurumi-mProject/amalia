@@ -35,6 +35,15 @@ internal object VoiceSegmenter {
     /** Частота дискретизации всего конвейера; совпадает с VAD и Whisper. */
     const val SAMPLE_RATE = VoiceActivityDetector.SAMPLE_RATE
 
+    /**
+     * Длительность одного кадра VAD в миллисекундах.
+     *
+     * Живёт рядом с размерами окна, а не только у детектора: время тишины
+     * считается именно кадрами, и держать эту величину в двух местах значит
+     * однажды получить расхождение в пороге конца фразы.
+     */
+    const val FRAME_MS = VoiceActivityDetector.FRAME_MS
+
     /** Сколько сырых сэмплов приходится на миллисекунду записи (16 кГц). */
     private const val SAMPLES_PER_MS = SAMPLE_RATE / 1000
 
