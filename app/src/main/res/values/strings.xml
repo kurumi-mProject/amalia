@@ -360,4 +360,8 @@
     <string name="settings_custom_key">Ключ API</string>
     <string name="settings_custom_key_hint">Можно оставить пустым</string>
     <string name="settings_custom_need_model">Укажи модель — без неё запрос не пройдёт</string>
+
+    <string name="settings_profile_custom_hint">Введи адрес, модель и ключ в блоке ниже — и включи</string>
+    <string name="settings_custom_activate">Включить этот профиль</string>
+    <string name="settings_custom_active">Используется сейчас</string>
 </resources>

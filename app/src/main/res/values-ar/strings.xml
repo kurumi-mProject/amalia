@@ -342,4 +342,8 @@
     <string name="settings_custom_key">مفتاح API</string>
     <string name="settings_custom_key_hint">يمكن تركه فارغًا</string>
     <string name="settings_custom_need_model">اكتب اسم النموذج — بدونه لن يمر الطلب</string>
+
+    <string name="settings_profile_custom_hint">اكتب العنوان والنموذج والمفتاح أدناه ثم فعّله</string>
+    <string name="settings_custom_activate">تفعيل هذا الملف</string>
+    <string name="settings_custom_active">قيد الاستخدام الآن</string>
 </resources>

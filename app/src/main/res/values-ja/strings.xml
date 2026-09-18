@@ -342,4 +342,8 @@
     <string name="settings_custom_key">APIキー</string>
     <string name="settings_custom_key_hint">空でもかまいません</string>
     <string name="settings_custom_need_model">モデルを指定してください — ないとリクエストが通りません</string>
+
+    <string name="settings_profile_custom_hint">下の欄にURL・モデル・キーを入れて有効にしてください</string>
+    <string name="settings_custom_activate">このプロフィールを有効にする</string>
+    <string name="settings_custom_active">現在使用中</string>
 </resources>

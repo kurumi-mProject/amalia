@@ -342,4 +342,8 @@
     <string name="settings_custom_key">API 密钥</string>
     <string name="settings_custom_key_hint">可以留空</string>
     <string name="settings_custom_need_model">请填写模型——没有它请求不会通过</string>
+
+    <string name="settings_profile_custom_hint">在下方填写地址、模型和密钥，然后启用</string>
+    <string name="settings_custom_activate">启用此配置</string>
+    <string name="settings_custom_active">当前正在使用</string>
 </resources>

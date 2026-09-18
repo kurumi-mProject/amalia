@@ -342,4 +342,8 @@
     <string name="settings_custom_key">API कुंजी</string>
     <string name="settings_custom_key_hint">खाली छोड़ सकते हैं</string>
     <string name="settings_custom_need_model">मॉडल लिखें — इसके बिना अनुरोध नहीं जाएगा</string>
+
+    <string name="settings_profile_custom_hint">नीचे URL, मॉडल और कुंजी भरें — फिर चालू करें</string>
+    <string name="settings_custom_activate">यह प्रोफ़ाइल चालू करें</string>
+    <string name="settings_custom_active">अभी उपयोग में है</string>
 </resources>

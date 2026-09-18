@@ -32,6 +32,7 @@ import androidx.compose.material.icons.rounded.GraphicEq
 import androidx.compose.material.icons.rounded.Memory
 import androidx.compose.material.icons.rounded.RecordVoiceOver
 import androidx.compose.material.icons.rounded.RestartAlt
+import androidx.compose.material3.Button
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.material3.MaterialTheme
@@ -143,16 +144,21 @@ fun ApiKeysSettings(
             )
 
             // Своя точка подключения: адрес, модель и ключ вводит человек.
-            // Появляется только у профиля «Своя модель» — в остальных
-            // случаях это лишние поля, которые ничего не делают.
-            if (settings.aiProfile == AiProfile.CUSTOM) {
-                CustomProviderGroup(
-                    endpoint = api.customEndpoint,
-                    model = api.customModel,
-                    apiKey = api.customKey,
-                    onChange = { e, m, k -> vm.setCustomProvider(e, m, k) },
-                )
-            }
+            //
+            // Поля видны ВСЕГДА, а не только при активном профиле. Раньше
+            // они показывались лишь у выбранного CUSTOM, а сам CUSTOM нельзя
+            // было выбрать, пока поля пусты — получался замкнутый круг, и
+            // настроить профиль было невозможно в принципе. Теперь наоборот:
+            // человек вводит данные, и профиль становится доступным сам.
+            CustomProviderGroup(
+                endpoint = api.customEndpoint,
+                model = api.customModel,
+                apiKey = api.customKey,
+                active = settings.aiProfile == AiProfile.CUSTOM,
+                ready = api.customReady,
+                onActivate = { vm.setAiProfile(AiProfile.CUSTOM) },
+                onChange = { e, m, k -> vm.setCustomProvider(e, m, k) },
+            )
 
             SectionTitle(stringResource(R.string.settings_api_stt))
             ProviderGroup(
@@ -262,9 +268,20 @@ private fun AiProfileCard(
                     R.string.settings_profile_custom_empty
                 },
             ),
-            subtitle = stringResource(R.string.settings_profile_custom_desc),
+            subtitle = stringResource(
+                if (customReady) {
+                    R.string.settings_profile_custom_desc
+                } else {
+                    R.string.settings_profile_custom_hint
+                },
+            ),
             selected = profile == AiProfile.CUSTOM,
-            enabled = customReady,
+            // Вариант нажимаем ВСЕГДА, даже без настроек: нажатие — это
+            // намерение настроить, и оно лишь подсвечивает поля ниже.
+            // Раньше он был заблокирован до заполнения полей, а поля были
+            // скрыты до выбора — профиль нельзя было включить никогда.
+            enabled = true,
+            highlighted = !customReady,
             onClick = { onSelect(AiProfile.CUSTOM) },
         )
     }
@@ -288,10 +305,17 @@ private fun ProfileOption(
     selected: Boolean,
     enabled: Boolean,
     onClick: () -> Unit,
+    /**
+     * Вариант доступен, но ещё не готов к работе: подсвечиваем рамкой
+     * и подсказкой, куда смотреть. Так человек сразу понимает, что делать,
+     * вместо того чтобы гадать про серый пункт.
+     */
+    highlighted: Boolean = false,
 ) {
     val alpha = if (enabled) 1f else 0.45f
     val border = when {
         selected -> MaterialTheme.colorScheme.primary
+        highlighted -> MaterialTheme.colorScheme.primary.copy(alpha = 0.45f)
         else -> MaterialTheme.colorScheme.onSurface.copy(alpha = 0.10f)
     }
     val background = if (selected) {
@@ -360,6 +384,9 @@ private fun CustomProviderGroup(
     endpoint: String,
     model: String,
     apiKey: String,
+    active: Boolean,
+    ready: Boolean,
+    onActivate: () -> Unit,
     onChange: (String, String, String) -> Unit,
 ) {
     // Показ ключа — состояние экрана, а не настройка: ключ открывают на
@@ -420,6 +447,46 @@ private fun CustomProviderGroup(
                     style = MaterialTheme.typography.labelSmall,
                     color = MaterialTheme.colorScheme.error,
                 )
+            }
+
+            // Кнопка включения появляется ровно тогда, когда профиль уже
+            // настроен, но ещё не выбран. Это самый вероятный следующий шаг:
+            // человек только что ввёл адрес и модель — осталось сказать
+            // «работай через это». Пока профиль активен, кнопка не нужна.
+            if (ready && !active) {
+                Spacer(Modifier.height(Spacing.sm))
+                Button(
+                    onClick = onActivate,
+                    modifier = Modifier.fillMaxWidth(),
+                ) {
+                    Icon(
+                        imageVector = Icons.Rounded.Check,
+                        contentDescription = null,
+                        modifier = Modifier.size(18.dp),
+                    )
+                    Spacer(Modifier.width(Spacing.xs))
+                    Text(text = stringResource(R.string.settings_custom_activate))
+                }
+            }
+
+            // Активный профиль отмечаем прямо в блоке: иначе, прокрутив
+            // экран, человек не поймёт, чей это адрес — его или чужой.
+            if (active) {
+                Spacer(Modifier.height(Spacing.xs))
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Icon(
+                        imageVector = Icons.Rounded.Check,
+                        contentDescription = null,
+                        tint = MaterialTheme.colorScheme.secondary,
+                        modifier = Modifier.size(16.dp),
+                    )
+                    Spacer(Modifier.width(Spacing.xxs))
+                    Text(
+                        text = stringResource(R.string.settings_custom_active),
+                        style = MaterialTheme.typography.labelSmall,
+                        color = MaterialTheme.colorScheme.secondary,
+                    )
+                }
             }
         }
     }

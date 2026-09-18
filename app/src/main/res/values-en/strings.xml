@@ -342,4 +342,8 @@
     <string name="settings_custom_key">API key</string>
     <string name="settings_custom_key_hint">May be left empty</string>
     <string name="settings_custom_need_model">Set a model — the request won\'t go through without it</string>
+
+    <string name="settings_profile_custom_hint">Enter the URL, model and key in the block below, then enable it</string>
+    <string name="settings_custom_activate">Enable this profile</string>
+    <string name="settings_custom_active">Currently in use</string>
 </resources>

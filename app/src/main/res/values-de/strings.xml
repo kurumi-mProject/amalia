@@ -342,4 +342,8 @@
     <string name="settings_custom_key">API-Schlüssel</string>
     <string name="settings_custom_key_hint">Darf leer bleiben</string>
     <string name="settings_custom_need_model">Modell angeben — ohne geht die Anfrage nicht durch</string>
+
+    <string name="settings_profile_custom_hint">URL, Modell und Schlüssel unten eingeben — dann aktivieren</string>
+    <string name="settings_custom_activate">Dieses Profil aktivieren</string>
+    <string name="settings_custom_active">Wird gerade verwendet</string>
 </resources>
