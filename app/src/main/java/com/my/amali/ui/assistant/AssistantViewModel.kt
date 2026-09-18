@@ -130,10 +130,21 @@ data class ToolReport(
  *     ломали локализацию на всех языках кроме одного.
  */
 class AssistantViewModel(
-    private val orchestrator: AIOrchestrator = ServiceLocator.aiOrchestrator,
     private val conversationRepo: ConversationRepository = ServiceLocator.conversationRepository,
     private val settingsRepo: SettingsRepository = ServiceLocator.settingsRepository,
 ) : ViewModel() {
+
+    /**
+     * Оркестратор конвейера STT → LLM → TTS.
+     *
+     * Читается из [ServiceLocator] при каждом обращении, а не кэшируется
+     * в конструкторе: ключи и модели теперь настраиваются пользователем во
+     * время работы, и после их смены конвейер обязан подняться заново со
+     * свежей конфигурацией. Кэш в поле означал бы «настройки сохранились,
+     * но применяются только после перезапуска приложения».
+     */
+    private val orchestrator: AIOrchestrator
+        get() = ServiceLocator.aiOrchestrator
 
     private val _uiState = MutableStateFlow(
         AssistantUiState(suggestions = defaultSuggestions()),

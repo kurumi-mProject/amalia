@@ -74,7 +74,7 @@ class DeepgramSTT(private val context: Context) : SpeechToTextEngine {
     override suspend fun preconnect() {
         if (warmedSocket != null) return
         if (API_KEY.isBlank()) return
-        val url = buildDeepgramUrl("ru") // язык не важен для handshake
+        val url = buildDeepgramUrl("ru", DEFAULT_MODEL) // язык не важен для handshake
         val request = Request.Builder()
             .url(url)
             .header("Authorization", "Token $API_KEY")
@@ -91,8 +91,11 @@ class DeepgramSTT(private val context: Context) : SpeechToTextEngine {
     }
 
     override fun transcribe(options: EngineOptions): Flow<SttEvent> = callbackFlow {
-        if (API_KEY.isBlank()) {
-            throw EngineException("Не задан ключ Deepgram. Добавь DEEPGRAM_API_KEY в сборку.")
+        // Свой ключ важнее зашитого: он принадлежит пользователю и не тратит
+        // чужую квоту (та самая история «недостаточно средств»).
+        val apiKey = options.api.deepgramKey.trim().ifBlank { API_KEY }
+        if (apiKey.isBlank()) {
+            throw EngineException("Не задан ключ Deepgram. Впиши его в настройках «API и модели».")
         }
         if (ContextCompat.checkSelfPermission(context, Manifest.permission.RECORD_AUDIO)
             != PackageManager.PERMISSION_GRANTED
@@ -132,11 +135,11 @@ class DeepgramSTT(private val context: Context) : SpeechToTextEngine {
         val sessionStart = System.currentTimeMillis()
         val socketReady = AtomicBoolean(false)
 
-        val url = buildDeepgramUrl(options.languageCode)
+        val url = buildDeepgramUrl(options.languageCode, options.api.sttModel)
 
         val request = Request.Builder()
             .url(url)
-            .header("Authorization", "Token $API_KEY")
+            .header("Authorization", "Token $apiKey")
             .build()
 
         val listener = object : WebSocketListener() {
@@ -306,9 +309,17 @@ class DeepgramSTT(private val context: Context) : SpeechToTextEngine {
         return (rms / VOICE_RMS_FULL_SCALE).coerceIn(0.0, 1.0).toFloat()
     }
 
-    private fun buildDeepgramUrl(languageCode: String) = buildString {
+    /**
+     * URL веб-сокета распознавания.
+     *
+     * @param model идентификатор модели (например `nova-3`). Приходит из
+     *   настроек: пользователь сам выбирает модель, а рекомендованная
+     *   подставляется движком, если выбор пуст.
+     */
+    private fun buildDeepgramUrl(languageCode: String, model: String?) = buildString {
+        val resolvedModel = model?.trim()?.takeIf { it.isNotEmpty() } ?: DEFAULT_MODEL
         append("wss://api.deepgram.com/v1/listen")
-        append("?model=nova-3")
+        append("?model=").append(resolvedModel)
         append("&language=").append(languageCode)
         append("&punctuate=true")
         append("&smart_format=true")
@@ -343,6 +354,9 @@ class DeepgramSTT(private val context: Context) : SpeechToTextEngine {
         const val VOICE_RMS_FULL_SCALE = 6_000.0
 
         const val CLOSE_STREAM_FRAME = """{"type":"CloseStream"}"""
+
+        /** Модель распознавания по умолчанию, если пользователь не выбрал. */
+        const val DEFAULT_MODEL = "nova-3"
 
         val API_KEY: String get() = BuildConfig.DEEPGRAM_API_KEY
     }

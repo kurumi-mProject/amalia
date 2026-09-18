@@ -304,4 +304,27 @@
     <string name="greeting_evening">Bonsoir</string>
     <string name="greeting_night">Bonne nuit</string>
     <string name="greeting_prompt">On fait quoi ?</string>
+    <string name="settings_api_title">API et modèles</string>
+    <string name="settings_api_desc">Vos clés et choix de modèle</string>
+    <string name="settings_api_status_title">Fournisseurs d\'Amalia</string>
+    <string name="settings_api_status_value">Clés personnelles : %1$d sur 3</string>
+    <string name="settings_api_status_hint">Un champ vide utilise la clé de la build. Votre clé dépense votre quota, pas le commun.</string>
+    <string name="settings_api_llm">Texte · Groq</string>
+    <string name="settings_api_stt">Écoute · Deepgram</string>
+    <string name="settings_api_tts">Voix · Fish Audio</string>
+    <string name="settings_api_key_label">Clé %1$s</string>
+    <string name="settings_api_key_placeholder">collez la clé de la console</string>
+    <string name="settings_api_console_hint">Obtenez une clé ici : %1$s</string>
+    <string name="settings_api_own_key">clé perso</string>
+    <string name="settings_api_model_llm">Modèle de texte</string>
+    <string name="settings_api_model_llm_desc">Détermine la compréhension des commandes par Amalia.</string>
+    <string name="settings_api_model_stt">Modèle de reconnaissance</string>
+    <string name="settings_api_model_stt_desc">Qualité de la reconnaissance vocale.</string>
+    <string name="settings_api_model_tts">Modèle de synthèse</string>
+    <string name="settings_api_model_tts_desc">La voix d\'Amalia et sa rapidité à parler.</string>
+    <string name="settings_api_voice_title">La voix d\'Amalia</string>
+    <string name="settings_api_voice_desc">Identifiant de voix de la bibliothèque Fish Audio. Vide = voix de la build.</string>
+    <string name="settings_api_voice_label">reference_id de voix</string>
+    <string name="settings_api_voice_placeholder">ex. 096d410e860346a7a73762d557a290d7</string>
+    <string name="appearance_preview">Aperçu</string>
 </resources>

@@ -74,15 +74,24 @@ class FishAudioTTS : TextToSpeechEngine {
      * Возвращает поток [AudioChunk] (PCM 24кГц) по мере получения данных.
      */
     override fun speak(text: String, options: EngineOptions): Flow<AudioChunk> = flow {
-        if (API_KEY.isBlank()) {
-            throw EngineException("Не задан ключ Fish Audio. Добавь FISH_AUDIO_API_KEY в сборку.")
+        // Свой ключ важнее зашитого в сборку: за чужим ключом стоит чужая
+        // квота, и когда она кончается, приложение замолкает у всех сразу.
+        val apiKey = options.api.fishAudioKey.trim().ifBlank { API_KEY }
+        if (apiKey.isBlank()) {
+            throw EngineException("Не задан ключ Fish Audio. Впиши его в настройках «API и модели».")
         }
         val clean = text.trim()
         if (clean.isEmpty()) return@flow
 
+        val model = ModelCatalog.resolveForRequest(
+            ModelCatalog.Provider.FISH_AUDIO,
+            options.api.ttsModel,
+        )
+        val voice = options.api.fishVoiceId.trim().ifBlank { DEFAULT_REFERENCE_ID }
+
         val body = JSONObject().apply {
             put("text", clean)
-            put("reference_id", REFERENCE_ID)
+            put("reference_id", voice)
             put("format", "pcm")
             put("sample_rate", SAMPLE_RATE)
             put("normalize", true)
@@ -102,8 +111,8 @@ class FishAudioTTS : TextToSpeechEngine {
         val request = Request.Builder()
             .url(HTTP_ENDPOINT)
             .post(body.toString().toRequestBody(JSON_MEDIA_TYPE))
-            .header("Authorization", "Bearer $API_KEY")
-            .header("model", MODEL)
+            .header("Authorization", "Bearer $apiKey")
+            .header("model", model)
             .build()
 
         val response = try {
@@ -121,8 +130,7 @@ class FishAudioTTS : TextToSpeechEngine {
                 throw EngineException(
                     if (!detail.isNullOrBlank()) "Fish Audio: $detail"
                     else "Fish Audio ошибка ${resp.code}"
-                )
-            }
+                )            }
 
             val source = resp.body?.source()
                 ?: throw EngineException("Fish Audio вернул пустой ответ.")
@@ -143,17 +151,19 @@ class FishAudioTTS : TextToSpeechEngine {
         const val HTTP_ENDPOINT = "https://api.fish.audio/v1/tts"
 
         /**
-         * Модель голоса Амалии.
+         * Модель голоса Амалии, если пользователь не выбрал свою.
          *
          * `drama-3-preview` — доступ по гранту Fish Audio для стартапов.
          * Замеры на живом ключе: 0.5–1.2 с до первого байта, тогда как
          * бесплатная `s2.1-pro-free` отвечала 2.4–3 с в прогретом состоянии
-         * и до 38 с после паузы.
+         * и до 38 с после паузы. Это подпись оставлена как справка о замерах;
+         * фактический дефолт берётся из [ModelCatalog], чтобы список моделей
+         * в настройках и реальный запрос не разъезжались.
          */
-        const val MODEL = "drama-3-preview"
+        // const val MODEL — модель теперь живёт в ModelCatalog.ttsModels.
 
-        /** Голос Амалии из библиотеки Fish Audio. */
-        const val REFERENCE_ID = "096d410e860346a7a73762d557a290d7"
+        /** Голос Амалии из библиотеки Fish Audio: запасной, если свой не задан. */
+        const val DEFAULT_REFERENCE_ID = "096d410e860346a7a73762d557a290d7"
 
         /**
          * Частота PCM. Задаётся явно: при `sample_rate: null` сервис отдаёт

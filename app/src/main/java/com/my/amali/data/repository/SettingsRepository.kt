@@ -7,7 +7,9 @@ import androidx.datastore.preferences.core.edit
 import androidx.datastore.preferences.core.floatPreferencesKey
 import androidx.datastore.preferences.core.intPreferencesKey
 import androidx.datastore.preferences.core.stringPreferencesKey
+import com.my.amali.data.ai.ModelCatalog
 import com.my.amali.domain.entity.AppLanguage
+import com.my.amali.domain.entity.UserApiSettings
 import com.my.amali.domain.entity.UserSettings
 import com.my.amali.ui.theme.AmaliaMotif
 import com.my.amali.ui.theme.AmaliaVisualTheme
@@ -41,6 +43,19 @@ class SettingsRepository(private val dataStore: DataStore<Preferences>) {
         val RESUME_SESSION = booleanPreferencesKey("pref_resume_session")
         val MOTIF = stringPreferencesKey("pref_motif")
         val MOTIF_DENSITY = floatPreferencesKey("pref_motif_density")
+
+        // ── API-ключи и модели провайдеров ───────────────────────────────
+        //
+        // Каждый ключ — отдельная запись, а не один JSON: так стирание одного
+        // ключа не переписывает остальные, а случайная порча структуры не
+        // уносит с собой все три настройки сразу.
+        val API_GROQ_KEY = stringPreferencesKey("pref_api_groq_key")
+        val API_DEEPGRAM_KEY = stringPreferencesKey("pref_api_deepgram_key")
+        val API_FISH_KEY = stringPreferencesKey("pref_api_fish_key")
+        val API_LLM_MODEL = stringPreferencesKey("pref_api_llm_model")
+        val API_STT_MODEL = stringPreferencesKey("pref_api_stt_model")
+        val API_TTS_MODEL = stringPreferencesKey("pref_api_tts_model")
+        val API_FISH_VOICE = stringPreferencesKey("pref_api_fish_voice")
     }
 
     // ── Чтение ───────────────────────────────────────────────────────────
@@ -85,6 +100,15 @@ class SettingsRepository(private val dataStore: DataStore<Preferences>) {
             motif = motif,
             motifDensity = (this[Keys.MOTIF_DENSITY] ?: UserSettings.DEFAULT.motifDensity)
                 .coerceIn(0f, 1f),
+            api = UserApiSettings(
+                groqKey = this[Keys.API_GROQ_KEY].orEmpty(),
+                deepgramKey = this[Keys.API_DEEPGRAM_KEY].orEmpty(),
+                fishAudioKey = this[Keys.API_FISH_KEY].orEmpty(),
+                llmModel = this[Keys.API_LLM_MODEL].orEmpty(),
+                sttModel = this[Keys.API_STT_MODEL].orEmpty(),
+                ttsModel = this[Keys.API_TTS_MODEL].orEmpty(),
+                fishVoiceId = this[Keys.API_FISH_VOICE].orEmpty(),
+            ),
         )
     }
 
@@ -158,5 +182,53 @@ class SettingsRepository(private val dataStore: DataStore<Preferences>) {
     /** Сбрасывает все настройки к значениям по умолчанию. */
     suspend fun clearAll() {
         dataStore.edit { it.clear() }
+    }
+
+    // ── API-ключи и модели ───────────────────────────────────────────────
+
+    /**
+     * Сохраняет ключ провайдера.
+     *
+     * Значение обрезается по краям: ключи копируют из консоли вместе с
+     * пробелом или переводом строки, а провайдер такой ключ уже не примет —
+     * и пользователь получит «ключ отклонён», хотя ключ верный.
+     */
+    suspend fun setProviderKey(provider: ModelCatalog.Provider, key: String) {
+        val clean = key.trim()
+        dataStore.edit { prefs ->
+            when (provider) {
+                ModelCatalog.Provider.GROQ -> prefs[Keys.API_GROQ_KEY] = clean
+                ModelCatalog.Provider.DEEPGRAM -> prefs[Keys.API_DEEPGRAM_KEY] = clean
+                ModelCatalog.Provider.FISH_AUDIO -> prefs[Keys.API_FISH_KEY] = clean
+            }
+        }
+    }
+
+    /** Убирает собственный ключ: провайдер возвращается к ключу из сборки. */
+    suspend fun clearProviderKey(provider: ModelCatalog.Provider) {
+        dataStore.edit { prefs ->
+            when (provider) {
+                ModelCatalog.Provider.GROQ -> prefs.remove(Keys.API_GROQ_KEY)
+                ModelCatalog.Provider.DEEPGRAM -> prefs.remove(Keys.API_DEEPGRAM_KEY)
+                ModelCatalog.Provider.FISH_AUDIO -> prefs.remove(Keys.API_FISH_KEY)
+            }
+        }
+    }
+
+    /** Сохраняет выбранную модель провайдера (пусто → рекомендованная). */
+    suspend fun setProviderModel(provider: ModelCatalog.Provider, model: String) {
+        val clean = model.trim()
+        dataStore.edit { prefs ->
+            when (provider) {
+                ModelCatalog.Provider.GROQ -> prefs[Keys.API_LLM_MODEL] = clean
+                ModelCatalog.Provider.DEEPGRAM -> prefs[Keys.API_STT_MODEL] = clean
+                ModelCatalog.Provider.FISH_AUDIO -> prefs[Keys.API_TTS_MODEL] = clean
+            }
+        }
+    }
+
+    /** Голос Амалии в Fish Audio; пусто → голос из сборки. */
+    suspend fun setFishVoiceId(voiceId: String) {
+        dataStore.edit { prefs -> prefs[Keys.API_FISH_VOICE] = voiceId.trim() }
     }
 }

@@ -304,4 +304,27 @@
     <string name="greeting_evening">Guten Abend</string>
     <string name="greeting_night">Gute Nacht</string>
     <string name="greeting_prompt">Was machen wir?</string>
+    <string name="settings_api_title">API &amp; Modelle</string>
+    <string name="settings_api_desc">Eigene Schlüssel und Modellwahl</string>
+    <string name="settings_api_status_title">Amalia-Anbieter</string>
+    <string name="settings_api_status_value">Eigene Schlüssel: %1$d von 3</string>
+    <string name="settings_api_status_hint">Leeres Feld nutzt den Build-Schlüssel. Eigener Schlüssel verbraucht dein Kontingent.</string>
+    <string name="settings_api_llm">Text · Groq</string>
+    <string name="settings_api_stt">Hören · Deepgram</string>
+    <string name="settings_api_tts">Stimme · Fish Audio</string>
+    <string name="settings_api_key_label">%1$s-Schlüssel</string>
+    <string name="settings_api_key_placeholder">Schlüssel aus der Konsole einfügen</string>
+    <string name="settings_api_console_hint">Schlüssel hier: %1$s</string>
+    <string name="settings_api_own_key">eigener Schlüssel</string>
+    <string name="settings_api_model_llm">Textmodell</string>
+    <string name="settings_api_model_llm_desc">Bestimmt, wie gut Amalia Befehle versteht.</string>
+    <string name="settings_api_model_stt">Sprachmodell</string>
+    <string name="settings_api_model_stt_desc">Qualität der Spracherkennung.</string>
+    <string name="settings_api_model_tts">Stimmmodell</string>
+    <string name="settings_api_model_tts_desc">Wie Amalia klingt und wie schnell sie spricht.</string>
+    <string name="settings_api_voice_title">Amalias Stimme</string>
+    <string name="settings_api_voice_desc">Stimm-ID aus der Fish-Audio-Bibliothek. Leer nutzt die Build-Stimme.</string>
+    <string name="settings_api_voice_label">Voice reference_id</string>
+    <string name="settings_api_voice_placeholder">z. B. 096d410e860346a7a73762d557a290d7</string>
+    <string name="appearance_preview">Vorschau</string>
 </resources>

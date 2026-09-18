@@ -24,6 +24,7 @@ import com.my.amali.data.repository.AppPreferencesRepository
 import com.my.amali.data.repository.ConversationRepository
 import com.my.amali.data.repository.SettingsRepository
 import com.my.amali.domain.entity.AppLanguage
+import com.my.amali.domain.entity.UserApiSettings
 import com.my.amali.system.DeviceCommandExecutor
 import com.my.amali.system.SystemControllerHub
 import kotlinx.coroutines.flow.first
@@ -124,9 +125,121 @@ object ServiceLocator {
             BuildConfig.GROQ_API_KEY.isNotBlank() &&
             BuildConfig.FISH_AUDIO_API_KEY.isNotBlank()
 
+    /**
+     * Хватит ли ключей, чтобы поднять реальный конвейер.
+     *
+     * Свой ключ пользователя считается наравне с ключом сборки: если человек
+     * вписал только Groq и Fish Audio (а Deepgram у него нет), конвейер всё
+     * равно поднимается живым — иначе введённые ключи не давали бы ничего,
+     * пока не заполнены все три поля.
+     *
+     * Правило простое: реальные движки нужны, когда **текст и голос** есть
+     * (это минимальный осмысленный ассистент), а распознавание подтянется
+     * любым доступным ключом.
+     */
+    private fun effectiveKeys(): Triple<String, String, String> {
+        val api = runCatching {
+            kotlinx.coroutines.runBlocking {
+                settingsRepository.settings.first().api
+            }
+        }.getOrDefault(UserApiSettings())
+        return Triple(
+            api.groqKey.trim().ifBlank { BuildConfig.GROQ_API_KEY },
+            api.deepgramKey.trim().ifBlank { BuildConfig.DEEPGRAM_API_KEY },
+            api.fishAudioKey.trim().ifBlank { BuildConfig.FISH_AUDIO_API_KEY },
+        )
+    }
+
+    /** Есть ли пара «текст + голос» — этого достаточно для живого конвейера. */
+    private val hasCoreKeys: Boolean
+        get() {
+            val (llm, _, tts) = effectiveKeys()
+            return llm.isNotBlank() && tts.isNotBlank()
+        }
+
     /** Описание активных движков — показывается в настройках голоса. */
     val aiConfig: AIConfig
         get() = if (hasLiveKeys) AIConfig.Live else AIConfig.Mock
+
+    /**
+     * Ключи, с которыми собран текущий конвейер.
+     *
+     * Оркестратор дорогой (HTTP-клиенты, реестр инструментов), поэтому
+     * пересобирать его на каждой рекомпозиции нельзя. Но и держать один
+     * экземпляр навсегда тоже нельзя: пользователь может вписать свой ключ
+     * прямо в настройках, и он обязан заработать сразу.
+     *
+     * Отпечаток — единственное, что нас здесь интересует: ключи, модели и
+     * голос. Настройки вида «тема» или «язык» на состав движков не влияют,
+     * поэтому в отпечаток не входят: иначе смена языка пересобирала бы
+     * конвейер на ровном месте.
+     */
+    private val apiFingerprint: String
+        get() {
+            val api = apiSnapshot()
+            return listOf(
+                api.groqKey,
+                api.deepgramKey,
+                api.fishAudioKey,
+                api.llmModel,
+                api.sttModel,
+                api.ttsModel,
+                api.fishVoiceId,
+            ).joinToString(FINGERPRINT_SEPARATOR)
+        }
+
+    /** Снимок API-настроек без подписки на весь поток настроек. */
+    private fun apiSnapshot(): UserApiSettings =
+        runCatching {
+            kotlinx.coroutines.runBlocking {
+                settingsRepository.settings.first().api
+            }
+        }.getOrDefault(UserApiSettings())
+
+    /**
+     * Оркестратор конвейера STT → LLM → TTS.
+     *
+     * Пересобирается ровно тогда, когда изменились ключи или модели: раньше
+     * движки создавались один раз из `BuildConfig`, и введённый пользователем
+     * ключ вступал в силу только после перезапуска приложения — то есть
+     * выглядел как неработающий.
+     */
+    val aiOrchestrator: AIOrchestrator
+        get() {
+            val fingerprint = apiFingerprint
+            cachedOrchestrator?.takeIf { cachedFingerprint == fingerprint }?.let { return it }
+            synchronized(this) {
+                val current = apiFingerprint
+                cachedOrchestrator?.takeIf { cachedFingerprint == current }?.let { return it }
+                val built = buildOrchestrator()
+                cachedOrchestrator = built
+                cachedFingerprint = current
+                return built
+            }
+        }
+
+    @Volatile
+    private var cachedOrchestrator: AIOrchestrator? = null
+
+    @Volatile
+    private var cachedFingerprint: String? = null
+
+    private fun buildOrchestrator(): AIOrchestrator = if (hasCoreKeys) {
+        AIOrchestrator(
+            sttEngine = DeepgramSTT(appContext),
+            llmEngine = GroqLLM(),
+            ttsEngine = ttsEngine,
+            registry = toolRegistry,
+            commandExecutor = deviceCommandExecutor,
+        )
+    } else {
+        AIOrchestrator(
+            sttEngine = MockSpeechToTextEngine(),
+            llmEngine = MockLanguageModel(),
+            ttsEngine = MockTextToSpeechEngine(),
+            registry = toolRegistry,
+        )
+    }
 
     /** Хаб системных контроллеров (Wi-Fi, BT, яркость, громкость и т.д.). */
     val systemControllers: SystemControllerHub by lazy { SystemControllerHub(appContext) }
@@ -147,29 +260,6 @@ object ServiceLocator {
     /** Реестр инструментов, доступных LLM. Передаётся в [aiOrchestrator]. */
     val toolRegistry: ToolRegistry by lazy { ToolRegistry.of(amaliaTools.all) }
 
-    /**
-     * Оркестратор AI-конвейера STT → LLM → TTS.
-     * Реальные движки: Deepgram nova-3, Groq qwen3.8-27b, Fish Audio drama-3-preview.
-     * Поверх LLM — [toolRegistry] с реальным списком инструментов.
-     */
-    val aiOrchestrator: AIOrchestrator by lazy {
-        if (hasLiveKeys) {
-            AIOrchestrator(
-                sttEngine = DeepgramSTT(appContext),
-                llmEngine = GroqLLM(),
-                ttsEngine = ttsEngine,
-                registry = toolRegistry,
-                commandExecutor = deviceCommandExecutor,
-            )
-        } else {
-            AIOrchestrator(
-                sttEngine = MockSpeechToTextEngine(),
-                llmEngine = MockLanguageModel(),
-                ttsEngine = MockTextToSpeechEngine(),
-                registry = toolRegistry,
-            )
-        }
-    }
 
     /**
      * Синтез речи: голос Амалии через Fish Audio.

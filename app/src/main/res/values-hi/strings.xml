@@ -304,4 +304,27 @@
     <string name="greeting_evening">शुभ संध्या</string>
     <string name="greeting_night">शुभ रात्रि</string>
     <string name="greeting_prompt">क्या करें?</string>
+    <string name="settings_api_title">API और मॉडल</string>
+    <string name="settings_api_desc">अपनी कुंजियाँ और मॉडल चुनाव</string>
+    <string name="settings_api_status_title">अमालिया प्रदाता</string>
+    <string name="settings_api_status_value">अपनी कुंजियाँ: 3 में से %1$d</string>
+    <string name="settings_api_status_hint">खाली फ़ील्ड बिल्ड कुंजी लेती है। अपनी कुंजी आपकी कोटा खर्च करती है।</string>
+    <string name="settings_api_llm">टेक्स्ट · Groq</string>
+    <string name="settings_api_stt">सुनना · Deepgram</string>
+    <string name="settings_api_tts">आवाज़ · Fish Audio</string>
+    <string name="settings_api_key_label">%1$s कुंजी</string>
+    <string name="settings_api_key_placeholder">कंसोल से कुंजी चिपकाएँ</string>
+    <string name="settings_api_console_hint">कुंजी यहाँ से लें: %1$s</string>
+    <string name="settings_api_own_key">अपनी कुंजी</string>
+    <string name="settings_api_model_llm">टेक्स्ट मॉडल</string>
+    <string name="settings_api_model_llm_desc">अमालिया कितनी अच्छी तरह समझती है, यह इस पर निर्भर है।</string>
+    <string name="settings_api_model_stt">भाषण मॉडल</string>
+    <string name="settings_api_model_stt_desc">वाक् पहचान की गुणवत्ता।</string>
+    <string name="settings_api_model_tts">स्वर मॉडल</string>
+    <string name="settings_api_model_tts_desc">अमालिया कैसी सुनाई देती है और कितनी तेज़ बोलती है।</string>
+    <string name="settings_api_voice_title">अमालिया की आवाज़</string>
+    <string name="settings_api_voice_desc">Fish Audio लाइब्रेरी से वॉइस आईडी। खाली = बिल्ड वॉइस।</string>
+    <string name="settings_api_voice_label">वॉइस reference_id</string>
+    <string name="settings_api_voice_placeholder">जैसे 096d410e860346a7a73762d557a290d7</string>
+    <string name="appearance_preview">पूर्वावलोकन</string>
 </resources>

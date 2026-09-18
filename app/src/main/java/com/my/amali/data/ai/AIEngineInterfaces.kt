@@ -3,6 +3,7 @@ package com.my.amali.data.ai
 import com.my.amali.data.model.ChatMessage
 import com.my.amali.data.model.DeviceStatus
 import com.my.amali.domain.entity.AppLanguage
+import com.my.amali.domain.entity.UserApiSettings
 import com.my.amali.domain.entity.UserSettings
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.emptyFlow
@@ -62,6 +63,14 @@ data class EngineOptions(
     val conversationSummary: String? = null,
     val knownApps: List<KnownApp> = emptyList(),
     val appAliases: Map<String, String> = emptyMap(),
+    /**
+     * Ключи и модели, заданные пользователем.
+     *
+     * Движки читают их отсюда, а не из `BuildConfig`: политика «свой ключ
+     * важнее зашитого» должна быть видна в одном месте, а не размазана по
+     * трём HTTP-клиентам. Пустое поле означает «взять из сборки».
+     */
+    val api: UserApiSettings = UserApiSettings(),
 ) {
     /**
      * Готовый блок для системного промпта: «название → пакет» плюс словарь
@@ -130,6 +139,7 @@ data class EngineOptions(
             languageCode = resolveLanguage(settings.selectedLanguage),
             speechRate = settings.speechRate.coerceIn(0.5f, 2f),
             speechPitch = settings.speechPitch.coerceIn(0.5f, 2f),
+            api = settings.api,
         )
 
         private fun resolveLanguage(language: AppLanguage): String {

@@ -3,6 +3,7 @@ package com.my.amali.ui.settings
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.my.amali.core.di.ServiceLocator
+import com.my.amali.data.ai.ModelCatalog
 import com.my.amali.data.repository.ConversationRepository
 import com.my.amali.data.repository.SettingsRepository
 import com.my.amali.domain.entity.AppLanguage
@@ -92,12 +93,38 @@ class SettingsViewModel : ViewModel() {
         settingsRepository.setWakeWordEnabled(enabled)
     }
 
+    // ── API-ключи и модели ───────────────────────────────────────────────
+
+    /** Сохраняет ключ провайдера (ввод пользователя). */
+    fun setProviderKey(provider: ModelCatalog.Provider, key: String) = viewModelScope.launch {
+        settingsRepository.setProviderKey(provider, key)
+    }
+
+    /** Убирает собственный ключ: провайдер возвращается к ключу из сборки. */
+    fun clearProviderKey(provider: ModelCatalog.Provider) = viewModelScope.launch {
+        settingsRepository.clearProviderKey(provider)
+    }
+
+    /**
+     * Сохраняет выбранную модель.
+     *
+     * Пустая строка означает «рекомендованная»: список моделей открывается
+     * именно на ней, а в запрос уйдёт значение из [ModelCatalog].
+     */
+    fun setProviderModel(provider: ModelCatalog.Provider, model: String) = viewModelScope.launch {
+        settingsRepository.setProviderModel(provider, model)
+    }
+
+    /** Голос Амалии в Fish Audio (`reference_id`). */
+    fun setFishVoiceId(voiceId: String) = viewModelScope.launch {
+        settingsRepository.setFishVoiceId(voiceId)
+    }
+
     // ── Приватность ──────────────────────────────────────────────────────
 
     fun setDataRetentionDays(days: Int) = viewModelScope.launch {
         settingsRepository.setDataRetentionDays(days)
     }
-
     /** Полностью очищает историю разговоров. */
     fun clearHistory(onDone: () -> Unit = {}) = viewModelScope.launch {
         conversationRepository.clearAll()

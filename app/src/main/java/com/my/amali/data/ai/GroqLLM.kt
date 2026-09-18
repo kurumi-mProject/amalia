@@ -68,12 +68,16 @@ class GroqLLM : LanguageModel {
         history: List<ChatMessage>,
         options: EngineOptions,
     ): Flow<String> = channelFlow {
-        if (API_KEY.isBlank()) {
-            throw EngineException("Не задан ключ Groq API. Добавь GROQ_API_KEY в сборку.")
+        // Свой ключ важнее зашитого в сборку: он принадлежит пользователю
+        // и не расходует чужую квоту. Пусто → берём ключ сборки.
+        val apiKey = options.api.groqKey.trim().ifBlank { API_KEY }
+        if (apiKey.isBlank()) {
+            throw EngineException("Не задан ключ Groq API. Впиши его в настройках «API и модели».")
         }
+        val model = ModelCatalog.resolveForRequest(ModelCatalog.Provider.GROQ, options.api.llmModel)
         val messagesList = mutableListOf<ChatMessage>().apply { addAll(history) }
         val bodyJson = JSONObject().apply {
-            put("model", MODEL)
+            put("model", model)
             put("messages", buildMessagesArray(prompt, messagesList, options))
             put("stream", true)
             put("max_tokens", 400)
@@ -81,10 +85,12 @@ class GroqLLM : LanguageModel {
             put("top_p", 0.95)
             put("reasoning_effort", "none")
         }
-        val request = chatCompletionRequest(bodyJson)
+        val request = chatCompletionRequest(bodyJson, apiKey)
         val response = executeOrThrow(request)
         response.use { resp ->
-            if (!resp.isSuccessful) throw EngineException(humanError(resp.code, resp.body?.string()))
+            if (!resp.isSuccessful) {
+                throw EngineException(humanError(resp.code, resp.body?.string(), model))
+            }
             val source = resp.body?.source()
                 ?: throw EngineException("Groq вернул пустой ответ.")
             var emittedAnything = false
@@ -108,11 +114,13 @@ class GroqLLM : LanguageModel {
         options: EngineOptions,
         alreadyExecutedTools: Set<String>,
     ): Flow<LLMEvent> = channelFlow {
-        if (API_KEY.isBlank()) {
-            throw EngineException("Не задан ключ Groq API. Добавь GROQ_API_KEY в сборку.")
+        val apiKey = options.api.groqKey.trim().ifBlank { API_KEY }
+        if (apiKey.isBlank()) {
+            throw EngineException("Не задан ключ Groq API. Впиши его в настройках «API и модели».")
         }
+        val model = ModelCatalog.resolveForRequest(ModelCatalog.Provider.GROQ, options.api.llmModel)
         val bodyJson = JSONObject().apply {
-            put("model", MODEL)
+            put("model", model)
             put("messages", buildMessagesArrayFrom(messages, options, tools))
             put("stream", true)
             put("max_tokens", 600)
@@ -122,11 +130,11 @@ class GroqLLM : LanguageModel {
             put("response_format", JSONObject().put("type", "json_object"))
         }
 
-        val request = chatCompletionRequest(bodyJson)
+        val request = chatCompletionRequest(bodyJson, apiKey)
         val response = executeOrThrow(request)
         response.use { resp ->
             if (!resp.isSuccessful) {
-                throw EngineException(humanError(resp.code, resp.body?.string()))
+                throw EngineException(humanError(resp.code, resp.body?.string(), model))
             }
             val source = resp.body?.source()
                 ?: throw EngineException("Groq вернул пустой ответ.")
@@ -283,10 +291,16 @@ class GroqLLM : LanguageModel {
 
     // ── HTTP / SSE ───────────────────────────────────────────────────────
 
-    private fun chatCompletionRequest(jsonBody: JSONObject): Request = Request.Builder()
+    /**
+     * @param apiKey ключ, которым подписывается запрос. Приходит из настроек
+     *   пользователя, а при пустом значении — из сборки. Передаётся явно,
+     *   чтобы в одном запросе не могли встретиться ключ и модель из разных
+     *   конфигураций (классическая причина «ключ отклонён» при верных данных).
+     */
+    private fun chatCompletionRequest(jsonBody: JSONObject, apiKey: String): Request = Request.Builder()
         .url(ENDPOINT)
         .post(jsonBody.toString().toRequestBody(JSON_MEDIA_TYPE))
-        .header("Authorization", "Bearer $API_KEY")
+        .header("Authorization", "Bearer $apiKey")
         .header("Accept", "text/event-stream")
         .build()
 
@@ -440,9 +454,9 @@ USER: почему самые важные разговоры в три ночи
         """.trimIndent()
     }
 
-    private fun humanError(code: Int, body: String?): String = when (code) {
-        401, 403 -> "Ключ Groq API отклонён. Проверь GROQ_API_KEY."
-        404 -> "Модель $MODEL недоступна для этого ключа."
+    private fun humanError(code: Int, body: String?, model: String): String = when (code) {
+        401, 403 -> "Ключ Groq API отклонён. Проверь ключ в настройках «API и модели»."
+        404 -> "Модель $model недоступна для этого ключа. Выбери другую в настройках."
         429 -> "Groq: слишком много запросов, подожди пару секунд."
         in 500..599 -> "Groq временно недоступен (код $code)."
         else -> {
@@ -454,8 +468,15 @@ USER: почему самые важные разговоры в три ночи
     }
 
     private companion object {
+        /**
+         * Ключ из сборки — запасной вариант.
+         *
+         * Основной источник теперь настройки пользователя
+         * (`UserApiSettings.groqKey`): общий ключ сборки упирается в общую
+         * квоту, и когда она заканчивается, приложение молчит у всех сразу.
+         * Список рекомендованных моделей живёт в [ModelCatalog].
+         */
         val API_KEY: String get() = BuildConfig.GROQ_API_KEY
-        const val MODEL = "qwen/qwen3.8-27b"
         const val ENDPOINT = "https://api.groq.com/openai/v1/chat/completions"
         const val SSE_PREFIX = "data: "
         const val SSE_DONE = "[DONE]"

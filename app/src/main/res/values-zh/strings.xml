@@ -304,4 +304,27 @@
     <string name="greeting_evening">晚上好</string>
     <string name="greeting_night">晚安</string>
     <string name="greeting_prompt">想做点什么？</string>
+    <string name="settings_api_title">API 与模型</string>
+    <string name="settings_api_desc">自己的密钥与模型选择</string>
+    <string name="settings_api_status_title">Amalia 服务商</string>
+    <string name="settings_api_status_value">自有密钥：3 个中的 %1$d 个</string>
+    <string name="settings_api_status_hint">留空则使用构建密钥。自己的密钥消耗你自己的额度。</string>
+    <string name="settings_api_llm">文本 · Groq</string>
+    <string name="settings_api_stt">听觉 · Deepgram</string>
+    <string name="settings_api_tts">语音 · Fish Audio</string>
+    <string name="settings_api_key_label">%1$s 密钥</string>
+    <string name="settings_api_key_placeholder">粘贴控制台中的密钥</string>
+    <string name="settings_api_console_hint">在此获取密钥：%1$s</string>
+    <string name="settings_api_own_key">自有密钥</string>
+    <string name="settings_api_model_llm">文本模型</string>
+    <string name="settings_api_model_llm_desc">决定 Amalia 理解命令的能力。</string>
+    <string name="settings_api_model_stt">语音模型</string>
+    <string name="settings_api_model_stt_desc">语音识别质量。</string>
+    <string name="settings_api_model_tts">语音合成模型</string>
+    <string name="settings_api_model_tts_desc">Amalia 的音色与开口速度。</string>
+    <string name="settings_api_voice_title">Amalia 的声音</string>
+    <string name="settings_api_voice_desc">Fish Audio 声音库中的 voice id。留空使用构建内置声音。</string>
+    <string name="settings_api_voice_label">声音 reference_id</string>
+    <string name="settings_api_voice_placeholder">例如 096d410e860346a7a73762d557a290d7</string>
+    <string name="appearance_preview">预览</string>
 </resources>

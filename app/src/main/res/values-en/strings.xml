@@ -304,4 +304,27 @@
     <string name="greeting_evening">Good evening</string>
     <string name="greeting_night">Good night</string>
     <string name="greeting_prompt">What shall we do?</string>
+    <string name="settings_api_title">API &amp; models</string>
+    <string name="settings_api_desc">Your own keys and model choice</string>
+    <string name="settings_api_status_title">Amalia providers</string>
+    <string name="settings_api_status_value">Own keys: %1$d of 3</string>
+    <string name="settings_api_status_hint">Empty field uses the build key. Your own key spends your quota, not the shared one.</string>
+    <string name="settings_api_llm">Text · Groq</string>
+    <string name="settings_api_stt">Hearing · Deepgram</string>
+    <string name="settings_api_tts">Voice · Fish Audio</string>
+    <string name="settings_api_key_label">%1$s key</string>
+    <string name="settings_api_key_placeholder">paste the key from the console</string>
+    <string name="settings_api_console_hint">Get a key here: %1$s</string>
+    <string name="settings_api_own_key">own key</string>
+    <string name="settings_api_model_llm">Text model</string>
+    <string name="settings_api_model_llm_desc">Determines how well Amalia understands commands.</string>
+    <string name="settings_api_model_stt">Speech model</string>
+    <string name="settings_api_model_stt_desc">Quality of speech recognition.</string>
+    <string name="settings_api_model_tts">Voice model</string>
+    <string name="settings_api_model_tts_desc">How Amalia sounds and how fast she starts speaking.</string>
+    <string name="settings_api_voice_title">Amalia\'s voice</string>
+    <string name="settings_api_voice_desc">Voice id from the Fish Audio library. Empty uses the build voice.</string>
+    <string name="settings_api_voice_label">Voice reference_id</string>
+    <string name="settings_api_voice_placeholder">e.g. 096d410e860346a7a73762d557a290d7</string>
+    <string name="appearance_preview">Preview</string>
 </resources>

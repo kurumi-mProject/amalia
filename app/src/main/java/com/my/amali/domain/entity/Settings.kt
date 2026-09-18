@@ -27,6 +27,56 @@ import com.my.amali.ui.theme.DarkModePreference
  * @property motif decorative layer over the living background: falling petals,
  *   leaves, snow, stars or fireflies. [AmaliaMotif.OFF] keeps the screen bare.
  */
+/**
+ * API-ключи и выбранные модели трёх провайдеров конвейера.
+ *
+ * ## Почему ключи живут в настройках, а не только в сборке
+ *
+ * Зашитый в APK ключ — это общий ресурс: он принадлежит сборке, а не человеку,
+ * который этой сборкой пользуется. Отсюда три проблемы, которые решаются
+ * ровно одним способом — дать ввести свой ключ:
+ *
+ *  1. **Квота.** Ключ из сборки может быть исчерпан («недостаточно средств»),
+ *     и тогда приложение замолкает у всех сразу. Свой ключ возвращает голос
+ *     немедленно и не требует пересборки.
+ *  2. **Модели.** Линейка моделей у провайдера меняется чаще, чем выходит
+ *     новая версия приложения. Имя модели — такая же настройка, как язык.
+ *  3. **Доверие.** Пользователь вправе видеть, куда уходят его данные и чьим
+ *     ключом оплачивается обращение.
+ *
+ * Пустое значение поля = «взять из сборки». Это не то же самое, что «выключить
+ * провайдера»: конвейер обязан оставаться рабочим на дефолтной конфигурации,
+ * иначе первый запуск приложения без ключей выглядел бы сломанным.
+ *
+ * @property groqKey ключ Groq (генерация текста и вызов инструментов).
+ * @property deepgramKey ключ Deepgram (распознавание речи).
+ * @property fishAudioKey ключ Fish Audio (синтез голоса).
+ * @property llmModel идентификатор модели Groq; пусто → рекомендованная.
+ * @property sttModel идентификатор модели Deepgram; пусто → рекомендованная.
+ * @property ttsModel идентификатор модели Fish Audio; пусто → рекомендованная.
+ * @property fishVoiceId reference_id голоса Амалии в библиотеке Fish Audio.
+ *   Вынесен сюда потому, что голос — это тоже выбор пользователя: у Fish
+ *   Audio можно клонировать свой голос и подставить его идентификатор.
+ */
+data class UserApiSettings(
+    val groqKey: String = "",
+    val deepgramKey: String = "",
+    val fishAudioKey: String = "",
+    val llmModel: String = "",
+    val sttModel: String = "",
+    val ttsModel: String = "",
+    val fishVoiceId: String = "",
+) {
+
+    /** Задан ли хотя бы один собственный ключ. */
+    val hasAnyKey: Boolean
+        get() = groqKey.isNotBlank() || deepgramKey.isNotBlank() || fishAudioKey.isNotBlank()
+
+    /** Сколько провайдеров настроено своими ключами (для строки-сводки). */
+    val configuredProviders: Int
+        get() = listOf(groqKey, deepgramKey, fishAudioKey).count { it.isNotBlank() }
+}
+
 data class UserSettings(
     val visualTheme: AmaliaVisualTheme = AmaliaVisualTheme.LIQUID_GLASS,
     val darkModePref: DarkModePreference = DarkModePreference.SYSTEM,
@@ -40,7 +90,15 @@ data class UserSettings(
     val selectedLanguage: AppLanguage = AppLanguage.SYSTEM,
     val resumeLastSession: Boolean = true,
     val motif: AmaliaMotif = AmaliaMotif.AUTO,
-    val motifDensity: Float = 0.85f
+    val motifDensity: Float = 0.85f,
+    /**
+     * Ключи и модели провайдеров, которые пользователь задал сам.
+     *
+     * Собственные ключи **перебивают** зашитые в сборку: если человек вписал
+     * свой Groq-ключ, запросы идут с ним и за его счёт — иначе он платил бы
+     * за чужую квоту, не понимая, почему у него «недостаточно средств».
+     */
+    val api: UserApiSettings = UserApiSettings(),
 ) {
     /** Returns a copy with [motifDensity] clamped to the valid [0.0, 1.0] range. */
     fun withClampedMotif(): UserSettings = copy(motifDensity = motifDensity.coerceIn(0f, 1f))

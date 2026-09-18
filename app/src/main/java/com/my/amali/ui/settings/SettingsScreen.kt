@@ -19,6 +19,7 @@ import androidx.compose.material.icons.rounded.AutoAwesome
 import androidx.compose.material.icons.rounded.Apps
 import androidx.compose.material.icons.rounded.DarkMode
 import androidx.compose.material.icons.rounded.Info
+import androidx.compose.material.icons.rounded.Key
 import androidx.compose.material.icons.rounded.Language
 import androidx.compose.material.icons.rounded.Mic
 import androidx.compose.material.icons.rounded.Notifications
@@ -61,6 +62,7 @@ import com.my.amali.ui.theme.Spacing
  */
 @Composable
 fun SettingsScreen(
+    onOpenApiKeys: () -> Unit,
     onOpenAppearance: () -> Unit,
     onOpenLanguage: () -> Unit,
     onOpenVoice: () -> Unit,
@@ -166,6 +168,19 @@ fun SettingsScreen(
                     title = stringResource(R.string.settings_voice),
                     subtitle = stringResource(R.string.settings_voice_desc),
                     onClick = onOpenVoice,
+                )
+                GlassDivider()
+                SettingsActionRow(
+                    icon = Icons.Rounded.Key,
+                    title = stringResource(R.string.settings_api_title),
+                    subtitle = stringResource(R.string.settings_api_desc),
+                    // Значение-сводка: сколько провайдеров переведено на свои
+                    // ключи. Пусто, пока не настроен ни один, — тогда строка
+                    // выглядит как обычный переход, а не как «почти настроено».
+                    value = settings.api.configuredProviders
+                        .takeIf { it > 0 }
+                        ?.let { "$it/3" },
+                    onClick = onOpenApiKeys,
                 )
             }
 

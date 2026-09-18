@@ -304,4 +304,27 @@
     <string name="greeting_evening">こんばんは</string>
     <string name="greeting_night">おやすみ</string>
     <string name="greeting_prompt">何をしましょう？</string>
+    <string name="settings_api_title">APIとモデル</string>
+    <string name="settings_api_desc">自分のキーとモデル選択</string>
+    <string name="settings_api_status_title">アマリアのプロバイダー</string>
+    <string name="settings_api_status_value">自分のキー：3件中%1$d件</string>
+    <string name="settings_api_status_hint">空欄ならビルドのキーを使用。自分のキーは自分のクォータを消費します。</string>
+    <string name="settings_api_llm">テキスト · Groq</string>
+    <string name="settings_api_stt">聞き取り · Deepgram</string>
+    <string name="settings_api_tts">声 · Fish Audio</string>
+    <string name="settings_api_key_label">%1$s のキー</string>
+    <string name="settings_api_key_placeholder">コンソールのキーを貼り付け</string>
+    <string name="settings_api_console_hint">キーはこちら: %1$s</string>
+    <string name="settings_api_own_key">自分のキー</string>
+    <string name="settings_api_model_llm">テキストモデル</string>
+    <string name="settings_api_model_llm_desc">アマリアのコマンド理解度を左右します。</string>
+    <string name="settings_api_model_stt">音声認識モデル</string>
+    <string name="settings_api_model_stt_desc">音声認識の品質。</string>
+    <string name="settings_api_model_tts">音声合成モデル</string>
+    <string name="settings_api_model_tts_desc">アマリアの声質と話し始めの速さ。</string>
+    <string name="settings_api_voice_title">アマリアの声</string>
+    <string name="settings_api_voice_desc">Fish Audio ライブラリのボイスID。空欄ならビルドの声。</string>
+    <string name="settings_api_voice_label">ボイス reference_id</string>
+    <string name="settings_api_voice_placeholder">例: 096d410e860346a7a73762d557a290d7</string>
+    <string name="appearance_preview">プレビュー</string>
 </resources>

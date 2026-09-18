@@ -304,4 +304,27 @@
     <string name="greeting_evening">مساء الخير</string>
     <string name="greeting_night">تصبح على خير</string>
     <string name="greeting_prompt">ماذا سنفعل؟</string>
+    <string name="settings_api_title">API والنماذج</string>
+    <string name="settings_api_desc">مفاتيحك واختيار النموذج</string>
+    <string name="settings_api_status_title">مزوّدو أماليا</string>
+    <string name="settings_api_status_value">المفاتيح الخاصة: %1$d من 3</string>
+    <string name="settings_api_status_hint">الحقل الفارغ يستخدم مفتاح البناء. مفتاحك يستهلك حصتك أنت.</string>
+    <string name="settings_api_llm">النص · Groq</string>
+    <string name="settings_api_stt">السمع · Deepgram</string>
+    <string name="settings_api_tts">الصوت · Fish Audio</string>
+    <string name="settings_api_key_label">مفتاح %1$s</string>
+    <string name="settings_api_key_placeholder">الصق المفتاح من وحدة التحكم</string>
+    <string name="settings_api_console_hint">احصل على المفتاح هنا: %1$s</string>
+    <string name="settings_api_own_key">مفتاحك</string>
+    <string name="settings_api_model_llm">نموذج النص</string>
+    <string name="settings_api_model_llm_desc">يحدّد مدى فهم أماليا للأوامر.</string>
+    <string name="settings_api_model_stt">نموذج التعرف على الكلام</string>
+    <string name="settings_api_model_stt_desc">جودة التعرف على الكلام.</string>
+    <string name="settings_api_model_tts">نموذج توليد الصوت</string>
+    <string name="settings_api_model_tts_desc">كيف تبدو أماليا ومدى سرعة بدء الكلام.</string>
+    <string name="settings_api_voice_title">صوت أماليا</string>
+    <string name="settings_api_voice_desc">معرّف الصوت من مكتبة Fish Audio. فارغ يعني صوت البناء.</string>
+    <string name="settings_api_voice_label">معرّف الصوت reference_id</string>
+    <string name="settings_api_voice_placeholder">مثال 096d410e860346a7a73762d557a290d7</string>
+    <string name="appearance_preview">معاينة</string>
 </resources>

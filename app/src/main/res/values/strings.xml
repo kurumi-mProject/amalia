@@ -321,4 +321,26 @@
     <string name="greeting_evening">Добрый вечер</string>
     <string name="greeting_night">Доброй ночи</string>
     <string name="greeting_prompt">Чем займёмся?</string>
+    <string name="settings_api_title">API и модели</string>
+    <string name="settings_api_desc">Свои ключи и выбор моделей</string>
+    <string name="settings_api_status_title">Провайдеры Амалии</string>
+    <string name="settings_api_status_value">Своих ключей: %1$d из 3</string>
+    <string name="settings_api_status_hint">Пустое поле — берётся ключ из сборки. Свой ключ расходует твою квоту, а не общую.</string>
+    <string name="settings_api_llm">Текст · Groq</string>
+    <string name="settings_api_stt">Слух · Deepgram</string>
+    <string name="settings_api_tts">Голос · Fish Audio</string>
+    <string name="settings_api_key_label">Ключ %1$s</string>
+    <string name="settings_api_key_placeholder">вставь ключ из консоли</string>
+    <string name="settings_api_console_hint">Ключ берётся здесь: %1$s</string>
+    <string name="settings_api_own_key">свой ключ</string>
+    <string name="settings_api_model_llm">Модель текста</string>
+    <string name="settings_api_model_llm_desc">От неё зависит, насколько умно Амалия понимает команды.</string>
+    <string name="settings_api_model_stt">Модель распознавания</string>
+    <string name="settings_api_model_stt_desc">Качество распознавания твоей речи.</string>
+    <string name="settings_api_model_tts">Модель синтеза</string>
+    <string name="settings_api_model_tts_desc">Как звучит голос Амалии и насколько быстро отвечает.</string>
+    <string name="settings_api_voice_title">Голос Амалии</string>
+    <string name="settings_api_voice_desc">Идентификатор голоса в библиотеке Fish Audio. Пусто — голос из сборки.</string>
+    <string name="settings_api_voice_label">reference_id голоса</string>
+    <string name="settings_api_voice_placeholder">например, 096d410e860346a7a73762d557a290d7</string>
 </resources>
