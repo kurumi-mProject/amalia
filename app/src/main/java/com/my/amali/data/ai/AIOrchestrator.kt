@@ -129,6 +129,28 @@ class AIOrchestrator(
         ttsJob = null
     }
 
+    /**
+     * Ждёт завершения текущей озвучки — без прерывания по отмене.
+     *
+     * Нужен вызывающему потоку ([processTextCommand]/[processVoiceCommand]):
+     * поток событий обязан оставаться открытым, пока синтез отдаёт чанки.
+     * Иначе канал в ViewModel закрывается на `finally` корутины разговора,
+     * а синтез продолжает слать в него данные — и падает с
+     * `ClosedSendChannelException` уже после успешного HTTP 200.
+     *
+     * Ждём через полное имя `kotlinx.coroutines.NonCancellable`: если
+     * пользователь отменил разговор, канал закрывается его же кодом, и здесь
+     * мы не должны мешать этому своим исключением.
+     */
+    private suspend fun awaitSpeech() {
+        val job = ttsJob ?: return
+        AmaliaLog.d(AmaliaLog.tagWith("ORC"), "awaitSpeech: waiting for TTS to finish")
+        kotlinx.coroutines.withContext(kotlinx.coroutines.NonCancellable) {
+            job.join()
+        }
+        AmaliaLog.d(AmaliaLog.tagWith("ORC"), "awaitSpeech: TTS finished")
+    }
+
     /** Инициализирует все движки. Идемпотентно. */
     suspend fun initialize() {
         sttEngine.initialize()
@@ -190,6 +212,9 @@ class AIOrchestrator(
         send(AiResponse.Level(0f))
         send(AiResponse.Transcript(transcript))
         runPipeline(transcript, history, options) { event -> send(event) }
+        // Та же причина, что и в processTextCommand: канал не должен
+        // закрываться, пока синтез ещё льёт байты.
+        awaitSpeech()
     }.catch { throwable -> emitFailure(throwable) }
 
     /**
@@ -208,6 +233,15 @@ class AIOrchestrator(
         }
         send(AiResponse.Transcript(command))
         runPipeline(command, history, options) { event -> send(event) }
+        // Ждём озвучку ПОСЛЕ того, как текст отдан.
+        //
+        // Без этого поток закрывался сразу после LLM-фазы, и канал в
+        // ViewModel закрывался вместе с ним — а синтез, вынесенный в
+        // отдельный скоуп, продолжал слать в него чанки и падал с
+        // ClosedSendChannelException. В логе это выглядело так: «первый
+        // чанк получен → TTS error: Channel was closed» при живом и
+        // полностью рабочем плеере.
+        awaitSpeech()
     }.catch { throwable -> emitFailure(throwable) }
 
     /**
@@ -476,6 +510,15 @@ class AIOrchestrator(
 
     private suspend fun FlowCollector<AiResponse>.emitFailure(throwable: Throwable) {
         if (throwable is CancellationException) throw throwable
+        // «Канал закрыт» — это не сбой конвейера, а следствие того, что
+        // поток отменили извне (новый вопрос, «Стоп», смена сессии).
+        // Раньше это исключение доезжало сюда и подменяло собой реальную
+        // причину в интерфейсе: пользователь видел «Channel was closed»
+        // вместо объяснения, почему нет звука.
+        if (throwable is kotlinx.coroutines.channels.ClosedSendChannelException) {
+            AmaliaLog.w(AmaliaLog.tagWith("ORC"), "channel closed by host — stream is over")
+            return
+        }
         val message = (throwable as? EngineException)?.message
             ?: throwable.message
             ?: ERROR_UNKNOWN
