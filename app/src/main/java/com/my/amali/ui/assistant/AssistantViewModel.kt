@@ -147,6 +147,26 @@ class AssistantViewModel(
 
     private var conversationJob: Job? = null
 
+    /**
+     * Проигрывание текущего цикла.
+     *
+     * Раньше эта корутина жила сама по себе: `playJob.join()` ждал её до
+     * конца, а прибить её было нечем — старый плеер висел в `viewModelScope`
+     * и продолжал держать `AudioTrack`, пока новый цикл уже начинал говорить.
+     * Два трека на одном устройстве звучат как два наложенных голоса.
+     */
+    private var playJob: Job? = null
+
+    /**
+     * Пользователь нажал «Стоп» во время ответа.
+     *
+     * Отдельный флаг нужен потому, что сам переход [VoiceState.Idle]
+     * наступает и в штатном конце реплики. Без него hands-free смотрел на
+     * «состояние покоя» и запускал микрофон заново — сразу после того, как
+     * человек попросил замолчать.
+     */
+    private var stoppedByUser: Boolean = false
+
     /** Сообщения текущей сессии — контекст для модели и для истории. */
     private val sessionMessages = mutableListOf<ChatMessage>()
 
@@ -271,10 +291,29 @@ class AssistantViewModel(
         }
     }
 
-    /** Останавливает всё: распознавание, генерацию и звук. */
+    /**
+     * Останавливает всё: распознавание, генерацию и звук.
+     *
+     * ## Почему здесь больше нет `player.stopImmediately()` в начале
+     *
+     * Раньше метод начинался с гашения плеера, и это ломало штатный сценарий:
+     * плеер, который запустил **этот же** цикл, замолкал ровно в тот момент,
+     * когда должен был заговорить. Поколение проигрывания увеличивалось,
+     * потребитель выходил по `generation != myGeneration`, `pause()+flush()`
+     * выбрасывали уже записанный буфер — и пользователь видел текст ответа
+     * без единого звука. Теперь звук глушит сам цикл в своём `finally`:
+     * отмена [conversationJob] отменяет и [playJob], а `stopImmediately()`
+     * дёргается как аварийный стоп только если корутины почему-то не успели.
+     */
     fun cancelConversation() {
+        stoppedByUser = true
         conversationJob?.cancel()
         conversationJob = null
+        playJob?.cancel()
+        playJob = null
+        // Страховка: если играющий трек ещё жив (отмена корутины не успела
+        // дойти до finally), глушим его точечно — но уже ПОСЛЕ отмены задач,
+        // а не до неё.
         player.stopImmediately()
         _uiState.update {
             it.copy(
@@ -305,8 +344,11 @@ class AssistantViewModel(
 
     /** Начинает разговор с чистого листа: новая сессия и пустой экран. */
     fun startNewSession() {
+        stoppedByUser = false
         conversationJob?.cancel()
         conversationJob = null
+        playJob?.cancel()
+        playJob = null
         player.stopImmediately()
         sessionMessages.clear()
         sessionConversationId = null
@@ -330,6 +372,7 @@ class AssistantViewModel(
 
     override fun onCleared() {
         conversationJob?.cancel()
+        playJob?.cancel()
         player.stopImmediately()
         super.onCleared()
     }
@@ -343,7 +386,14 @@ class AssistantViewModel(
      */
     private fun launchCycle(prompt: String?) {
         conversationJob?.cancel()
+        // Старый плеер обязан замолчать ДО старта нового: иначе его трек
+        // продолжает играть параллельно новому и слышны два голоса.
+        // Раньше здесь стоял `player.stopImmediately()` — он же и убивал
+        // звук самого нового цикла (см. [cancelConversation]).
+        playJob?.cancel()
+        playJob = null
         player.stopImmediately()
+        stoppedByUser = false
 
         val handsFree = settings.value.autoListen
 
@@ -389,7 +439,10 @@ class AssistantViewModel(
 
             // Проигрыватель живёт параллельно: звук начинает играть сразу,
             // не дожидаясь конца генерации ответа.
-            val playJob = launch {
+            // Ссылку на проигрывание храним в поле, а не в локальной
+            // переменной: только так её можно отменить снаружи (новый цикл,
+            // «Стоп», «Новый разговор») и не тащить за собой вечный join.
+            playJob = launch {
                 player.play(audioChannel.receiveAsFlow()) { level ->
                     _uiState.update { state ->
                         if (state.voiceState == VoiceState.Speaking) {
@@ -504,11 +557,18 @@ class AssistantViewModel(
 
                         is AiResponse.Finished -> {
                             replyText = event.responseText
+                            // Сбой синтеза раньше был невидим: ответ приходил
+                            // текстом, а причина тишины оставалась внутри
+                            // оркестратора. Теперь пользователь видит, что
+                            // голос не сработал, и не считает приложение
+                            // сломанным.
+                            val voiceError = orchestrator.lastVoiceError
                             _uiState.update {
                                 it.copy(
                                     amaliaReply = event.responseText,
                                     replyProgress = 1f,
                                     activeTools = emptyList(),
+                                    errorMessage = voiceError,
                                 )
                             }
                         }
@@ -546,7 +606,11 @@ class AssistantViewModel(
                 audioChannel.close()
             }
 
-            playJob.join()
+            // Ждём именно СВОЁ проигрывание: ссылка в поле могла уже
+            // смениться новым циклом, и join по чужой корутине подвесил бы
+            // этот запуск до конца следующего разговора.
+            playJob?.join()
+            playJob = null
 
             if (failed) {
                 _uiState.update {
@@ -582,16 +646,28 @@ class AssistantViewModel(
 
             // Hands-free: продолжаем диалог без нажатий.
             //
-            // Берём handsFree из CURRENT-состояния, а не из локального
-            // снимка: пользователь мог нажать «Стоп» во время ответа
-            // (cancelConversation() сбрасывает handsFree=false), и тогда
-            // локальный снимок устарел → микрофон перезапускался бы
-            // после паузы против воли пользователя.
+            // Условие трёхсоставное, и каждый пункт — выстраданный баг:
+            //  1. локальный снимок handsFree устаревает — пользователь мог
+            //     нажать «Стоп» во время ответа, поэтому читаем текущее
+            //     состояние, а не значение, взятое на старте цикла;
+            //  2. [stoppedByUser] закрывает случай, который не ловился ничем:
+            //     «Стоп» во время ОЗВУЧКИ. К моменту проверки состояние уже
+            //     вернулось в Idle (аварийный стоп), и микрофон открывался
+            //     заново через полторы секунды после просьбы замолчать;
+            //  3. отмена самой корутины (новый цикл уже стартовал) не должна
+            //     порождать ещё один — иначе бесконечная эстафета.
             val currentHandsFree = _uiState.value.handsFree
             val autoListenEnabled = settings.value.autoListen
-            if (currentHandsFree && autoListenEnabled && ServiceLocator.hasMicPermission()) {
+            if (!stoppedByUser &&
+                currentHandsFree &&
+                autoListenEnabled &&
+                ServiceLocator.hasMicPermission()
+            ) {
                 delay(HANDS_FREE_GAP_MS)
-                if (_uiState.value.voiceState == VoiceState.Idle && _uiState.value.handsFree) {
+                if (!stoppedByUser &&
+                    _uiState.value.voiceState == VoiceState.Idle &&
+                    _uiState.value.handsFree
+                ) {
                     launchCycle(prompt = null)
                 }
             }

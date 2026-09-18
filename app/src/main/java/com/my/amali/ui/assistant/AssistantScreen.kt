@@ -59,6 +59,7 @@ import androidx.compose.material.icons.rounded.KeyboardArrowUp
 import androidx.compose.material.icons.rounded.Refresh
 import androidx.compose.material.icons.rounded.Settings
 import androidx.compose.material.icons.rounded.Tune
+import androidx.compose.material.icons.rounded.VolumeOff
 import androidx.compose.material.icons.rounded.WarningAmber
 import androidx.compose.material.icons.rounded.WbTwilight
 import androidx.compose.material3.Icon
@@ -354,6 +355,14 @@ fun AssistantScreenContent(
                                 toolReports = state.lastToolReports,
                                 contextCompressed = state.contextCompressed,
                                 contextMessageCount = state.contextMessageCount,
+                                // Сбой синтеза: ответ получен, но произнести его
+                                // не удалось. Показываем это рядом с ответом, а не
+                                // вместо него — иначе пользователь думает, что
+                                // сломался ассистент, хотя текст-то есть.
+                                // Сравнение с флагом разрешения микрофона не даёт
+                                // спутать это с ошибкой доступа: там свой экран.
+                                voiceWarning = state.errorMessage
+                                    ?.takeIf { !state.micPermissionDenied },
                                 onRepeat = onRepeat,
                                 onCopy = onCopy,
                             )
@@ -954,9 +963,13 @@ private fun ToolChip(tool: ToolActivity) {
 /**
  * Карточка ответа.
  *
- * Три зоны: шапка «кто говорит», прокручиваемый текст, сводка действий и
- * кнопки. Прокручивается только текст — кнопки и сводка остаются доступными,
- * сколько бы Амалия ни наболтала.
+ * Четыре зоны: шапка «кто говорит», предупреждение о несостоявшейся озвучке,
+ * прокручиваемый текст, сводка действий и кнопки. Прокручивается только
+ * текст — кнопки и сводка остаются доступными, сколько бы Амалия ни наболтала.
+ *
+ * @param voiceWarning не-null, если ответ получен, но синтез речи не сработал.
+ *   Раньше этот случай был полностью безмолвным: пользователь видел текст и
+ *   решал, что ассистент сломался. Теперь он видит, что именно произошло.
  */
 @Composable
 private fun ReplyCard(
@@ -967,6 +980,7 @@ private fun ReplyCard(
     toolReports: List<ToolReport>,
     contextCompressed: Boolean,
     contextMessageCount: Int,
+    voiceWarning: String?,
     onRepeat: () -> Unit,
     onCopy: () -> Unit,
 ) {
@@ -1037,6 +1051,37 @@ private fun ReplyCard(
             reports = toolReports,
             modifier = Modifier.padding(top = Spacing.sm),
         )
+
+        // Предупреждение о несостоявшейся озвучке: компактная строка с
+        // иконкой и текстом причины. Живёт под ответом, а не вместо него —
+        // текст важнее, и терять его из-за сбоя голоса нельзя.
+        AnimatedVisibility(
+            visible = !voiceWarning.isNullOrBlank(),
+            enter = fadeIn(tween(220)) + expandVertically(tween(220)),
+            exit = fadeOut(tween(140)) + shrinkVertically(tween(180)),
+        ) {
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(top = Spacing.sm),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(Spacing.xs),
+            ) {
+                Icon(
+                    imageVector = Icons.Rounded.VolumeOff,
+                    contentDescription = null,
+                    tint = MaterialTheme.colorScheme.error,
+                    modifier = Modifier.size(15.dp),
+                )
+                Text(
+                    text = voiceWarning.orEmpty(),
+                    style = MaterialTheme.typography.labelMedium,
+                    color = MaterialTheme.colorScheme.error,
+                    maxLines = 2,
+                    overflow = TextOverflow.Ellipsis,
+                )
+            }
+        }
 
         AnimatedVisibility(
             visible = !speaking && progress >= 1f,
@@ -1483,6 +1528,21 @@ private val ErrorPreviewState = AssistantUiState(
     conversationCount = 2,
 )
 
+/**
+ * Демо-состояние: ответ получен, но синтез речи не сработал.
+ *
+ * Ровно тот случай, из-за которого пользователь считал приложение
+ * сломанным: текст на экране, тишина в динамике и ни одного объяснения.
+ */
+private val VoiceFailedPreviewState = AssistantUiState(
+    voiceState = VoiceState.Idle,
+    userTranscript = "расскажи, какая сегодня погода",
+    amaliaReply = "облачно, но без дождя. если пойдёшь гулять — куртку возьми.",
+    replyProgress = 1f,
+    conversationCount = 7,
+    errorMessage = "Ответ получен, но озвучить его не удалось.",
+)
+
 /** Экран в покое: приветствие, подсказки, орб. */
 @Preview(name = "Assistant · Idle", widthDp = 412, heightDp = 915, showBackground = true)
 @Composable
@@ -1525,6 +1585,15 @@ private fun AssistantReplyPreview() {
 private fun AssistantErrorPreview() {
     AmaliaTheme {
         PreviewShell(ErrorPreviewState)
+    }
+}
+
+/** Ответ без звука: предупреждение о сбое синтеза под текстом ответа. */
+@Preview(name = "Assistant · Silent reply", widthDp = 412, heightDp = 915, showBackground = true)
+@Composable
+private fun AssistantVoiceFailedPreview() {
+    AmaliaTheme {
+        PreviewShell(VoiceFailedPreviewState)
     }
 }
 
