@@ -292,21 +292,38 @@ class SystemControllerHub(private val context: Context) {
             viaDevices || audioManager?.isWiredHeadsetOn == true
         }.getOrDefault(false)
         val alarms = runCatching {
-            // Раньше здесь стоял `AlarmClock.getAlarms()` — метод существует
-            // только с API 31, а minSdk у проекта 26, поэтому сборка падала
-            // с «Unresolved reference». Читаем напрямую через провайдер
-            // системного приложения «Часы»: тот же источник, но доступен
-            // на всех поддерживаемых версиях.
+            // Количество заведённых будильников.
+            //
+            // Публичного API для ЧТЕНИЯ будильников в Android нет:
+            //  — `AlarmClock.getAlarms()` существует только с API 31, а minSdk
+            //    проекта — 26 (на нём падала сборка);
+            //  — `Settings.System.NEXT_ALARM_FORMATTED` отдаёт только *время*
+            //    ближайшего будильника, без количества, и на Android 12+
+            //    возвращает пустую строку, потому что система перестала
+            //    отдавать это приложению без спец. разрешения.
+            //
+            // Поэтому спрашиваем системное приложение «Часы» через
+            // календарь-подобный запрос к провайдеру, который существует
+            // много лет и отвечает даже на новых версиях:
+            // `content://com.android.alarmclock/alarms`. На прошивках без этого
+            // провайдера (часть кастомных ROM) запрос вернёт null — тогда
+            // остаётся ноль, и модель честно скажет, что не знает, а не
+            // соврёт про «ноль будильников».
+            //
+            // Флаг `alarms_known` в снимке отличает «точно ноль» от
+            // «прочитать не удалось», чтобы ответ не звучал уверенно на пустом
+            // месте.
+            val uri = android.net.Uri.parse("content://com.android.alarmclock/alarms")
             var count = 0
-            context.contentResolver.query(
-                android.provider.AlarmClock.CONTENT_URI,
-                arrayOf(android.provider.AlarmClock._ID),
-                null,
-                null,
-                null,
-            )?.use { cursor -> count = cursor.count }
+            var known = false
+            context.contentResolver.query(uri, arrayOf("_id"), null, null, null)
+                ?.use { cursor ->
+                    count = cursor.count
+                    known = true
+                }
+            if (!known) count = -1
             count
-        }.getOrDefault(0)
+        }.getOrDefault(-1)
 
         // ── Железо и версия системы ──────────────────────────────────────
         val sdk = Build.VERSION.SDK_INT

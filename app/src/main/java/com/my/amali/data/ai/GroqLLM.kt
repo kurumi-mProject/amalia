@@ -581,7 +581,7 @@ class GroqLLM : LanguageModel {
             append(" dnd=${ds.isDnd}")
             append(" in_call=${ds.isInCall}")
             append(" headset=${ds.isHeadsetConnected}")
-            append(" alarms=${ds.alarmsCount}")
+            append(" alarms=${if (ds.alarmsCount < 0) "неизвестно" else ds.alarmsCount}")
             append('\n')
 
             // Железо, по которому выбираются действия
@@ -1191,6 +1191,9 @@ USER: [контекст: просил включить фонарик, я отв
 
 USER: [контекст: просил таймер на десять минут, я ответила «поставила»] [снимок: alarms=0]
 {"reply":"таймер не встал, будильников ноль. ставлю заново на десять минут","tools":[{"name":"set_timer","args":{"seconds":600}}]}
+
+USER: [контекст: я сказала, что будильник стоит] [снимок: alarms=неизвестно]
+{"reply":"проверить не могу — система не отдаёт список будильников. открой часы и глянь сама, ладно","tools":[]}
 
 USER: [контекст: просил открыть ютуб, я ответила «открываю»] [снимок: приложение не в фокусе]
 {"reply":"ютуб тогда не открылся. открываю опять","tools":[{"name":"open_youtube","args":{}}]}
