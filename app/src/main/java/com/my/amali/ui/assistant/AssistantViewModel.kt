@@ -383,6 +383,9 @@ class AssistantViewModel(
         playJob?.cancel()
         playJob = null
         player.stopImmediately()
+        // Плеер живёт на [ttsScope]; его задача могла ещё не дойти до finally
+        // и держать аудио-трек. Гасим дочерние задачи явно, чтобы «новый
+        // разговор» начинался с действительно чистой звуковой сцены.
         ttsScope.coroutineContext[Job]?.children?.forEach { it.cancel() }
         sessionMessages.clear()
         sessionConversationId = null
@@ -408,7 +411,11 @@ class AssistantViewModel(
         conversationJob?.cancel()
         playJob?.cancel()
         player.stopImmediately()
-        ttsScope.cancel()
+        // Отмену скоупа делаем через его Job: `CoroutineScope.cancel()` —
+        // это extension-функция, и без явного импорта она не резолвится
+        // (Unresolved reference 'cancel'). Через `coroutineContext[Job]`
+        // работает всегда и не зависит от импортов.
+        ttsScope.coroutineContext[Job]?.cancel()
         super.onCleared()
     }
 
