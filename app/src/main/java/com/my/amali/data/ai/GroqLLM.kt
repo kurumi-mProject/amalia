@@ -1169,7 +1169,7 @@ $appsSection
             if (ds.isCharging) append(" (зарядка)")
             append("; wifi ${if (ds.wifiEnabled) "вкл" else "выкл"}")
             append(", bluetooth ${if (ds.bluetoothEnabled) "вкл" else "выкл"}")
-            if (ds.muted || ds.audioMode == "silent") append(", ЗВУК ВЫКЛЮЧЕН")
+            if (ds.isMuted || ds.audioMode == "silent") append(", ЗВУК ВЫКЛЮЧЕН")
             if (ds.isDeviceLocked) append(", ЗАБЛОКИРОВАН")
             append("; доступ: яркость ${ds.brightnessAccess.name.lowercase()}")
             append(", wifi ${ds.wifiAccess.name.lowercase()}")
