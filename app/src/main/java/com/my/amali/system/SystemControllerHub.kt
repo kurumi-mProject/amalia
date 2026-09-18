@@ -263,21 +263,44 @@ class SystemControllerHub(private val context: Context) {
                 NotificationManager.INTERRUPTION_FILTER_ALL
         }.getOrDefault(false)
         val inCall = runCatching {
-            val tm = context.getSystemService(Context.TELEPHONY_SERVICE) as? android.telephony.TelephonyManager
+            // `TelephonyManager.callState` объявлен устаревшим в API 31 в
+            // пользу `TelephonyCallback`, но старый путь работает на всех
+            // версиях, которые мы поддерживаем (minSdk 26), и не требует
+            // разрешения READ_PHONE_STATE, потому что здесь только чтение
+            // собственного состояния вызова. Новый API не даёт ничего
+            // полезного для одноразового снимка, поэтому оставляем как есть.
+            val tm = context.getSystemService(Context.TELEPHONY_SERVICE)
+                as? android.telephony.TelephonyManager
             @Suppress("DEPRECATION")
             tm?.callState != android.telephony.TelephonyManager.CALL_STATE_IDLE
         }.getOrDefault(false)
         val headset = runCatching {
-            audioManager?.isWiredHeadsetOn == true ||
-                audioManager?.getDevices(AudioManager.GET_DEVICES_OUTPUTS)
-                    ?.any {
-                        it.type == android.media.AudioDeviceInfo.TYPE_WIRED_HEADPHONES ||
-                            it.type == android.media.AudioDeviceInfo.TYPE_BLUETOOTH_A2DP ||
-                            it.type == android.media.AudioDeviceInfo.TYPE_USB_HEADSET
-                    } == true
+            // `getDevices()` появился в API 23, `isWiredHeadsetOn` — с API 1,
+            // но помечен устаревшим и на новых версиях может вернуть false,
+            // даже когда наушники подключены. Поэтому сначала спрашиваем
+            // список устройств (он точный), а `isWiredHeadsetOn` оставляем
+            // как добор для старых прошивок, где список отдаёт пусто.
+            val viaDevices = audioManager?.getDevices(AudioManager.GET_DEVICES_OUTPUTS)
+                ?.any {
+                    it.type == android.media.AudioDeviceInfo.TYPE_WIRED_HEADPHONES ||
+                        it.type == android.media.AudioDeviceInfo.TYPE_WIRED_HEADSET ||
+                        it.type == android.media.AudioDeviceInfo.TYPE_BLUETOOTH_A2DP ||
+                        it.type == android.media.AudioDeviceInfo.TYPE_BLUETOOTH_SCO ||
+                        it.type == android.media.AudioDeviceInfo.TYPE_USB_HEADSET
+                } == true
+            @Suppress("DEPRECATION")
+            viaDevices || audioManager?.isWiredHeadsetOn == true
         }.getOrDefault(false)
         val alarms = runCatching {
-            android.provider.AlarmClock.getAlarms(context.contentResolver).size
+            var count = 0
+            context.contentResolver.query(
+                android.net.Uri.parse("content://com.android.alarmclock/alarm"),
+                arrayOf("_id"),
+                null,
+                null,
+                null,
+            )?.use { cursor -> count = cursor.count }
+            count
         }.getOrDefault(0)
 
         // ── Железо и версия системы ──────────────────────────────────────

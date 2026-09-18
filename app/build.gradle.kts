@@ -26,9 +26,16 @@ android {
         versionCode = 2
         versionName = "1.0.0"
 
-        resourceConfigurations += listOf(
-            "en", "ru", "es", "ar", "de", "fr", "hi", "ja", "zh"
-        )
+        // Перечислять языковые ресурсы отдельным полем больше не нужно:
+        // начиная с AGP 8.x список локалей собирается автоматически из
+        // `res/values-*`, а прежний `resourceConfigurations` объявлен
+        // устаревшим и на новых версиях плагина просто не работает —
+        // он уходил в предупреждение сборки. Языки остаются те же девять,
+        // и берутся они из существующих папок:
+        //   values (ru)              — базовый русский
+        //   values-en/de/es/fr/hi/ja/zh/ar
+        // Если когда-нибудь понадобится отбросить чужие локали из
+        // зависимостей, это делается фильтром `androidResources.localeFilters`.
 
         // API keys injected at build time — never stored in source code
         buildConfigField("String", "DEEPGRAM_API_KEY",   "\"${secret("DEEPGRAM_API_KEY")}\"")
