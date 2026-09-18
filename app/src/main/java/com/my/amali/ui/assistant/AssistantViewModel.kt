@@ -503,6 +503,14 @@ class AssistantViewModel(
                     }
                 }
                 AmaliaLog.i(AmaliaLog.tagWith("VM"), "playJob: AudioPlayer.play() returned — audio finished")
+                // Сбрасываем «говорю» только если звук действительно играл.
+                //
+                // Раньше плеер выходил по таймауту префолла, не воспроизведя
+                // ни байта, и сбрасывал состояние Speaking посреди синтеза —
+                // пользователь видел «Амалия молчит», хотя звук ещё шёл.
+                // Теперь плеер ждёт поток до конца, поэтому возвращение из
+                // play() означает именно конец речи, и проверка ниже — это
+                // страховка на случай сбоя трека, а не штатный путь.
                 _uiState.update { state ->
                     if (state.isSpeaking) {
                         AmaliaLog.d(AmaliaLog.tagWith("VM"), "playJob: resetting Speaking → Idle")
