@@ -291,7 +291,22 @@ class SystemControllerHub(private val context: Context) {
             @Suppress("DEPRECATION")
             viaDevices || audioManager?.isWiredHeadsetOn == true
         }.getOrDefault(false)
-        val alarms = 0
+        val alarms = runCatching {
+            // Раньше здесь стоял `AlarmClock.getAlarms()` — метод существует
+            // только с API 31, а minSdk у проекта 26, поэтому сборка падала
+            // с «Unresolved reference». Читаем напрямую через провайдер
+            // системного приложения «Часы»: тот же источник, но доступен
+            // на всех поддерживаемых версиях.
+            var count = 0
+            context.contentResolver.query(
+                android.provider.AlarmClock.CONTENT_URI,
+                arrayOf(android.provider.AlarmClock._ID),
+                null,
+                null,
+                null,
+            )?.use { cursor -> count = cursor.count }
+            count
+        }.getOrDefault(0)
 
         // ── Железо и версия системы ──────────────────────────────────────
         val sdk = Build.VERSION.SDK_INT
