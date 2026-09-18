@@ -328,7 +328,7 @@
     <string name="settings_api_voice_placeholder">e.g. 096d410e860346a7a73762d557a290d7</string>
     <string name="appearance_preview">Preview</string>
 
-    <string name="settings_profile_title">Amalia's brain</string>
+    <string name="settings_profile_title">Amalia\'s brain</string>
     <string name="settings_profile_desc">This decides how alive Amalia is. Free Groq caps the request size, so the character there is compressed to a minimum. Your own model removes the cap, but you have to set it up yourself.</string>
     <string name="settings_profile_groq">Groq (free)</string>
     <string name="settings_profile_groq_desc">Works right after install. Prompt trimmed to the bone: handles commands, but talks dry.</string>
@@ -341,5 +341,5 @@
     <string name="settings_custom_model">Model</string>
     <string name="settings_custom_key">API key</string>
     <string name="settings_custom_key_hint">May be left empty</string>
-    <string name="settings_custom_need_model">Set a model — the request won't go through without it</string>
+    <string name="settings_custom_need_model">Set a model — the request won\'t go through without it</string>
 </resources>

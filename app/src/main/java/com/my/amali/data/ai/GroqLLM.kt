@@ -1170,13 +1170,20 @@ $appsSection
             append("; wifi ${if (ds.wifiEnabled) "вкл" else "выкл"}")
             append(", bluetooth ${if (ds.bluetoothEnabled) "вкл" else "выкл"}")
             if (ds.isMuted || ds.audioMode == "silent") append(", ЗВУК ВЫКЛЮЧЕН")
+            if (ds.isDnd) append(", НЕ БЕСПОКОИТЬ")
+            if (ds.isInCall) append(", ИДЁТ ЗВОНОК")
             if (ds.isDeviceLocked) append(", ЗАБЛОКИРОВАН")
             append("; доступ: яркость ${ds.brightnessAccess.name.lowercase()}")
             append(", wifi ${ds.wifiAccess.name.lowercase()}")
             append(", bluetooth ${ds.bluetoothAccess.name.lowercase()}")
+            if (!ds.hasFlashlight) append("; нет фонарика")
+            if (!ds.hasCamera) append("; нет камеры")
+            if (!ds.hasTelephony) append("; нет телефонии")
             if (!ds.canWriteSettings) append("; нет прав на настройки")
             if (!ds.hasContactsPermission) append("; нет доступа к контактам")
             if (!ds.hasPhonePermission) append("; нет прав на звонки")
+            if (!ds.hasSmsPermission) append("; нет прав на SMS")
+            if (!ds.hasCameraPermission) append("; нет прав на камеру")
         }
 
         // Только функционал: контракт, запрет пустого reply, честность про
