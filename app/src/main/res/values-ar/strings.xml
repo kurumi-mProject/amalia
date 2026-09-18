@@ -327,4 +327,19 @@
     <string name="settings_api_voice_label">معرّف الصوت reference_id</string>
     <string name="settings_api_voice_placeholder">مثال 096d410e860346a7a73762d557a290d7</string>
     <string name="appearance_preview">معاينة</string>
+
+    <string name="settings_profile_title">عقل أماليا</string>
+    <string name="settings_profile_desc">هذا يحدد مدى حياة أماليا. خدمة Groq المجانية تحدّ من حجم الطلب، لذلك الشخصية هناك مختصرة إلى الحد الأدنى. نموذجك الخاص يرفع هذا الحد، لكن عليك إعداده بنفسك.</string>
+    <string name="settings_profile_groq">Groq (مجاني)</string>
+    <string name="settings_profile_groq_desc">يعمل مباشرة بعد التثبيت. التوجيه مختصر للغاية: تنفّذ الأوامر لكن حديثها جاف.</string>
+    <string name="settings_profile_custom">نموذجك الخاص</string>
+    <string name="settings_profile_custom_empty">نموذجك الخاص (غير مُعدّ)</string>
+    <string name="settings_profile_custom_desc">شخصية كاملة وقصة وأمثلة. يحتاج نقطة اتصال خاصة: عنوان متوافق مع OpenAI ونموذج ومفتاح.</string>
+    <string name="settings_custom_title">نقطة اتصالك</string>
+    <string name="settings_custom_desc">أي خادم متوافق مع OpenAI: vLLM خاص بك، أو بوابة، أو llama.cpp محلي. اكتب العنوان كاملًا مع /chat/completions.</string>
+    <string name="settings_custom_url">عنوان نقطة الاتصال</string>
+    <string name="settings_custom_model">النموذج</string>
+    <string name="settings_custom_key">مفتاح API</string>
+    <string name="settings_custom_key_hint">يمكن تركه فارغًا</string>
+    <string name="settings_custom_need_model">اكتب اسم النموذج — بدونه لن يمر الطلب</string>
 </resources>

@@ -327,4 +327,19 @@
     <string name="settings_api_voice_label">वॉइस reference_id</string>
     <string name="settings_api_voice_placeholder">जैसे 096d410e860346a7a73762d557a290d7</string>
     <string name="appearance_preview">पूर्वावलोकन</string>
+
+    <string name="settings_profile_title">अमालिया का दिमाग़</string>
+    <string name="settings_profile_desc">इससे तय होता है कि अमालिया कितनी जीवंत लगेगी। मुफ़्त Groq अनुरोध का आकार सीमित करता है, इसलिए वहाँ स्वभाव बहुत घटा दिया गया है। अपना मॉडल यह सीमा हटा देता है, पर उसे ख़ुद सेट करना पड़ेगा।</string>
+    <string name="settings_profile_groq">Groq (मुफ़्त)</string>
+    <string name="settings_profile_groq_desc">इंस्टॉल करते ही चलता है। प्रॉम्प्ट बहुत छोटा: काम कर लेती है, पर सूखा बोलती है।</string>
+    <string name="settings_profile_custom">अपना मॉडल</string>
+    <string name="settings_profile_custom_empty">अपना मॉडल (सेट नहीं)</string>
+    <string name="settings_profile_custom_desc">पूरा स्वभाव, कहानी और उदाहरण। अपना एंडपॉइंट चाहिए: OpenAI-संगत URL, मॉडल और कुंजी।</string>
+    <string name="settings_custom_title">आपका एंडपॉइंट</string>
+    <string name="settings_custom_desc">कोई भी OpenAI-संगत सर्वर: अपना vLLM, गेटवे, लोकल llama.cpp। URL पूरा लिखें, /chat/completions सहित।</string>
+    <string name="settings_custom_url">एंडपॉइंट URL</string>
+    <string name="settings_custom_model">मॉडल</string>
+    <string name="settings_custom_key">API कुंजी</string>
+    <string name="settings_custom_key_hint">खाली छोड़ सकते हैं</string>
+    <string name="settings_custom_need_model">मॉडल लिखें — इसके बिना अनुरोध नहीं जाएगा</string>
 </resources>

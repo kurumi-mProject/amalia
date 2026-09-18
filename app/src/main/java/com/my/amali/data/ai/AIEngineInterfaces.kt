@@ -2,6 +2,7 @@ package com.my.amali.data.ai
 
 import com.my.amali.data.model.ChatMessage
 import com.my.amali.data.model.DeviceStatus
+import com.my.amali.domain.entity.AiProfile
 import com.my.amali.domain.entity.AppLanguage
 import com.my.amali.domain.entity.UserApiSettings
 import com.my.amali.domain.entity.UserSettings
@@ -71,6 +72,18 @@ data class EngineOptions(
      * трём HTTP-клиентам. Пустое поле означает «взять из сборки».
      */
     val api: UserApiSettings = UserApiSettings(),
+    /**
+     * Профиль «мозга»: какой промпт отправлять.
+     *
+     * [AiProfile.GROQ] — урезанный промпт, который реально проходит по
+     * бесплатному лимиту Groq (7 000 входных токенов в минуту).
+     * [AiProfile.CUSTOM] — полный промпт с характером и лором на своём
+     * эндпоинте, где лимит задаёт сам пользователь.
+     *
+     * Значение живёт здесь, а не внутри движка: оно приходит из настроек
+     * и обязано влиять на следующий же запрос без пересоздания движка.
+     */
+    val aiProfile: AiProfile = AiProfile.GROQ,
 ) {
     /**
      * Готовый блок для системного промпта: «название → пакет» плюс словарь
@@ -140,6 +153,10 @@ data class EngineOptions(
             speechRate = settings.speechRate.coerceIn(0.5f, 2f),
             speechPitch = settings.speechPitch.coerceIn(0.5f, 2f),
             api = settings.api,
+            // Какой промпт уйдёт в запрос: урезанный (Groq) или полный
+            // (свой эндпоинт). Значение приходит из настроек, поэтому
+            // переключение работает без перезапуска приложения.
+            aiProfile = settings.aiProfile,
         )
 
         private fun resolveLanguage(language: AppLanguage): String {

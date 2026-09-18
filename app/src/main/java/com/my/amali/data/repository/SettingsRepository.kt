@@ -8,6 +8,7 @@ import androidx.datastore.preferences.core.floatPreferencesKey
 import androidx.datastore.preferences.core.intPreferencesKey
 import androidx.datastore.preferences.core.stringPreferencesKey
 import com.my.amali.data.ai.ModelCatalog
+import com.my.amali.domain.entity.AiProfile
 import com.my.amali.domain.entity.AppLanguage
 import com.my.amali.domain.entity.UserApiSettings
 import com.my.amali.domain.entity.UserSettings
@@ -56,6 +57,23 @@ class SettingsRepository(private val dataStore: DataStore<Preferences>) {
         val API_STT_MODEL = stringPreferencesKey("pref_api_stt_model")
         val API_TTS_MODEL = stringPreferencesKey("pref_api_tts_model")
         val API_FISH_VOICE = stringPreferencesKey("pref_api_fish_voice")
+
+        /**
+         * Профиль «мозга»: имя [com.my.amali.domain.entity.AiProfile].
+         *
+         * Хранится строкой, а не булевым: профилей уже два, а имя переживёт
+         * добавление третьего без смены ключа хранилища.
+         */
+        val AI_PROFILE = stringPreferencesKey("pref_ai_profile")
+
+        /** Адрес своего OpenAI-совместимого эндпоинта (профиль «Своя модель»). */
+        val API_CUSTOM_ENDPOINT = stringPreferencesKey("pref_api_custom_endpoint")
+
+        /** Идентификатор модели на своём эндпоинте. */
+        val API_CUSTOM_MODEL = stringPreferencesKey("pref_api_custom_model")
+
+        /** Ключ для своего эндпоинта; может быть пустым (локальный сервер). */
+        val API_CUSTOM_KEY = stringPreferencesKey("pref_api_custom_key")
     }
 
     // ── Чтение ───────────────────────────────────────────────────────────
@@ -108,7 +126,11 @@ class SettingsRepository(private val dataStore: DataStore<Preferences>) {
                 sttModel = this[Keys.API_STT_MODEL].orEmpty(),
                 ttsModel = this[Keys.API_TTS_MODEL].orEmpty(),
                 fishVoiceId = this[Keys.API_FISH_VOICE].orEmpty(),
+                customEndpoint = this[Keys.API_CUSTOM_ENDPOINT].orEmpty(),
+                customModel = this[Keys.API_CUSTOM_MODEL].orEmpty(),
+                customKey = this[Keys.API_CUSTOM_KEY].orEmpty(),
             ),
+            aiProfile = AiProfile.fromName(this[Keys.AI_PROFILE]),
         )
     }
 
@@ -157,6 +179,34 @@ class SettingsRepository(private val dataStore: DataStore<Preferences>) {
     /** Язык интерфейса и речи; [AppLanguage.SYSTEM] — следовать системе. */
     suspend fun setLanguage(language: AppLanguage) {
         dataStore.edit { it[Keys.LANGUAGE] = language.code }
+    }
+
+    /**
+     * Переключает профиль «мозга»: Groq с урезанным промптом или свой
+     * эндпоинт с полным.
+     *
+     * Влияет только на текстовую модель. Распознавание и синтез в обоих
+     * профилях одинаковые: голос остаётся прежним, меняется только то,
+     * кто думает над ответом.
+     */
+    suspend fun setAiProfile(profile: AiProfile) {
+        dataStore.edit { it[Keys.AI_PROFILE] = profile.name }
+    }
+
+    /**
+     * Сохраняет настройки своего эндпоинта.
+     *
+     * Все три поля пишутся разом, а не отдельными методами: адрес без
+     * модели или модель без адреса — нерабочая конфигурация, и разносить
+     * их по трём вызовам значило бы допускать состояние, в котором профиль
+     * включается, но не работает.
+     */
+    suspend fun setCustomProvider(endpoint: String, model: String, key: String) {
+        dataStore.edit { prefs ->
+            prefs[Keys.API_CUSTOM_ENDPOINT] = endpoint.trim()
+            prefs[Keys.API_CUSTOM_MODEL] = model.trim()
+            prefs[Keys.API_CUSTOM_KEY] = key.trim()
+        }
     }
 
     /** Срок хранения истории в днях; [UserSettings.RETENTION_FOREVER] — бессрочно. */

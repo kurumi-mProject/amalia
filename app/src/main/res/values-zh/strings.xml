@@ -327,4 +327,19 @@
     <string name="settings_api_voice_label">声音 reference_id</string>
     <string name="settings_api_voice_placeholder">例如 096d410e860346a7a73762d557a290d7</string>
     <string name="appearance_preview">预览</string>
+
+    <string name="settings_profile_title">阿玛莉亚的大脑</string>
+    <string name="settings_profile_desc">这决定阿玛莉亚有多鲜活。免费的 Groq 限制了请求大小，所以那里的性格被压到最低。用自己的模型就没有这个限制，但需要你自己配置。</string>
+    <string name="settings_profile_groq">Groq（免费）</string>
+    <string name="settings_profile_groq_desc">安装后即可使用。提示词精简到极限：能执行命令，但说话干巴巴。</string>
+    <string name="settings_profile_custom">自己的模型</string>
+    <string name="settings_profile_custom_empty">自己的模型（未配置）</string>
+    <string name="settings_profile_custom_desc">完整的性格、设定和示例。需要自己的端点：兼容 OpenAI 的地址、模型和密钥。</string>
+    <string name="settings_custom_title">你的接入点</string>
+    <string name="settings_custom_desc">任何兼容 OpenAI 的服务器：自建 vLLM、网关、本地 llama.cpp。地址要写完整，包含 /chat/completions。</string>
+    <string name="settings_custom_url">端点地址</string>
+    <string name="settings_custom_model">模型</string>
+    <string name="settings_custom_key">API 密钥</string>
+    <string name="settings_custom_key_hint">可以留空</string>
+    <string name="settings_custom_need_model">请填写模型——没有它请求不会通过</string>
 </resources>

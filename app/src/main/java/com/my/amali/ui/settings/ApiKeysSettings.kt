@@ -7,6 +7,8 @@ import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.shrinkVertically
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -19,9 +21,13 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.rounded.AutoAwesome
+import androidx.compose.material.icons.rounded.Bolt
 import androidx.compose.material.icons.rounded.Check
+import androidx.compose.material.icons.rounded.Dns
 import androidx.compose.material.icons.rounded.GraphicEq
 import androidx.compose.material.icons.rounded.Memory
 import androidx.compose.material.icons.rounded.RecordVoiceOver
@@ -37,8 +43,12 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.role
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
@@ -52,6 +62,9 @@ import com.my.amali.ui.components.GlassDivider
 import com.my.amali.ui.components.GlassGroup
 import com.my.amali.ui.components.ModelSelector
 import com.my.amali.ui.components.SectionTitle
+import androidx.compose.material3.TextField
+import androidx.compose.ui.text.font.FontFamily
+import com.my.amali.domain.entity.AiProfile
 import com.my.amali.ui.components.SecretField
 import com.my.amali.ui.components.modelOptionsFor
 import com.my.amali.ui.theme.Radius
@@ -103,6 +116,18 @@ fun ApiKeysSettings(
         ) {
             ApiStatusCard(api = api, configured = settings.api.configuredProviders)
 
+            // ── Профиль Амалии ────────────────────────────────────────────
+            //
+            // Стоит первым, до ключей: это самый важный выбор на экране, и
+            // он объясняет, зачем здесь вообще появился OpenRouter. Переключение
+            // мгновенное — менять ключи и модели не нужно, они уже
+            // разложены по профилям.
+            AiProfileCard(
+                profile = settings.aiProfile,
+                customReady = api.customReady,
+                onSelect = { vm.setAiProfile(it) },
+            )
+
             SectionTitle(stringResource(R.string.settings_api_llm))
             ProviderGroup(
                 provider = ModelCatalog.Provider.GROQ,
@@ -116,6 +141,18 @@ fun ApiKeysSettings(
                 onKeyClear = { vm.clearProviderKey(ModelCatalog.Provider.GROQ) },
                 onModelChange = { vm.setProviderModel(ModelCatalog.Provider.GROQ, it) },
             )
+
+            // Своя точка подключения: адрес, модель и ключ вводит человек.
+            // Появляется только у профиля «Своя модель» — в остальных
+            // случаях это лишние поля, которые ничего не делают.
+            if (settings.aiProfile == AiProfile.CUSTOM) {
+                CustomProviderGroup(
+                    endpoint = api.customEndpoint,
+                    model = api.customModel,
+                    apiKey = api.customKey,
+                    onChange = { e, m, k -> vm.setCustomProvider(e, m, k) },
+                )
+            }
 
             SectionTitle(stringResource(R.string.settings_api_stt))
             ProviderGroup(
@@ -168,6 +205,266 @@ fun ApiKeysSettings(
  * ответ должен быть виден до прокрутки: галочка и число настроенных
  * провайдеров.
  */
+/**
+ * Карточка выбора «мозга» Амалии.
+ *
+ * ════════════════════════════════════════════════════════════════════════
+ *  ПОЧЕМУ ВАРИАНТА ВСЕГО ДВА
+ * ════════════════════════════════════════════════════════════════════════
+ *
+ * Промежуточного варианта не существует по арифметике, а не по вкусу.
+ * Бесплатный Groq принимает 7 000 входных токенов в минуту, а полный
+ * промпт Амалии — почти 8 000: он не отправляется вообще, ни разу.
+ * Поэтому выбор честный:
+ *
+ *  — Groq: урезанный промпт, работает у всех и сразу, но Амалия суше;
+ *  — своя модель: полный промпт со всем характером на своём эндпоинте,
+ *    где лимит задаёт сам пользователь.
+ *
+ * Второй вариант показан всегда, но без настроек выглядит как «сначала
+ * настрой» — иначе человек выбрал бы его, не поняв, почему не работает.
+ */
+@Composable
+private fun AiProfileCard(
+    profile: AiProfile,
+    customReady: Boolean,
+    onSelect: (AiProfile) -> Unit,
+) {
+    GlassCard(cornerRadius = Radius.lg, elevated = true) {
+        Text(
+            text = stringResource(R.string.settings_profile_title),
+            style = MaterialTheme.typography.titleMedium,
+            color = MaterialTheme.colorScheme.onSurface,
+        )
+        Spacer(Modifier.height(2.dp))
+        Text(
+            text = stringResource(R.string.settings_profile_desc),
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
+        Spacer(Modifier.height(Spacing.sm))
+
+        ProfileOption(
+            icon = Icons.Rounded.Bolt,
+            title = stringResource(R.string.settings_profile_groq),
+            subtitle = stringResource(R.string.settings_profile_groq_desc),
+            selected = profile == AiProfile.GROQ,
+            enabled = true,
+            onClick = { onSelect(AiProfile.GROQ) },
+        )
+        Spacer(Modifier.height(Spacing.xs))
+        ProfileOption(
+            icon = Icons.Rounded.Dns,
+            title = stringResource(
+                if (customReady) {
+                    R.string.settings_profile_custom
+                } else {
+                    R.string.settings_profile_custom_empty
+                },
+            ),
+            subtitle = stringResource(R.string.settings_profile_custom_desc),
+            selected = profile == AiProfile.CUSTOM,
+            enabled = customReady,
+            onClick = { onSelect(AiProfile.CUSTOM) },
+        )
+    }
+}
+
+/**
+ * Один вариант профиля: иконка, название, описание и видимая отметка выбора.
+ *
+ * Выбор показан рамкой И галочкой, а не только цветом: цвет как единственный
+ * носитель состояния не читается ни на солнце, ни при дальтонизме.
+ *
+ * Недоступный вариант (свой эндпоинт без адреса и модели) остаётся на экране,
+ * но приглушён и не нажимается: человек должен видеть, что такая возможность
+ * есть и чего ей не хватает, а не догадываться о ней после настройки.
+ */
+@Composable
+private fun ProfileOption(
+    icon: ImageVector,
+    title: String,
+    subtitle: String,
+    selected: Boolean,
+    enabled: Boolean,
+    onClick: () -> Unit,
+) {
+    val alpha = if (enabled) 1f else 0.45f
+    val border = when {
+        selected -> MaterialTheme.colorScheme.primary
+        else -> MaterialTheme.colorScheme.onSurface.copy(alpha = 0.10f)
+    }
+    val background = if (selected) {
+        MaterialTheme.colorScheme.primary.copy(alpha = 0.10f)
+    } else {
+        Color.Transparent
+    }
+
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(Radius.md))
+            .background(background)
+            .border(1.dp, border, RoundedCornerShape(Radius.md))
+            .clickable(enabled = enabled, onClick = onClick)
+            .padding(Spacing.sm)
+            .semantics { role = Role.RadioButton },
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Icon(
+            imageVector = icon,
+            contentDescription = null,
+            tint = when {
+                selected -> MaterialTheme.colorScheme.primary
+                else -> MaterialTheme.colorScheme.onSurfaceVariant
+            }.copy(alpha = alpha),
+            modifier = Modifier.size(20.dp),
+        )
+        Spacer(Modifier.width(Spacing.sm))
+        Column(Modifier.weight(1f)) {
+            Text(
+                text = title,
+                style = MaterialTheme.typography.titleSmall,
+                color = MaterialTheme.colorScheme.onSurface.copy(alpha = alpha),
+            )
+            Text(
+                text = subtitle,
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = alpha),
+            )
+        }
+        if (selected) {
+            Spacer(Modifier.width(Spacing.xs))
+            Icon(
+                imageVector = Icons.Rounded.Check,
+                contentDescription = null,
+                tint = MaterialTheme.colorScheme.primary,
+                modifier = Modifier.size(18.dp),
+            )
+        }
+    }
+}
+
+/**
+ * Блок своего эндпоинта: адрес, модель, ключ.
+ *
+ * Показывается только у профиля «Своя модель»: в остальных случаях это
+ * поля, которые ничего не меняют, и они только сбивали бы с толку.
+ *
+ * Все три поля пишутся разом при каждом изменении — так исключается
+ * состояние «адрес есть, модели нет», в котором профиль включён, но
+ * запрос падает.
+ */
+@Composable
+private fun CustomProviderGroup(
+    endpoint: String,
+    model: String,
+    apiKey: String,
+    onChange: (String, String, String) -> Unit,
+) {
+    // Показ ключа — состояние экрана, а не настройка: ключ открывают на
+    // время, чтобы сверить, и он снова прячется при уходе с экрана.
+    var keyVisible by remember { mutableStateOf(false) }
+
+    GlassGroup(modifier = Modifier.padding(top = Spacing.xs)) {
+        Column(Modifier.padding(Spacing.md)) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Icon(
+                    imageVector = Icons.Rounded.Dns,
+                    contentDescription = null,
+                    tint = MaterialTheme.colorScheme.primary,
+                    modifier = Modifier.size(18.dp),
+                )
+                Spacer(Modifier.width(Spacing.xs))
+                Text(
+                    text = stringResource(R.string.settings_custom_title),
+                    style = MaterialTheme.typography.titleSmall,
+                    color = MaterialTheme.colorScheme.onSurface,
+                )
+            }
+            Spacer(Modifier.height(Spacing.xxs))
+            Text(
+                text = stringResource(R.string.settings_custom_desc),
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+            Spacer(Modifier.height(Spacing.sm))
+
+            PlainField(
+                value = endpoint,
+                onValueChange = { onChange(it, model, apiKey) },
+                label = stringResource(R.string.settings_custom_url),
+                placeholder = "https://host/v1/chat/completions",
+            )
+            Spacer(Modifier.height(Spacing.xs))
+            PlainField(
+                value = model,
+                onValueChange = { onChange(endpoint, it, apiKey) },
+                label = stringResource(R.string.settings_custom_model),
+                placeholder = "gpt-4o-mini",
+            )
+            Spacer(Modifier.height(Spacing.xs))
+            SecretField(
+                value = apiKey,
+                onValueChange = { onChange(endpoint, model, it) },
+                label = stringResource(R.string.settings_custom_key),
+                placeholder = stringResource(R.string.settings_custom_key_hint),
+                maskedVisible = keyVisible,
+                onToggleVisibility = { keyVisible = !keyVisible },
+                onClear = { onChange(endpoint, model, "") },
+            )
+            if (endpoint.isNotBlank() && model.isBlank()) {
+                Spacer(Modifier.height(Spacing.xxs))
+                Text(
+                    text = stringResource(R.string.settings_custom_need_model),
+                    style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.error,
+                )
+            }
+        }
+    }
+}
+
+/**
+ * Обычное текстовое поле без маскировки — для адреса и имени модели.
+ *
+ * Отдельно от [SecretField], потому что маскировать адрес бессмысленно:
+ * его всё равно видно в логах и в документации, а скрытый URL невозможно
+ * проверить взглядом на опечатку.
+ */
+@Composable
+private fun PlainField(
+    value: String,
+    onValueChange: (String) -> Unit,
+    label: String,
+    placeholder: String,
+) {
+    Column(Modifier.fillMaxWidth()) {
+        Text(
+            text = label,
+            style = MaterialTheme.typography.labelSmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
+        Spacer(Modifier.height(Spacing.xxs))
+        TextField(
+            value = value,
+            onValueChange = onValueChange,
+            singleLine = true,
+            placeholder = {
+                Text(
+                    text = placeholder,
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f),
+                )
+            },
+            textStyle = MaterialTheme.typography.bodyMedium.copy(
+                fontFamily = FontFamily.Monospace,
+            ),
+            modifier = Modifier.fillMaxWidth(),
+        )
+    }
+}
+
 @Composable
 private fun ApiStatusCard(api: UserApiSettings, configured: Int) {
     val title = stringResource(R.string.settings_api_status_title)

@@ -41,6 +41,10 @@ android {
         buildConfigField("String", "DEEPGRAM_API_KEY",   "\"${secret("DEEPGRAM_API_KEY")}\"")
         buildConfigField("String", "GROQ_API_KEY",       "\"${secret("GROQ_API_KEY")}\"")
         buildConfigField("String", "FISH_AUDIO_API_KEY", "\"${secret("FISH_AUDIO_API_KEY")}\"")
+
+        // Ключ для профиля «Своя модель» задаёт сам пользователь в настройках,
+        // поэтому в сборке его нет: зашивать сюда чужие ключи к self-hosted
+        // серверам бессмысленно, а хранить неиспользуемое поле — лишнее.
     }
 
     buildTypes {

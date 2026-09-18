@@ -343,4 +343,21 @@
     <string name="settings_api_voice_desc">Идентификатор голоса в библиотеке Fish Audio. Пусто — голос из сборки.</string>
     <string name="settings_api_voice_label">reference_id голоса</string>
     <string name="settings_api_voice_placeholder">например, 096d410e860346a7a73762d557a290d7</string>
+
+    <!-- Профиль Амалии: «Умная» и «Быстрая» -->
+
+    <string name="settings_profile_title">Мозг Амалии</string>
+    <string name="settings_profile_desc">От этого зависит, насколько Амалия живая. Бесплатный Groq ограничивает размер запроса, поэтому в нём характер сжат до минимума. Своя модель снимает ограничение — но её нужно настроить самому.</string>
+    <string name="settings_profile_groq">Groq (бесплатно)</string>
+    <string name="settings_profile_groq_desc">Работает сразу после установки. Промпт урезан до предела: Амалия справляется с командами, но говорит сухо.</string>
+    <string name="settings_profile_custom">Своя модель</string>
+    <string name="settings_profile_custom_empty">Своя модель (не настроена)</string>
+    <string name="settings_profile_custom_desc">Полный характер, лор и примеры. Нужен свой эндпоинт — OpenAI-совместимый адрес, модель и ключ.</string>
+    <string name="settings_custom_title">Своя точка подключения</string>
+    <string name="settings_custom_desc">Любой OpenAI-совместимый сервер: свой vLLM, шлюз, локальный llama.cpp. Адрес указывай целиком, вместе с /chat/completions.</string>
+    <string name="settings_custom_url">Адрес эндпоинта</string>
+    <string name="settings_custom_model">Модель</string>
+    <string name="settings_custom_key">Ключ API</string>
+    <string name="settings_custom_key_hint">Можно оставить пустым</string>
+    <string name="settings_custom_need_model">Укажи модель — без неё запрос не пройдёт</string>
 </resources>

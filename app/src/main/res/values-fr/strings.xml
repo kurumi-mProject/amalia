@@ -327,4 +327,19 @@
     <string name="settings_api_voice_label">reference_id de voix</string>
     <string name="settings_api_voice_placeholder">ex. 096d410e860346a7a73762d557a290d7</string>
     <string name="appearance_preview">Aperçu</string>
+
+    <string name="settings_profile_title">Le cerveau d'Amalia</string>
+    <string name="settings_profile_desc">C'est ce qui détermine à quel point Amalia est vivante. Le Groq gratuit limite la taille de la requête, son caractère y est donc réduit au minimum. Votre propre modèle lève la limite, mais il faut le configurer.</string>
+    <string name="settings_profile_groq">Groq (gratuit)</string>
+    <string name="settings_profile_groq_desc">Fonctionne dès l'installation. Prompt réduit à l'essentiel : gère les commandes, mais parle sèchement.</string>
+    <string name="settings_profile_custom">Modèle personnel</string>
+    <string name="settings_profile_custom_empty">Modèle personnel (non configuré)</string>
+    <string name="settings_profile_custom_desc">Caractère complet, histoire et exemples. Nécessite votre propre endpoint : URL compatible OpenAI, modèle et clé.</string>
+    <string name="settings_custom_title">Votre point d'accès</string>
+    <string name="settings_custom_desc">Tout serveur compatible OpenAI : votre vLLM, une passerelle, un llama.cpp local. Indiquez l'URL complète, avec /chat/completions.</string>
+    <string name="settings_custom_url">URL de l'endpoint</string>
+    <string name="settings_custom_model">Modèle</string>
+    <string name="settings_custom_key">Clé API</string>
+    <string name="settings_custom_key_hint">Peut rester vide</string>
+    <string name="settings_custom_need_model">Indiquez le modèle — sans lui la requête échoue</string>
 </resources>

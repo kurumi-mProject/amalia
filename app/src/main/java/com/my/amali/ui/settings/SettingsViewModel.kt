@@ -6,6 +6,7 @@ import com.my.amali.core.di.ServiceLocator
 import com.my.amali.data.ai.ModelCatalog
 import com.my.amali.data.repository.ConversationRepository
 import com.my.amali.data.repository.SettingsRepository
+import com.my.amali.domain.entity.AiProfile
 import com.my.amali.domain.entity.AppLanguage
 import com.my.amali.domain.entity.UserSettings
 import com.my.amali.ui.theme.AmaliaMotif
@@ -129,6 +130,29 @@ class SettingsViewModel : ViewModel() {
     }
 
     // ── API-ключи и модели ───────────────────────────────────────────────
+
+    /**
+     * Профиль «мозга»: Groq с урезанным промптом или свой эндпоинт с полным.
+     *
+     * Модели распознавания и синтеза не меняются: профиль касается только
+     * текстовой модели. Голос остаётся прежним.
+     */
+    fun setAiProfile(profile: AiProfile) = viewModelScope.launch {
+        settingsRepository.setAiProfile(profile)
+    }
+
+    /**
+     * Сохраняет настройки своего эндпоинта разом.
+     *
+     * Адрес, модель и ключ пишутся одним действием: по отдельности они
+     * давали бы промежуточные состояния, в которых профиль включён, но
+     * нерабочий (адрес есть, модели нет), и пользователь видел бы ошибку
+     * ещё до того, как закончил ввод.
+     */
+    fun setCustomProvider(endpoint: String, model: String, key: String) =
+        viewModelScope.launch {
+            settingsRepository.setCustomProvider(endpoint, model, key)
+        }
 
     /** Сохраняет ключ провайдера (ввод пользователя). */
     fun setProviderKey(provider: ModelCatalog.Provider, key: String) = viewModelScope.launch {

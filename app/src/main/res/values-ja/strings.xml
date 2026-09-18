@@ -327,4 +327,19 @@
     <string name="settings_api_voice_label">ボイス reference_id</string>
     <string name="settings_api_voice_placeholder">例: 096d410e860346a7a73762d557a290d7</string>
     <string name="appearance_preview">プレビュー</string>
+
+    <string name="settings_profile_title">アマリアの頭脳</string>
+    <string name="settings_profile_desc">アマリアがどれだけ生き生きしているかは、これで決まります。無料のGroqはリクエストの大きさに上限があるため、そこでは性格は最小限に圧縮されています。自分のモデルならその上限が外れますが、自分で設定が必要です。</string>
+    <string name="settings_profile_groq">Groq（無料）</string>
+    <string name="settings_profile_groq_desc">インストール直後から動きます。プロンプトは最小限：命令はこなしますが、話し方は淡々としています。</string>
+    <string name="settings_profile_custom">自分のモデル</string>
+    <string name="settings_profile_custom_empty">自分のモデル（未設定）</string>
+    <string name="settings_profile_custom_desc">性格・設定・例を全部込み。自分のエンドポイントが必要です：OpenAI互換URL、モデル、キー。</string>
+    <string name="settings_custom_title">自分の接続先</string>
+    <string name="settings_custom_desc">OpenAI互換のサーバーなら何でも：自前のvLLM、ゲートウェイ、ローカルのllama.cpp。URLは /chat/completions まで含めて入力してください。</string>
+    <string name="settings_custom_url">エンドポイントURL</string>
+    <string name="settings_custom_model">モデル</string>
+    <string name="settings_custom_key">APIキー</string>
+    <string name="settings_custom_key_hint">空でもかまいません</string>
+    <string name="settings_custom_need_model">モデルを指定してください — ないとリクエストが通りません</string>
 </resources>
