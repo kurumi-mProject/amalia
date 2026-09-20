@@ -70,7 +70,6 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.scale
-import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.ClipEntry
@@ -105,7 +104,6 @@ import com.my.amali.ui.components.AmaliaVoiceVisual
 import com.my.amali.ui.components.SuggestionChips
 import com.my.amali.ui.theme.AmaliaTheme
 import com.my.amali.ui.theme.AmaliaVisuals
-import com.my.amali.ui.theme.CircadianPhase
 import com.my.amali.ui.theme.LocalAmaliaVisuals
 import com.my.amali.ui.theme.LocalLightProfile
 import com.my.amali.ui.theme.Radius
@@ -207,17 +205,24 @@ fun AssistantScreen(
 
     // Включены ли анимации системы. Читается один раз: значение меняется
     // только в настройках разработчика, и перечитывать его на каждом кадре
-    // значило бы читать глобальные настройки десятки раз в секунду.
+    // значило бы дёргать глобальные настройки десятки раз в секунду.
     //
-    // Зачем вообще: при выключенных анимациях показывать переход смены фразы
-    // нельзя — система просила покой, и анимация расшифровки здесь читалась
-    // бы как неповиновение. Проверка делается там, где есть доступ к
-    // настройкам (здесь), а чистый компонент получает готовый флаг.
+    // Зачем: при выключенных анимациях показывать расшифровку нельзя —
+    // система попросила покой. Проверка живёт здесь, потому что только
+    // здесь есть доступ к настройкам; чистый компонент получает готовый
+    // флаг и о системах ничего не знает.
+    //
+    // Сравнение с нулём, а не с единицей: значение может быть и `0.5`
+    // (ускоренные анимации), и `2` (замедленные) — выключено ровно тогда,
+    // когда оно нулевое.
     val animationsEnabled = remember {
-        val scale = runCatching {
-            Settings.Global.getFloat(context.contentResolver, Settings.Global.ANIMATOR_DURATION_SCALE)
+        val scale: Float = runCatching {
+            Settings.Global.getFloat(
+                context.contentResolver,
+                Settings.Global.ANIMATOR_DURATION_SCALE,
+            )
         }.getOrDefault(1f)
-        greetingAnimationEnabled(scale)
+        scale > 0f
     }
 
     // Системный запрос доступа к микрофону. Лончер — один на экран
