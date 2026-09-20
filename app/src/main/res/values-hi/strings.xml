@@ -298,10 +298,6 @@
     <string name="motif_period_stars">at night, when the sun is below the horizon</string>
 
     <!-- Герой-приветствие главного экрана: выбирается по фазе суток -->
-    <string name="greeting_morning">सुप्रभात</string>
-    <string name="greeting_day">नमस्ते</string>
-    <string name="greeting_evening">शुभ संध्या</string>
-    <string name="greeting_night">शुभ रात्रि</string>
     <string name="greeting_prompt">क्या करें?</string>
     <string name="settings_api_title">API और मॉडल</string>
     <string name="settings_api_desc">अपनी कुंजियाँ और मॉडल चुनाव</string>

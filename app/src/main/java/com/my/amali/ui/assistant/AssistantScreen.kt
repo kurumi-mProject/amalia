@@ -3,6 +3,7 @@ package com.my.amali.ui.assistant
 import android.Manifest
 import android.content.ClipData
 import android.content.Intent
+import android.provider.Settings
 import android.net.Uri
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
@@ -75,6 +76,7 @@ import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.ClipEntry
 import androidx.compose.ui.platform.LocalClipboard
 import androidx.compose.ui.platform.LocalConfiguration
+import androidx.compose.ui.platform.LocalInspectionMode
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.Role
@@ -202,6 +204,21 @@ fun AssistantScreen(
     val clipboardScope = rememberCoroutineScope()
     val context = LocalContext.current
 
+    // Включены ли анимации системы. Читается один раз: значение меняется
+    // только в настройках разработчика, и перечитывать его на каждом кадре
+    // значило бы читать глобальные настройки десятки раз в секунду.
+    //
+    // Зачем вообще: при выключенных анимациях показывать переход смены фразы
+    // нельзя — система просила покой, и анимация расшифровки здесь читалась
+    // бы как неповиновение. Проверка делается там, где есть доступ к
+    // настройкам (здесь), а чистый компонент получает готовый флаг.
+    val animationsEnabled = remember {
+        val scale = runCatching {
+            Settings.Global.getFloat(context.contentResolver, Settings.Global.ANIMATOR_DURATION_SCALE)
+        }.getOrDefault(1f)
+        greetingAnimationEnabled(scale)
+    }
+
     // Системный запрос доступа к микрофону. Лончер — один на экран
     // (внутри элемента списка он ломал бы реестр ActivityResult).
     val permissionLauncher = rememberLauncherForActivityResult(
@@ -242,6 +259,7 @@ fun AssistantScreen(
         showsNewSession = state.amaliaReply.isNotEmpty() || state.userTranscript.isNotEmpty(),
         onNewSession = vm::startNewSession,
         modifier = modifier,
+        animationsEnabled = animationsEnabled,
     )
 }
 
@@ -273,6 +291,16 @@ fun AssistantScreenContent(
     onCopy: () -> Unit,
     onOpenAppSettings: () -> Unit,
     modifier: Modifier = Modifier,
+    /**
+     * Включены ли анимации системы.
+     *
+     * Значение по умолчанию `true`, а не `false`: забыть передать параметр
+     * дешевле, чем получить экран без анимации на одном вызове и с ней
+     * на другом. Определяется вызывающей стороной из `Settings.Global`
+     * (см. `AssistantScreen`) — компоненту незачем читать системные
+     * настройки самому.
+     */
+    animationsEnabled: Boolean = true,
 ) {
     // Источник взаимодействия для микрофона: indication = null, потому что
     // рябь на этом элементе конфликтует с волной — она и есть отклик.
@@ -280,7 +308,6 @@ fun AssistantScreenContent(
 
     val visuals = LocalAmaliaVisuals.current
     val light = LocalLightProfile.current
-    val lightLabel = light.lightLabel
     val cct = light.cct
     val suggestions = welcomeSuggestions()
 
@@ -336,13 +363,19 @@ fun AssistantScreenContent(
             // по центру она читается как «солнце» композиции.
             Spacer(Modifier.height(Spacing.sm))
             CircadianLamp(
-                label = lightLabel,
+                label = stringResource(light.lightLabel.stringRes),
                 cct = cct,
                 autoExpandOnStart = true,
             )
 
             Spacer(Modifier.height(Spacing.md))
-            GreetingHero(breath = breath)
+            // useAnimation = false в превью и при отключённых системных
+            // анимациях: там смена фразы мгновенная, и это правильно —
+            // показывать переход некуда.
+            GreetingHero(
+                breath = breath,
+                useAnimation = LocalInspectionMode.current.not() && animationsEnabled,
+            )
 
             if (welcome) {
                 Spacer(Modifier.weight(1f))
@@ -459,13 +492,17 @@ fun AssistantScreenContent(
 
             Spacer(Modifier.height(2.dp))
 
-            // Волна включается в любом состоянии, кроме покоя и ошибки:
-            // именно в этих двух случаях звука нет, и показывать «свидетельство
-            // звука» было бы ложью. Ошибка отдельно — при ней микрофон не
-            // работает, и волна должна молчать, а не дрожать.
+            // Волна включается только там, где есть звук: слушание (микрофон)
+            // и речь (динамик). В покое и в ошибке звука нет вовсе, а в фазе
+            // «думаю» идёт ожидание ответа модели — микрофон уже закрыт,
+            // Амалия ещё молчит. Раньше волна разворачивалась и в «думаю»,
+            // то есть показывала звук, которого не было: полосы стояли
+            // неподвижно, но сам факт их развёрнутого строя читался как
+            // «слушаю». Состояние обязано совпадать с тем, что нарисовано.
+            val voiceAudible = state.voiceState == VoiceState.Listening ||
+                state.voiceState == VoiceState.Speaking
             AmaliaVoiceVisual(
-                enabled = state.voiceState != VoiceState.Idle &&
-                    state.voiceState != VoiceState.Error,
+                enabled = voiceAudible,
                 level = state.audioLevel,
                 settings = settings.wave,
                 color = stateColor(state.voiceState),
@@ -501,81 +538,6 @@ fun AssistantScreenContent(
             // хватает нижней границы запаса.
             Spacer(Modifier.height(BottomBarReserve))
         }
-    }
-}
-
-// ============================================================
-//  ГЕРОЙ-ПРИВЕТСТВИЕ
-// ============================================================
-
-/**
- * Герой-приветствие главного экрана: крупная типографика фазы суток
- * и приглашение к разговору.
- *
- * Стоит в верхней трети, на воздухе, и не делит место ни с карточкой,
- * ни с лампой: это самый крупный текст приложения и главный носитель
- * «благородства» экрана.
- *
- * Свет и слова берутся из одного [LocalLightProfile], поэтому текст
- * и фон не могут разойтись.
- *
- * @param breath общая фаза дыхания экрана 0..1. Раньше у черты был свой
- *   период 3.2 с, и она дышала «против» волны; теперь такт один на весь
- *   экран, поэтому движения читаются как одно.
- */
-@Composable
-private fun GreetingHero(breath: Float, modifier: Modifier = Modifier) {
-    val light = LocalLightProfile.current
-    val greetingRes = when (light.phase) {
-        CircadianPhase.DAWN, CircadianPhase.MORNING -> R.string.greeting_morning
-        CircadianPhase.MIDDAY, CircadianPhase.AFTERNOON -> R.string.greeting_day
-        CircadianPhase.DUSK, CircadianPhase.EVENING -> R.string.greeting_evening
-        CircadianPhase.NIGHT, CircadianPhase.DEEP_NIGHT -> R.string.greeting_night
-    }
-
-    // Дыхание приходит снаружи — один такт на весь экран. Диапазон
-    // 0.35..1.0 оставлен прежним: черта не должна «моргать», она дышит.
-    val barAlpha = 0.35f + 0.65f * breath
-    Column(
-        modifier = modifier
-            .fillMaxWidth()
-            .padding(horizontal = Spacing.screen),
-        horizontalAlignment = Alignment.CenterHorizontally,
-    ) {
-        Text(
-            text = stringResource(greetingRes),
-            // displayMedium, а не displaySmall: приветствие — главный
-            // текст приложения, и после снятия шапки у него есть право
-            // звучать крупно. Оно и даёт ощущение «благородства»: одна
-            // большая фраза на воздухе вместо пяти мелких элементов.
-            style = MaterialTheme.typography.displayMedium,
-            modifier = Modifier.widthIn(max = 440.dp),
-            color = MaterialTheme.colorScheme.onBackground,
-            textAlign = TextAlign.Center,
-            maxLines = 2,
-            overflow = TextOverflow.Ellipsis,
-        )
-        Spacer(Modifier.height(Spacing.xs))
-        Text(
-            text = stringResource(R.string.greeting_prompt),
-            style = MaterialTheme.typography.bodyMedium,
-            color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.82f),
-            textAlign = TextAlign.Center,
-        )
-        Spacer(Modifier.height(Spacing.md))
-        Box(
-            modifier = Modifier
-                .size(width = 44.dp, height = 2.5.dp)
-                .clip(RoundedCornerShape(Radius.chip))
-                .background(
-                    Brush.horizontalGradient(
-                        listOf(
-                            MaterialTheme.colorScheme.primary.copy(alpha = 0.95f * barAlpha),
-                            MaterialTheme.colorScheme.secondary.copy(alpha = 0.55f * barAlpha),
-                        ),
-                    ),
-                ),
-        )
     }
 }
 

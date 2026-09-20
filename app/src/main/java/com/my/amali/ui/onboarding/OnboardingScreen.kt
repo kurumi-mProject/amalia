@@ -47,6 +47,7 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.remember
 import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -67,11 +68,11 @@ import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.my.amali.R
-import com.my.amali.domain.entity.VoiceState
+import com.my.amali.domain.entity.WaveSettings
 import com.my.amali.ui.components.GhostButton
 import com.my.amali.ui.components.GradientBackground
 import com.my.amali.ui.components.PrimaryButton
-import com.my.amali.ui.components.VoiceWave
+import com.my.amali.ui.components.AmaliaWaveform
 import com.my.amali.ui.theme.AmaliaTheme
 import com.my.amali.ui.theme.AmaliaVisualTheme
 import com.my.amali.ui.theme.AmaliaMotif
@@ -316,17 +317,28 @@ private fun VoiceSlide(offset: Float) {
         description = stringResource(R.string.onboarding_voice_desc),
     ) {
         // Живая волна прямо в онбординге: обещание = реальный UI.
+        // Та же волна, что на главном экране, — не декоративная картинка.
+        // Значит, и ведёт она себя так же: полосы идут по уровню и стоят
+        // ровным строем, когда звука нет. Пользователь видит не «обещание
+        // красоты», а ровно то, что получит в разговоре.
         Column(
             modifier = Modifier.fillMaxWidth(),
             horizontalAlignment = Alignment.CenterHorizontally,
         ) {
-            VoiceWave(
-                state = VoiceState.Speaking,
-                audioLevel = 0.55f,
+            val onboardingWave = remember { WaveSettings() }
+            Box(
                 modifier = Modifier
                     .fillMaxWidth()
                     .padding(horizontal = Spacing.lg),
-            )
+                contentAlignment = Alignment.Center,
+            ) {
+                AmaliaWaveform(
+                    level = 0.55f,
+                    settings = onboardingWave,
+                    color = MaterialTheme.colorScheme.primary,
+                    isActive = true,
+                )
+            }
             Spacer(Modifier.height(Spacing.md))
             Box(
                 modifier = Modifier

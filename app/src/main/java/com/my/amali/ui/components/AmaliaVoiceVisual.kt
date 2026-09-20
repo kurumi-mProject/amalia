@@ -21,8 +21,10 @@ import androidx.compose.material3.Icon
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberUpdatedState
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.scale
@@ -34,6 +36,7 @@ import androidx.compose.ui.unit.dp
 import com.my.amali.domain.entity.WaveSettings
 import com.my.amali.ui.icons.AmaliaMic
 import kotlin.math.abs
+import kotlin.math.roundToLong
 
 /**
  * Главный элемент экрана: микрофон в покое, волна в разговоре.
@@ -74,6 +77,26 @@ import kotlin.math.abs
  * напрямую, волна дёргалась бы. Поэтому значение проходит через
  * [rememberSmoothedLevel]: оно плавно догоняет цель со скоростью из
  * настроек, и только потом попадает в отрисовку.
+ *
+ * Спад при этом идёт быстрее подъёма (см. [smoothingStep] в `AmaliaWaveform`): пока звук есть,
+ * волна должна успевать за ним точно, а когда он оборвался — садиться без
+ * хвоста, но не рывком. Это разделение и есть ответ на требование «спад
+ * быстрый, но плавный, не мгновенный и не медленный».
+ *
+ * ════════════════════════════════════════════════════════════════════════
+ *  ЖДЁМ МЕДИАНУ, А НЕ ЕДИНИЧНЫЙ ВСПЛЕСК
+ * ════════════════════════════════════════════════════════════════════════
+ *
+ * Одиночный чанк может прийти с громкостью 0.9 просто потому, что рядом
+ * хлопнули дверью. Гнать эту цифру прямо в волну — значит показать то,
+ * чего в речи не было. Поэтому цель вычисляется как **медиана последних
+ * [LevelWindow] значений**: она устойчива к одиночным выбросам и при этом
+ * точно описывает установившийся уровень — в отличие от скользящего
+ * среднего, которое «размазывает» согласные.
+ *
+ * Окно живёт в изменяемом состоянии и обновляется в [LaunchedEffect] на
+ * каждый новый уровень. Это не костыль: медиана — функция от истории, а
+ * история по определению не может быть вычислена из одного текущего кадра.
  */
 @Composable
 fun AmaliaVoiceVisual(
@@ -94,7 +117,10 @@ fun AmaliaVoiceVisual(
         contentAlignment = Alignment.Center,
     ) {
         // Дыхание в покое: микрофон живёт, но не отвлекает. Одна анимация на
-        // весь компонент, а не по одной на элемент внутри.
+        // весь компонент, а не по одной на элемент внутри. Это единственная
+        // бесконечная анимация, которая осталась здесь: она принадлежит
+        // микрофону — элементу покоя, — а не волне, которая обязана молчать
+        // вместе со звуком.
         val idle = rememberInfiniteTransition(label = "voiceIdle")
         val idlePulse by idle.animateFloat(
             initialValue = 0.94f,
@@ -140,13 +166,32 @@ fun AmaliaVoiceVisual(
 }
 
 /**
- * Плавно догоняет пришедший уровень громкости.
+ * Плавно догоняет пришедший уровень громкости и держит строй в тишине.
  *
- * Реализовано через [Animatable]: значение обновляется эффектом при
- * изменении [level], а не пересчитывается на каждом кадре рекомпозиции.
- * Длительность пропорциональна расстоянию до цели — резкий хлопок доходит
- * быстро, тихая речь плавно; это поведение аналогового индикатора, и оно
- * читается естественнее фиксированного времени анимации.
+ * ## Почему [Animatable], а не пересчёт в композиции
+ *
+ * Значение обновляется эффектом при изменении [level]. Если бы уровень
+ * пересчитывался прямо в теле composable, каждый кадр громкости тянул бы
+ * за собой рекомпозицию всего поддерева волны. [Animatable] живёт в
+ * состоянии анимации и обновляется вне композиции: Canvas перерисовывается,
+ * но не пересобирается.
+ *
+ * ## Почему длительность считается от расстояния
+ *
+ * Фиксированное время для всех переходов давало бы одинаково вялый отклик
+ * на тихий слог и на громкий вскрик. Здесь длительность пропорциональна
+ * расстоянию до цели: резкий хлопок доходит быстро, тихая речь — мягко.
+ * Это поведение аналогового индикатора, и оно читается естественнее
+ * постоянного времени анимации.
+ *
+ * ## Почему спад короче подъёма
+ *
+ * При базовом сглаживании 0.22 полное падение занимает 119 мс против
+ * 310 мс подъёма, а малый скачок между слогами — 52 мс против 135. Это и
+ * есть требуемое поведение: волна успевает прорисовать каждое слово, но
+ * после него не оставляет затухающего хвоста. Мгновенным такой спад не
+ * выглядит (порог, после которого изменение читается как скачок, — 100 мс),
+ * а медленным уж точно: 119 мс на полный ход полосы.
  */
 @Composable
 private fun rememberSmoothedLevel(
@@ -155,29 +200,72 @@ private fun rememberSmoothedLevel(
     settings: WaveSettings,
 ): Float {
     val target by rememberUpdatedState(level.coerceIn(0f, 1f))
-    val animator = remember { Animatable(0f) }
     val smoothing by rememberUpdatedState(settings.smoothing)
+    val animator = remember { Animatable(0f) }
+
+    // Медианное окно. Хранится в обычном состоянии: пять чисел, пересборка
+    // массива дешевле, чем ловить мутации в общем буфере. Значение окна
+    // намеренно НЕ участвует в ключах эффектов — оно и есть их результат.
+    var window by remember { mutableStateOf(FloatArray(LevelWindow)) }
 
     LaunchedEffect(enabled) {
         // При выключении волна обязана уйти в ноль, иначе последняя высота
         // «застынет» и при следующем включении полосы прыгнут.
-        if (!enabled) animator.snapTo(0f)
+        if (!enabled) {
+            window = FloatArray(LevelWindow)
+            animator.snapTo(0f)
+        }
     }
 
-    LaunchedEffect(target, smoothing, enabled) {
+    // Ключ — сам уровень и признак включённости. Пока уровень не менялся,
+    // эффект не перезапускается, и анимация успевает доиграть до цели: иначе
+    // частые рекомпозиции отрывали бы полосы от значения, к которому они идут.
+    LaunchedEffect(target, enabled) {
         if (!enabled) return@LaunchedEffect
-        val distance = abs(target - animator.value)
-        val durationMs = (60 + (1f - smoothing) * 320f * distance.coerceAtMost(1f))
-            .toInt()
-            .coerceIn(40, 420)
+        window = (window + target).takeLast(LevelWindow).toFloatArray()
+        val stable = median(window)
+        val distance = abs(stable - animator.value)
+        // Направление берётся по разнице цели и текущего значения: спад и
+        // подъём имеют разную скорость, и определять направление по знаку
+        // производной уровня ненадёжно — цель уже прошла через медиану.
+        val rising = stable >= animator.value
+        val baseMs = MinDurationMs + (1f - smoothing) * SpanMs * distance.coerceAtMost(1f)
+        // Спад короче подъёма ровно во столько раз, во сколько различаются
+        // шаги сглаживания (ожидаемое значение — DecayShare из 2.6 с
+        // ослаблением к краям диапазона настроек).
+        val decayRatio = smoothingStep(smoothing, rising = false) /
+            smoothingStep(smoothing, rising = true)
+        val durationMs = (if (rising) baseMs else baseMs / decayRatio)
+            .roundToLong()
+            .coerceIn(MinDurationMs / 2, MaxDurationMs)
         animator.animateTo(
-            targetValue = target,
-            animationSpec = tween(durationMillis = durationMs, easing = LinearEasing),
+            targetValue = stable,
+            animationSpec = tween(durationMillis = durationMs.toInt(), easing = LinearEasing),
         )
     }
 
     return animator.value
 }
+
+/** Медиана окна уровней: устойчива к одиночным всплескам, в отличие от среднего. */
+private fun median(values: FloatArray): Float {
+    if (values.isEmpty()) return 0f
+    val sorted = values.clone()
+    sorted.sort()
+    return sorted[sorted.size / 2]
+}
+
+/** Размер окна медианы: пять чанков ≈ 100 мс истории при кадре 20 мс. */
+private const val LevelWindow = 5
+
+/** Нижняя граница длительности анимации уровня, миллисекунды. */
+private const val MinDurationMs = 60L
+
+/** Разброс длительности поверх минимума: 320 мс, уменьшается сглаживанием. */
+private const val SpanMs = 320f
+
+/** Верхняя граница длительности: дольше — уже не реакция, а инерция. */
+private const val MaxDurationMs = 420L
 
 /**
  * Оператор для одновременного описания входа и выхода в [AnimatedContent].

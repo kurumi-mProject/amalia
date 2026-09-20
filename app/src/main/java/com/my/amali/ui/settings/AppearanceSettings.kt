@@ -72,6 +72,7 @@ import com.my.amali.ui.theme.DarkModePreference
 import com.my.amali.ui.theme.GlassGradientPalette
 import com.my.amali.ui.theme.GradientPalette
 import com.my.amali.ui.theme.LocalLightProfile
+import com.my.amali.ui.theme.stringRes
 import com.my.amali.ui.theme.Radius
 import com.my.amali.ui.theme.paletteChip
 import com.my.amali.ui.theme.Spacing
@@ -568,7 +569,7 @@ private fun CircadianLightCard() {
                 Text(
                     text = stringResource(
                         R.string.appearance_light_now,
-                        light.lightLabel,
+                        stringResource(light.lightLabel.stringRes),
                         light.cct,
                     ),
                     style = MaterialTheme.typography.titleMedium,

@@ -119,9 +119,21 @@ class ConversationRepository(
                 createdAt = messages.first().timestamp,
                 updatedAt = messages.first().timestamp,
             )
+            // Индекс сжатой границы — это позиция в списке, и он обязан
+            // пережить любую запись в тот же разговор.
+            //
+            // Здесь был тонкий баг: `copy(messages = …)` неявно сбрасывал
+            // `summarizedCount` в значение по умолчанию — ноль. В памяти
+            // ViewModel граница оставалась верной, а на диске обнулялась,
+            // и после перезапуска модель получала резюме, но при этом
+            // «несжатым» считался весь диалог целиком. На длинном разговоре
+            // это возвращало в промпт реплики, которые давно должны были
+            // жить пересказом, — контекст не сокращался вовсе.
             val updated = seed.copy(
                 messages = seed.messages + messages,
                 updatedAt = messages.last().timestamp,
+                contextSummary = seed.contextSummary,
+                summarizedCount = seed.summarizedCount.coerceIn(0, seed.messages.size + messages.size),
             )
             (list.filterNot { it.id == conversationId } + updated)
                 .sortedByDescending { it.updatedAt }

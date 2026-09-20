@@ -279,6 +279,15 @@
 
     <!-- Внешний вид: циркадный свет -->
     <string name="appearance_light_title">Свет интерфейса</string>
+    <!-- Ступени света: показываются в лампе на главном экране
+         и в карточке «Свет интерфейса» в настройках. Для языков,
+         которых нет в values-*, Android берёт values-en. -->
+    <string name="light_candle">Свеча</string>
+    <string name="light_warm_lamp">Тёплая лампа</string>
+    <string name="light_sundown">Закат</string>
+    <string name="light_evening">Вечерний свет</string>
+    <string name="light_neutral_day">Нейтральный день</string>
+    <string name="light_daylight">Дневной свет</string>
     <string name="appearance_light_now">Сейчас: %1$s · %2$d K</string>
     <string name="appearance_light_desc">Цветовая температура подстраивается непрерывно, без скачков на границе часа. Днём свет холоднее и помогает бодрости, вечером уходит в тёплые 2000–2700 K и не подавляет мелатонин.</string>
     <string name="appearance_melatonin">Вклад в подавление мелатонина</string>
@@ -324,10 +333,44 @@
     <string name="motif_period_stars">ночью, когда солнце под горизонтом</string>
 
     <!-- Герой-приветствие главного экрана: выбирается по фазе суток -->
-    <string name="greeting_morning">Доброе утро</string>
-    <string name="greeting_day">Добрый день</string>
-    <string name="greeting_evening">Добрый вечер</string>
-    <string name="greeting_night">Доброй ночи</string>
+    <!-- Приветствие главного экрана: 4 фазы × 3 тона × 3 фразы.
+         Меняется раз в 30 секунд внутри текущей фазы суток. -->
+    <string name="greeting_night_plain_1">Доброй ночи</string>
+    <string name="greeting_night_plain_2">Тихой ночи</string>
+    <string name="greeting_night_plain_3">Ночное время</string>
+    <string name="greeting_night_warm_1">Я рядом</string>
+    <string name="greeting_night_warm_2">Пусть всё затихнет</string>
+    <string name="greeting_night_warm_3">Отдыхай, я послежу</string>
+    <string name="greeting_night_bold_1">Ночь — моё время</string>
+    <string name="greeting_night_bold_2">Ещё не спишь?</string>
+    <string name="greeting_night_bold_3">Тут тихо. Мне нравится</string>
+    <string name="greeting_morning_plain_1">Доброе утро</string>
+    <string name="greeting_morning_plain_2">Утро</string>
+    <string name="greeting_morning_plain_3">Начало дня</string>
+    <string name="greeting_morning_warm_1">Как спалось?</string>
+    <string name="greeting_morning_warm_2">Утро тебе идёт</string>
+    <string name="greeting_morning_warm_3">Просыпайся не спеша</string>
+    <string name="greeting_morning_bold_1">Светает. Подъём</string>
+    <string name="greeting_morning_bold_2">Кофе, потом всё остальное</string>
+    <string name="greeting_morning_bold_3">День не подождёт</string>
+    <string name="greeting_day_plain_1">Добрый день</string>
+    <string name="greeting_day_plain_2">День</string>
+    <string name="greeting_day_plain_3">Рабочее время</string>
+    <string name="greeting_day_warm_1">Я готова</string>
+    <string name="greeting_day_warm_2">Что на повестке?</string>
+    <string name="greeting_day_warm_3">Светло и ясно</string>
+    <string name="greeting_day_bold_1">Держу фокус</string>
+    <string name="greeting_day_bold_2">За работу?</string>
+    <string name="greeting_day_bold_3">День короткий. Погнали</string>
+    <string name="greeting_evening_plain_1">Добрый вечер</string>
+    <string name="greeting_evening_plain_2">Вечер</string>
+    <string name="greeting_evening_plain_3">Конец дня</string>
+    <string name="greeting_evening_warm_1">Уютно и тихо</string>
+    <string name="greeting_evening_warm_2">Отдохнём?</string>
+    <string name="greeting_evening_warm_3">Вечер для себя</string>
+    <string name="greeting_evening_bold_1">День затихает</string>
+    <string name="greeting_evening_bold_2">Свет уходит в тёплый</string>
+    <string name="greeting_evening_bold_3">Всё, день сдан</string>
     <string name="greeting_prompt">Чем займёмся?</string>
     <string name="settings_api_title">API и модели</string>
     <string name="settings_api_desc">Свои ключи и выбор моделей</string>

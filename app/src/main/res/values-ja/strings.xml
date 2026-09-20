@@ -253,6 +253,15 @@
 
     <!-- Appearance: circadian light -->
     <string name="appearance_light_title">Interface light</string>
+    <!-- Ступени света: показываются в лампе на главном экране
+         и в карточке «Свет интерфейса» в настройках. Для языков,
+         которых нет в values-*, Android берёт values-en. -->
+    <string name="light_candle">ろうそくの光</string>
+    <string name="light_warm_lamp">暖かいランプ</string>
+    <string name="light_sundown">夕暮れ</string>
+    <string name="light_evening">宵の光</string>
+    <string name="light_neutral_day">中間の昼光</string>
+    <string name="light_daylight">昼の光</string>
     <string name="appearance_light_now">Now: %1$s · %2$d K</string>
     <string name="appearance_light_desc">Colour temperature adapts continuously, with no jump at the hour boundary. By day the light is cooler and aids alertness; in the evening it shifts to warm 2000–2700 K so it does not suppress melatonin.</string>
     <string name="appearance_melatonin">Melatonin suppression impact</string>
@@ -298,10 +307,44 @@
     <string name="motif_period_stars">at night, when the sun is below the horizon</string>
 
     <!-- Герой-приветствие главного экрана: выбирается по фазе суток -->
-    <string name="greeting_morning">おはよう</string>
-    <string name="greeting_day">こんにちは</string>
-    <string name="greeting_evening">こんばんは</string>
-    <string name="greeting_night">おやすみ</string>
+    <!-- Приветствие главного экрана: 4 фазы × 3 тона × 3 фразы.
+         Меняется раз в 30 секунд внутри текущей фазы суток. -->
+    <string name="greeting_night_plain_1">おやすみなさい</string>
+    <string name="greeting_night_plain_2">静かな夜を</string>
+    <string name="greeting_night_plain_3">夜の時間です</string>
+    <string name="greeting_night_warm_1">そばにいます</string>
+    <string name="greeting_night_warm_2">静かになりますように</string>
+    <string name="greeting_night_warm_3">休んでください、見守っています</string>
+    <string name="greeting_night_bold_1">夜はわたしの時間</string>
+    <string name="greeting_night_bold_2">まだ起きてる？</string>
+    <string name="greeting_night_bold_3">ここは静か。悪くない</string>
+    <string name="greeting_morning_plain_1">おはようございます</string>
+    <string name="greeting_morning_plain_2">朝です</string>
+    <string name="greeting_morning_plain_3">一日のはじまり</string>
+    <string name="greeting_morning_warm_1">よく眠れた？</string>
+    <string name="greeting_morning_warm_2">朝がよく似合う</string>
+    <string name="greeting_morning_warm_3">ゆっくり起きて</string>
+    <string name="greeting_morning_bold_1">明るくなってきた。起きて</string>
+    <string name="greeting_morning_bold_2">コーヒー、それから全部</string>
+    <string name="greeting_morning_bold_3">一日は待ってくれない</string>
+    <string name="greeting_day_plain_1">こんにちは</string>
+    <string name="greeting_day_plain_2">昼です</string>
+    <string name="greeting_day_plain_3">仕事の時間</string>
+    <string name="greeting_day_warm_1">準備できてるよ</string>
+    <string name="greeting_day_warm_2">今日は何をする？</string>
+    <string name="greeting_day_warm_3">明るくて澄んでる</string>
+    <string name="greeting_day_bold_1">集中してるよ</string>
+    <string name="greeting_day_bold_2">仕事にする？</string>
+    <string name="greeting_day_bold_3">短い一日。進もう</string>
+    <string name="greeting_evening_plain_1">こんばんは</string>
+    <string name="greeting_evening_plain_2">夕方です</string>
+    <string name="greeting_evening_plain_3">一日の終わり</string>
+    <string name="greeting_evening_warm_1">居心地よく静か</string>
+    <string name="greeting_evening_warm_2">休む？</string>
+    <string name="greeting_evening_warm_3">夜はあなたのもの</string>
+    <string name="greeting_evening_bold_1">一日が静まっていく</string>
+    <string name="greeting_evening_bold_2">光が暖かくなる</string>
+    <string name="greeting_evening_bold_3">はい、今日は終わり</string>
     <string name="greeting_prompt">何をしましょう？</string>
     <string name="settings_api_title">APIとモデル</string>
     <string name="settings_api_desc">自分のキーとモデル選択</string>

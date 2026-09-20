@@ -68,9 +68,18 @@ data class Conversation(
         val index = messages.indexOfLast { it.role == MessageRole.ASSISTANT }
         if (index == -1) return this
         val updated = messages[index].copy(content = text)
+        // `summarizedCount` здесь сохраняется явно.
+        //
+        // Проблема того же класса, что и в [ConversationRepository.appendMessages]:
+        // замена текста последнего ответа — это правка содержимого, а не
+        // откат границы сжатия. Стриминг переписывает последнюю реплику
+        // десятки раз за ответ, и каждый такой проход, обнуляй он границу,
+        // стирал бы сжатие на диске несколько раз в секунду.
         return copy(
             messages = messages.toMutableList().apply { set(index, updated) },
-            updatedAt = System.currentTimeMillis()
+            updatedAt = System.currentTimeMillis(),
+            contextSummary = contextSummary,
+            summarizedCount = summarizedCount,
         )
     }
 

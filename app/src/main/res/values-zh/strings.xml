@@ -298,10 +298,6 @@
     <string name="motif_period_stars">at night, when the sun is below the horizon</string>
 
     <!-- Герой-приветствие главного экрана: выбирается по фазе суток -->
-    <string name="greeting_morning">早上好</string>
-    <string name="greeting_day">下午好</string>
-    <string name="greeting_evening">晚上好</string>
-    <string name="greeting_night">晚安</string>
     <string name="greeting_prompt">想做点什么？</string>
     <string name="settings_api_title">API 与模型</string>
     <string name="settings_api_desc">自己的密钥与模型选择</string>

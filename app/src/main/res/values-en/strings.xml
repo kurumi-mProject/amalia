@@ -253,6 +253,15 @@
 
     <!-- Appearance: circadian light -->
     <string name="appearance_light_title">Interface light</string>
+    <!-- Ступени света: показываются в лампе на главном экране
+         и в карточке «Свет интерфейса» в настройках. Для языков,
+         которых нет в values-*, Android берёт values-en. -->
+    <string name="light_candle">Candlelight</string>
+    <string name="light_warm_lamp">Warm lamp</string>
+    <string name="light_sundown">Sundown</string>
+    <string name="light_evening">Evening light</string>
+    <string name="light_neutral_day">Neutral daylight</string>
+    <string name="light_daylight">Daylight</string>
     <string name="appearance_light_now">Now: %1$s · %2$d K</string>
     <string name="appearance_light_desc">Colour temperature adapts continuously, with no jump at the hour boundary. By day the light is cooler and aids alertness; in the evening it shifts to warm 2000–2700 K so it does not suppress melatonin.</string>
     <string name="appearance_melatonin">Melatonin suppression impact</string>
@@ -298,10 +307,44 @@
     <string name="motif_period_stars">at night, when the sun is below the horizon</string>
 
     <!-- Герой-приветствие главного экрана: выбирается по фазе суток -->
-    <string name="greeting_morning">Good morning</string>
-    <string name="greeting_day">Good afternoon</string>
-    <string name="greeting_evening">Good evening</string>
-    <string name="greeting_night">Good night</string>
+    <!-- Приветствие главного экрана: 4 фазы × 3 тона × 3 фразы.
+         Меняется раз в 30 секунд внутри текущей фазы суток. -->
+    <string name="greeting_night_plain_1">Good night</string>
+    <string name="greeting_night_plain_2">A quiet night</string>
+    <string name="greeting_night_plain_3">It is night</string>
+    <string name="greeting_night_warm_1">I am here</string>
+    <string name="greeting_night_warm_2">Let it all go quiet</string>
+    <string name="greeting_night_warm_3">Rest, I will keep watch</string>
+    <string name="greeting_night_bold_1">Night is my time</string>
+    <string name="greeting_night_bold_2">Still awake?</string>
+    <string name="greeting_night_bold_3">Quiet here. I like it</string>
+    <string name="greeting_morning_plain_1">Good morning</string>
+    <string name="greeting_morning_plain_2">Morning</string>
+    <string name="greeting_morning_plain_3">The day begins</string>
+    <string name="greeting_morning_warm_1">How did you sleep?</string>
+    <string name="greeting_morning_warm_2">Morning suits you</string>
+    <string name="greeting_morning_warm_3">Wake up slowly</string>
+    <string name="greeting_morning_bold_1">It is getting light. Up</string>
+    <string name="greeting_morning_bold_2">Coffee, then everything else</string>
+    <string name="greeting_morning_bold_3">The day will not wait</string>
+    <string name="greeting_day_plain_1">Good afternoon</string>
+    <string name="greeting_day_plain_2">Afternoon</string>
+    <string name="greeting_day_plain_3">Working hours</string>
+    <string name="greeting_day_warm_1">I am ready</string>
+    <string name="greeting_day_warm_2">What is on the list?</string>
+    <string name="greeting_day_warm_3">Bright and clear</string>
+    <string name="greeting_day_bold_1">Staying focused</string>
+    <string name="greeting_day_bold_2">Shall we work?</string>
+    <string name="greeting_day_bold_3">Short day. Let us move</string>
+    <string name="greeting_evening_plain_1">Good evening</string>
+    <string name="greeting_evening_plain_2">Evening</string>
+    <string name="greeting_evening_plain_3">End of the day</string>
+    <string name="greeting_evening_warm_1">Cosy and quiet</string>
+    <string name="greeting_evening_warm_2">Shall we rest?</string>
+    <string name="greeting_evening_warm_3">The evening is yours</string>
+    <string name="greeting_evening_bold_1">The day winds down</string>
+    <string name="greeting_evening_bold_2">The light is turning warm</string>
+    <string name="greeting_evening_bold_3">That is it. Day done</string>
     <string name="greeting_prompt">What shall we do?</string>
     <string name="settings_api_title">API &amp; models</string>
     <string name="settings_api_desc">Your own keys and model choice</string>

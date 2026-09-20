@@ -298,10 +298,6 @@
     <string name="motif_period_stars">at night, when the sun is below the horizon</string>
 
     <!-- Герой-приветствие главного экрана: выбирается по фазе суток -->
-    <string name="greeting_morning">صباح الخير</string>
-    <string name="greeting_day">طاب يومك</string>
-    <string name="greeting_evening">مساء الخير</string>
-    <string name="greeting_night">تصبح على خير</string>
     <string name="greeting_prompt">ماذا سنفعل؟</string>
     <string name="settings_api_title">API والنماذج</string>
     <string name="settings_api_desc">مفاتيحك واختيار النموذج</string>

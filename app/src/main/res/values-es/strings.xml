@@ -298,10 +298,6 @@
     <string name="motif_period_stars">at night, when the sun is below the horizon</string>
 
     <!-- Герой-приветствие главного экрана: выбирается по фазе суток -->
-    <string name="greeting_morning">Buenos días</string>
-    <string name="greeting_day">Buenas tardes</string>
-    <string name="greeting_evening">Buenas noches</string>
-    <string name="greeting_night">Descansa</string>
     <string name="greeting_prompt">¿Qué hacemos?</string>
     <string name="settings_api_title">API y modelos</string>
     <string name="settings_api_desc">Tus claves y elección de modelo</string>
