@@ -350,7 +350,7 @@
     <string name="settings_profile_custom_hint">Enter the URL, model and key in the block below, then enable it</string>
     <string name="settings_custom_activate">Enable this profile</string>
     <string name="settings_custom_active">Currently in use</string>
-    <string name="assistant_hint_listening">Speak, I'm listening</string>
+    <string name="assistant_hint_listening">Speak, I\'m listening</string>
     <string name="assistant_hint_thinking">One moment, thinking</string>
     <string name="assistant_hint_speaking">Tap to interrupt</string>
     <string name="assistant_hint_error">Try again</string>
