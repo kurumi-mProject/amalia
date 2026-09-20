@@ -1,10 +1,10 @@
 package com.my.amali.ui.assistant
 
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.material3.MaterialTheme
@@ -12,6 +12,7 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.key
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
@@ -97,24 +98,10 @@ internal fun GreetingHero(
 
     val rotation = rememberRotatingGreeting(slot = slot, rotationMs = rotationMs)
 
-    // Переход запускается по смене КЛЮЧА, а не по смене текста. Разница
-    // принципиальная: мешок может случайно выдать ту же фразу, что и в
-    // прошлый раз, — по сравнению строк переход бы не сработал, и текст
-    // сменился бы молча, без эффекта. Ключ растёт на каждой ротации.
-    //
-    // Длительность берётся из самого перехода: эффект уже выбран, и он знает,
-    // сколько ему нужно времени — 640 мс шифратору, 820 мс одометру, ноль
-    // при отключённых анимациях.
+    // Анимация не нужна — показываем текст как есть. Так превью и режим
+    // с выключенными системными анимациями выглядят честно: ни одного
+    // скрытого эффекта не остаётся «на всякий случай».
     val effect = if (useAnimation) rotation.effect else null
-    val durationMs = greetingDurationFor(effect, useAnimation)
-
-    val transition = rememberGreetingTransition(
-        currentIndex = rotation.index,
-        frameKey = rotation.key,
-        effect = rotation.effect,
-        durationMs = durationMs,
-    )
-
     val text = stringResource(rotation.phraseRes)
     val style = MaterialTheme.typography.displayMedium.copy(textAlign = TextAlign.Center)
     val color = MaterialTheme.colorScheme.onBackground
@@ -125,35 +112,32 @@ internal fun GreetingHero(
             .padding(horizontal = Spacing.screen),
         horizontalAlignment = Alignment.CenterHorizontally,
     ) {
-        // Высота фиксируется по двухстрочной версии шрифта. Без этого при
-        // смене фразы разной длины главный блок прыгал бы по вертикали,
-        // и вместе с ним уезжали бы подпись и полоска — на каждой ротации,
-        // раз в полминуты. Прыжок на самом видном месте заметен сразу,
-        // хотя причина у него техническая.
-        Column(
-            modifier = Modifier
-                .widthIn(max = MaxGreetingWidth)
-                .heightIn(min = GreetingTextMinHeight),
-            horizontalAlignment = Alignment.CenterHorizontally,
-        ) {
-            if (effect == null) {
-                // Анимации выключены: показываем текст напрямую, без переходов.
-                // Так превью и режим экономии энергии выглядят честно —
-                // ни одного скрытого эффекта не остаётся «на всякий случай».
-                Text(
-                    text = text,
-                    style = style,
-                    color = color,
-                    textAlign = TextAlign.Center,
-                    maxLines = GreetingMaxLines,
-                )
-            } else {
-                GreetingEffectText(
-                    text = text,
-                    transition = transition,
-                    color = color,
-                    style = style,
-                )
+        // Ключ — номер смены: он меняется на каждой ротации, даже если мешок
+        // случайно выдал ту же фразу. По тексту эффект бы не перезапустился,
+        // и смена прошла бы без анимации.
+        Box(modifier = Modifier.widthIn(max = MaxGreetingWidth)) {
+            key(rotation.key) {
+                when (effect) {
+                    null -> Text(
+                        text = text,
+                        style = style,
+                        color = color,
+                        textAlign = TextAlign.Center,
+                        maxLines = GreetingMaxLines,
+                    )
+                    GreetingEffect.DECODER -> GreetingDecoderText(
+                        text = text,
+                        progress = 1f,
+                        color = color,
+                        style = style,
+                    )
+                    GreetingEffect.ODOMETER -> GreetingOdometerText(
+                        text = text,
+                        progress = 1f,
+                        color = color,
+                        style = style,
+                    )
+                }
             }
         }
 
@@ -165,42 +149,11 @@ internal fun GreetingHero(
             textAlign = TextAlign.Center,
         )
 
-        Spacer(Modifier.height(GreetingUnderlineGap))
+        Spacer(Modifier.height(Spacing.md))
         GreetingUnderline(breath = breath)
     }
 }
 
-/**
- * Показывает фразу нужным эффектом.
- *
- * Отдельная функция — потому что внутри `when` по эффекту, а `when` внутри
- * `Column` читался бы как часть вёрстки, хотя это выбор механики, а не
- * раскладки. Здесь видно: раскладка заканчивается, начинается эффект.
- */
-@Composable
-private fun GreetingEffectText(
-    text: String,
-    transition: GreetingTransition,
-    color: androidx.compose.ui.graphics.Color,
-    style: androidx.compose.ui.text.TextStyle,
-) {
-    when (transition.effect) {
-        GreetingEffect.DECODER -> GreetingDecoderText(
-            text = text,
-            progress = transition.progress,
-            color = color,
-            style = style,
-            seed = transition.seed,
-        )
-        GreetingEffect.ODOMETER -> GreetingOdometerText(
-            text = text,
-            progress = transition.progress,
-            color = color,
-            style = style,
-            seed = transition.seed,
-        )
-    }
-}
 
 /**
  * Что показывать прямо сейчас: фраза, номер смены и эффект этой смены.
@@ -297,33 +250,9 @@ private fun rememberRotatingGreeting(slot: GreetingSlot, rotationMs: Int): Rotat
 /** Максимальная ширина фразы: на широких экранах строка не растягивается. */
 private val MaxGreetingWidth = 440.dp
 
-/**
- * Минимальная высота блока с фразой — две строки шрифта заголовка.
- *
- * Нужна, чтобы смена «Ночь — моё время» на «Ещё не спишь?» не сдвигала вниз
- * подпись и полоску. Полоска обязана стоять на одном месте: она маркер,
- * а маркер, который двигается, перестаёт быть маркером и становится
- * элементом, который ищут глазами.
- */
-private val GreetingTextMinHeight = 108.dp
-
 /** Сколько строк допускается у фразы. Больше двух не влезает ни одна. */
 private const val GreetingMaxLines = 2
 
-/**
- * Длительность перехода по эффекту.
- *
- * Одометр длиннее шифратора осознанно: барабану нужно время на оборот,
- * и если ускорить его до скорости шифратора, вращение перестанет читаться —
- * останется мелькание. При отключённых анимациях — ноль, переход мгновенный.
- */
-private fun greetingDurationFor(effect: GreetingEffect?, animated: Boolean): Int {
-    if (!animated || effect == null) return 0
-    return when (effect) {
-        GreetingEffect.DECODER -> GREETING_TRANSITION_MS
-        GreetingEffect.ODOMETER -> ODOMETER_TRANSITION_MS
-    }
-}
 
 /**
  * Период смены фразы.

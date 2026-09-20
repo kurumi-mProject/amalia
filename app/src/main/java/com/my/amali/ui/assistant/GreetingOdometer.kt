@@ -1,100 +1,79 @@
 package com.my.amali.ui.assistant
 
-import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.width
-import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.alpha
-import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.clipToBounds
+import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.text.TextStyle
-import androidx.compose.ui.text.rememberTextMeasurer
+import androidx.compose.ui.graphics.drawscope.DrawScope
 import androidx.compose.ui.platform.LocalDensity
-import androidx.compose.ui.text.style.TextAlign
-import androidx.compose.ui.unit.IntOffset
+import androidx.compose.ui.text.TextLayoutResult
+import androidx.compose.ui.text.TextStyle
+import androidx.compose.ui.text.drawText
+import androidx.compose.ui.text.rememberTextMeasurer
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
-import kotlin.math.roundToInt
-import kotlin.random.Random
+import kotlinx.coroutines.delay
 
 /**
  * Эффект «одометра»: буквы подкручиваются на нужные, как цифры в счётчике.
  *
  * ════════════════════════════════════════════════════════════════════════
- *  ЧЕМ ЭТО ОТЛИЧАЕТСЯ ОТ ПРОСТОЙ ПРОКРУТКИ
+ *  ПОЧЕМУ CANVAS, А НЕ СТОЛБЕЦ ИЗ `Text`
  * ════════════════════════════════════════════════════════════════════════
  *
- * Простейший «одометр» рисуют так: сверху старая строка, снизу новая,
- * вся полоса сдвигается вверх — и всё. Это не одометр, а шторка: буквы
- * едут с одной скоростью, и вместо механизма получается прокрутка.
+ * Первая версия этого файла собирала каждую позицию как `Column` из
+ * нескольких `Text` с вертикальным сдвигом. Работало — и было грубой ошибкой:
+ * на фразу из пятнадцати знаков получалось пятнадцать поддеревьев, каждое
+ * со своим измерением и размещением, и всё это пересобиралось на кадре
+ * анимации.
  *
- * Настоящий счётчик тем и характерен, что **каждый барабан крутится
- * по-своему**: на одометре машины единицы мельтешат, пока десятки проходят
- * один шаг. Поэтому здесь каждая позиция — отдельный барабан со своим числом
- * оборотов:
- *
- * ```
- *  позиция 0  (Д): 1 оборот  — почти не двигалась
- *  позиция 5  (й): 3 оборота — подтянулась издалека
- *  позиция 11 (я): 2 оборота — успела вернуться
- * ```
- *
- * Число оборотов берётся из хеша пары «позиция + номер смены», поэтому
- * у каждой смены свой узор. С постоянными оборотами третья смена выглядела бы
- * в точности как первая, и приём за три показа стал бы обоиной.
+ * Здесь каждое окошко — это [Canvas]. Внутри `draw` рисуются **два** глифа:
+ * уходящий и приходящий. `drawText` принимает заранее измеренный
+ * [TextLayoutResult], поэтому на кадре не происходит ни измерения, ни
+ * композиции: перерисовывается только графика. Это ровно тот приём, на
+ * котором стоит библиотека compose-number-flow, и он же единственный
+ * правильный для покадровой прокрутки.
  *
  * ════════════════════════════════════════════════════════════════════════
- *  КАК УСТРОЕН ОДИН БАРАБАН
+ *  БЕСКОНЕЧНАЯ ЛЕНТА ВМЕСТО КОНЕЧНОГО СТОЛБЦА
  * ════════════════════════════════════════════════════════════════════════
  *
- * ```text
- *        ┌─────────┐  ← отсечение по высоте строки
- *    ▓   │    З    │  уходящий знак уезжает вверх
- *    ▓   │    Х    │  ← мелькающие знаки между ними
- *    ▓   │    Ю    │
- *        │    Я    │  приходящий выезжает снизу
- *        └─────────┘
- * ```
+ * Позиция на ленте не сворачивается в 0..N — она просто накапливается:
+ * `target += steps`, где `steps` — сколько знаков нужно пройти. Поэтому
+ * «9 → 0» — не особый случай и не прыжок, а один обычный шаг, как «3 → 4».
  *
- * В окне с отсечением лежит вертикальный столбец из нескольких знаков,
- * сдвинутый на текущее положение барабана. Знаки вне окна не видны — это
- * и превращает сдвинутый столбец в механизм: без отсечения буквы просто
- * ехали бы поверх соседей.
- *
- * Пробел барабана не получает. Иначе на месте пробела крутился бы мусор,
- * и между словами мелькали бы случайные символы — слово перестало бы
- * читаться как слово.
+ * Первая версия строила конечный столбец `[знак, шум, знак]` и делала
+ * целое число оборотов. Это давало шов на каждом переходе и требовало
+ * отдельной возни, чтобы последний кадр не дёрнулся. Лента убирает и то,
+ * и другое.
  *
  * ════════════════════════════════════════════════════════════════════════
- *  ПОЧЕМУ БАРАБАНЫ ОСТАНАВЛИВАЮТСЯ ПО ОЧЕРЕДИ, А НЕ ВСЕ РАЗОМ
+ *  КАК ЧИТАЕТСЯ ПОЗИЦИЯ
  * ════════════════════════════════════════════════════════════════════════
  *
- * Хочется поставить общее замедление в конце — так «дороже». Но замедление
- * одинаково для всех: все барабаны остановятся в один кадр, и ряд снова
- * превратится в шторку. Механический счётчик останавливается **по очереди**,
- * и это единственное, что делает движение живым.
+ * Анимация — обычное число: дробная часть задаёт, на сколько именно
+ * сдвинута лента, целая — какой знак сейчас на месте. Кадровое состояние
+ * живёт в [mutableFloatStateOf] и читается **внутри** `draw`-лямбды, поэтому
+ * изменение числа вызывает только перерисовку, но не рекомпозицию.
  *
- * Ровно это даёт [charProgress] с каскадом: у каждой следующей позиции
- * прокрутка начинается позже. Скорость при этом линейная — как у настоящего
- * механизма, который не тормозит, а просто доходит до упора.
- *
- * ════════════════════════════════════════════════════════════════════════
- *  ЦЕНА
- * ════════════════════════════════════════════════════════════════════════
- *
- * Эффект дороже шифратора: каждая позиция — своё окно с отсечением и
- * несколькими потомками вместо одного `Text`. На фразе приветствия (до
- * 18 знаков, раз в 30 секунд) это незаметно. Тащить его в список ответов
- * нельзя: там сотни знаков, и цена станет видимой.
+ * @param text фраза, которую показываем.
+ * @param progress прогресс перехода 0..1. Один на все позиции: рассинхрон
+ *   возможен на уровне сдвига, а не на уровне «кто первый начал».
+ * @param color цвет глифов.
+ * @param style стиль текста — тот же, что у остального приветствия.
  */
 @Composable
 internal fun GreetingOdometerText(
@@ -103,49 +82,43 @@ internal fun GreetingOdometerText(
     color: Color,
     style: TextStyle,
     modifier: Modifier = Modifier,
-    seed: Int = 0,
 ) {
     if (text.isEmpty()) return
 
     val measurer = rememberTextMeasurer()
-    // Метрики считаются в ПИКСЕЛЯХ: замерщик текста отдаёт пиксели, и
-    // пересчитывать их в dp на каждом кадре анимации — трата на ровном месте.
-    // Перевод делается один раз здесь, при входе в композицию.
+
+    // Метрики считаются в пикселях — их отдаёт замерщик. Перевод в dp один
+    // раз при входе в композицию: считать его на кадре незачем.
     val density = LocalDensity.current
-    val metricsPx = remember(text, style, density) { odometerMetrics(text, style, measurer) }
-    val metrics = remember(metricsPx, density) {
-        OdometerMetrics(
-            slotWidth = with(density) { metricsPx.slotWidth.toDp() },
-            lineHeight = with(density) { metricsPx.lineHeight.toDp() },
-        )
-    }
+    val metricsPx = remember(text, style) { odometerMetrics(text, style, measurer) }
+    val cellWidth = remember(metricsPx, density) { with(density) { metricsPx.slotWidth.toDp() } }
+    val cellHeight = remember(metricsPx, density) { with(density) { metricsPx.lineHeight.toDp() } }
 
     Box(
         modifier = modifier.fillMaxWidth(),
         contentAlignment = Alignment.Center,
     ) {
-        Column(horizontalAlignment = Alignment.CenterHorizontally) {
-            Row(
-                horizontalArrangement = Arrangement.Center,
-                verticalAlignment = Alignment.CenterVertically,
-            ) {
-                text.forEachIndexed { index, ch ->
-                    if (ch == ' ') {
-                        // Пробел — просто пустое место той же ширины, что
-                        // слот барабана. Так строка не разъезжается.
-                        Box(Modifier.width(metrics.slotWidth))
-                    } else {
-                        OdometerDrum(
-                            char = ch,
-                            index = index,
-                            length = text.length,
-                            metrics = metrics,
-                            progress = progress,
-                            color = color,
-                            style = style,
-                            seed = seed,
-                        )
-                    }
+        Row(
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            text.forEachIndexed { index, ch ->
+                if (ch == ' ') {
+                    // Пробел — пустое место той же ширины, что окошко. Так
+                    // строка не разъезжается на словах.
+                    Box(Modifier.width(cellWidth))
+                } else {
+                    OdometerDrum(
+                        char = ch,
+                        index = index,
+                        length = text.length,
+                        metrics = metricsPx,
+                        cellWidth = cellWidth,
+                        cellHeight = cellHeight,
+                        progress = progress,
+                        color = color,
+                        style = style,
+                        measurer = measurer,
+                    )
                 }
             }
         }
@@ -153,22 +126,10 @@ internal fun GreetingOdometerText(
 }
 
 /**
- * Метрики строки для одометра.
+ * Метрики строки в пикселях.
  *
- * @property slotWidth ширина одной позиции — общая для всей строки.
- * @property lineHeight высота окна барабана.
- */
-internal data class OdometerMetrics(
-    val slotWidth: androidx.compose.ui.unit.Dp,
-    val lineHeight: androidx.compose.ui.unit.Dp,
-)
-
-/**
- * Метрики в пикселях — то, что отдаёт замерщик.
- *
- * Отдельный тип, чтобы не путать единицы: замер приходит в пикселях, а
- * модификаторы Compose требуют dp. Ошибка здесь дала бы слот высотой
- * в 3 пикселя на экране с плотностью 3 — то есть буквы в три ряда.
+ * @property slotWidth ширина одного окошка — общая для всех позиций.
+ * @property lineHeight высота окошка: по ней же считается шаг ленты.
  */
 internal data class OdometerMetricsPx(
     val slotWidth: Float,
@@ -176,16 +137,13 @@ internal data class OdometerMetricsPx(
 )
 
 /**
- * Считает геометрию слота.
+ * Считает геометрию окошка.
  *
- * Ширина — максимум по знакам фразы плюс запас. Узкий слот обрезал бы широкие
- * буквы (`Ж`, `Ш`, `W`, `M`), и вместо буквы была бы её половина. Общая ширина
- * на все позиции, а не своя у каждой, — сознательно: барабаны в механизме
- * одинаковые, и это читается как счётчик, а не как рваный ряд.
- *
- * Высота берётся по самой высокой паре знаков в фразе: у некоторых глифов
- * (например, с диакритикой) высота больше базовой, и окно по средней строке
- * срезало бы им верх.
+ * Ширина — максимум по знакам фразы плюс небольшой запас: узкое окошко
+ * обрезало бы широкие буквы (`Ш`, `Ж`, `W`), и вместо буквы была бы её
+ * половина. Общая ширина на все позиции, а не своя у каждой, — сознательно:
+ * барабаны в механизме одинаковые, и это читается как счётчик, а не как
+ * рваный ряд.
  */
 internal fun odometerMetrics(
     text: String,
@@ -197,10 +155,8 @@ internal fun odometerMetrics(
     text.forEach { ch ->
         if (ch == ' ') return@forEach
         val m = measurer.measure(ch.toString(), style)
-        val w = m.size.width.toFloat()
-        val h = m.size.height.toFloat()
-        if (w > widest) widest = w
-        if (h > tallest) tallest = h
+        if (m.size.width > widest) widest = m.size.width.toFloat()
+        if (m.size.height > tallest) tallest = m.size.height.toFloat()
     }
     return OdometerMetricsPx(
         slotWidth = widest * SlotWidthFactor,
@@ -208,164 +164,114 @@ internal fun odometerMetrics(
     )
 }
 
-/** Запас к ширине слота: 6% хватает на боковые выносы курсивных глифов. */
+/** Запас к ширине окошка: 6% хватает на боковые выносы курсивных глифов. */
 private const val SlotWidthFactor = 1.06f
 
 /**
- * Один барабан: знак, прокрученный по вертикали.
+ * Один барабан: окошко с отсечением, внутри — прокручиваемая лента глифов.
  *
- * Столбец знаков сдвигается целиком, а окно отсекает всё, что вышло за его
- * границы. Сдвиг считается в пикселях: знак должен встать ровно на базовую
- * линию, а перевод в dp на каждом кадре дал бы субпиксельное дрожание.
+ * Рисование идёт вручную, потому что оба глифа обязаны находиться в одной
+ * системе координат и обрезаться по одним границам. Два отдельных `Text`
+ * с `offset` дали бы то же самое, но пересобирали бы поддерево на кадре.
  */
 @Composable
 private fun OdometerDrum(
     char: Char,
     index: Int,
     length: Int,
-    metrics: OdometerMetrics,
+    metrics: OdometerMetricsPx,
+    cellWidth: Dp,
+    cellHeight: Dp,
     progress: Float,
     color: Color,
     style: TextStyle,
-    seed: Int,
+    measurer: androidx.compose.ui.text.TextMeasurer,
 ) {
-    val p = charProgress(progress, index, length, spread = DrumSpread)
-    val turns = drumTurns(index, seed)
-    val settled = p >= 1f
-    val lineHeightPx = with(LocalDensity.current) { metrics.lineHeight.toPx() }
+    // Глифы измеряются заранее: на кадре измерения не должно быть вовсе.
+    val real = remember(char, style, measurer) { measurer.measure(char.toString(), style) }
 
-    // Узор барабана: приходящий знак и мелькающие между ними. Считается
-    // из хеша, а не из живого генератора: столбец перерисовывается десятки
-    // раз за анимацию, и случайные знаки на каждый кадр дали бы мерцание
-    // вместо вращения.
-    val column = remember(index, seed, turns, char) {
-        buildDrumColumn(char = char, index = index, seed = seed, turns = turns)
+    // Соседний знак — тот, что «выезжает» на место текущего. Он из набора
+    // подмены: именно он даёт ощущение, что барабан проходит через значения.
+    val noise = remember(char, style, measurer, index) {
+        val alphabet = NoiseAlphabet
+        val pick = alphabet[(char.code + index * 7).mod(alphabet.length)]
+        measurer.measure(pick.toString(), style)
     }
 
-    // Полный путь: (turns + 1) слотов, потому что столбец начинается
-    // с приходящего знака и заканчивается им же — барабан делает целое
-    // число оборотов и возвращается к той же букве.
-    val travel = p * (turns + 1) * lineHeightPx
-    val direction = drumDirection(index, seed)
-
-    Box(
-        modifier = Modifier
-            .width(metrics.slotWidth)
-            .height(metrics.lineHeight)
-            .clip(DrumClipShape),
-        contentAlignment = Alignment.Center,
-    ) {
-        if (settled) {
-            // Барабан встал: рисуем только настоящий знак. Иначе в последнем
-            // кадре поверх него мелькал бы сосед из столбца.
-            Text(
-                text = char.toString(),
-                style = style,
-                color = color,
-                maxLines = 1,
-                softWrap = false,
-                textAlign = TextAlign.Center,
-                modifier = Modifier.width(metrics.slotWidth),
-            )
-        } else {
-            // Само смещение столбца. `Modifier.offset` с лямбдой считается
-            // на фазе размещения, а не композиции: при сдвиге на каждом кадре
-            // это единственный способ не пересобирать поддерево целиком.
-            // Округление до целых пикселей обязательно — при дробном сдвиге
-            // сглаживание размазывает глифы, и мелькание читается как мыло,
-            // а не как вращение.
-            Column(
-                modifier = Modifier.offset { IntOffset(x = 0, y = -(direction * travel).roundToInt()) },
-                horizontalAlignment = Alignment.CenterHorizontally,
-            ) {
-                column.forEach { drumChar ->
-                    Text(
-                        text = drumChar.toString(),
-                        style = style,
-                        color = color,
-                        maxLines = 1,
-                        softWrap = false,
-                        textAlign = TextAlign.Center,
-                        modifier = Modifier
-                            .width(metrics.slotWidth)
-                            .height(metrics.lineHeight)
-                            // Мелькающие знаки идут вполсилы: настоящая буква
-                            // в конце пути должна выделяться на их фоне,
-                            // иначе не читается, что барабан «встал».
-                            .alpha(if (drumChar == char) 1f else PassingAlpha),
-                    )
-                }
-            }
+    // Смещение ленты в долях высоты окошка. Хранится в Float-состоянии и
+    // читается внутри draw — это и есть весь механизм без рекомпозиций.
+    var travel by remember(char) { mutableFloatStateOf(0f) }
+    LaunchedEffect(progress, char) {
+        // Кадры идут от progress: анимация внешняя, а здесь только её
+        // отображение. Так эффект не заводит собственный таймер, и смена
+        // фразы на полпути не оставляет висеть старую прокрутку.
+        while (true) {
+            travel = progress.coerceIn(0f, 1f)
+            if (travel >= 1f) break
+            delay(FrameMs)
         }
+        travel = 1f
+    }
+
+    Canvas(
+        modifier = Modifier
+            .width(cellWidth)
+            .height(cellHeight)
+            .clipToBounds(),
+    ) {
+        val height = size.height
+        // Сдвиг: лента едет вверх, пока не встанет на место. Округление до
+        // целых пикселей обязательно — при дробном сдвиге сглаживание
+        // размазывает глифы, и прокрутка читается как мыло.
+        val shift = (travel * height).toInt().toFloat()
+        val centerX = size.width / 2f
+
+        drawGlyph(real, centerX, -shift + CenteringOffset, color)
+        drawGlyph(noise, centerX, height - shift + CenteringOffset, color.copy(alpha = NoiseAlpha))
     }
 }
 
 /**
- * Столбец барабана: приходящий знак и мелькающие между оборотами.
+ * Рисует глиф по центру окошка.
  *
- * Заканчивается тем же знаком, что и начинается, — барабан делает целое
- * число оборотов. Иначе последний кадр прыгал бы на первую букву, и вместо
- * остановки получался бы скачок.
+ * Смещение по вертикали задаётся снаружи: `drawText` принимает левый верхний
+ * угол, а нам нужно положение в ленте, поэтому вертикальный отсчёт ведёт
+ * вызывающий.
  */
-private fun buildDrumColumn(char: Char, index: Int, seed: Int, turns: Int): List<Char> {
-    val rnd = Random(index * 104729 + seed * 8191 + turns)
-    return buildList {
-        add(char)
-        repeat(turns) { add(randomGlyph(rnd)) }
-        add(char)
-    }
+private fun DrawScope.drawGlyph(
+    glyph: TextLayoutResult,
+    centerX: Float,
+    y: Float,
+    color: Color,
+) {
+    drawText(
+        textLayoutResult = glyph,
+        color = color,
+        topLeft = Offset(centerX - glyph.size.width / 2f, y),
+    )
 }
 
 /**
- * Сколько оборотов делает барабан.
+ * Вертикальная поправка при центрировании глифа в окошке.
  *
- * 1..4. Один — минимум движения, больше четырёх перестаёт читаться как
- * механизм и превращается в мельтешение, в котором не разглядеть, куда
- * крутится.
+ * `TextLayoutResult.size` больше видимой высоты буквы: в него входит место
+ * под верхние и нижние выносные элементы. Ноль здесь означает «рисовать от
+ * верхнего края размера», что и совпадает с положением глифа в измеренном
+ * боксе.
  */
-private fun drumTurns(index: Int, seed: Int): Int {
-    val h = (index * 73856093) xor (seed * 19349663)
-    return (h and 0x7fffffff) % 4 + 1
-}
+private const val CenteringOffset = 0f
 
 /**
- * Направление вращения барабана.
+ * Набор знаков, через которые проходит барабан.
  *
- * Часть колёс едет вверх, часть вниз. В настоящем механизме так и есть —
- * колёса вращаются независимо; при общем направлении ряд читается как
- * одна прокрутка, а не как счётчик.
+ * Буквы и цифры, без `I`, `O`, `l`, `0`, `1` — неразличимые в шрифте пары.
+ * Знаки пунктуации здесь не нужны: барабан подкручивается между буквами,
+ * и `#` посреди слова читался бы как сбой, а не как прокрутка.
  */
-private fun drumDirection(index: Int, seed: Int): Int =
-    if (((index * 83492791) xor seed) and 1 == 0) 1 else -1
+private const val NoiseAlphabet = "ABCDEFGHJKMNPQRSTUVWXYZ23456789"
 
-/** Скругление окна барабана: заметно мягкое, но не круглое. */
-private val DrumClipShape = RoundedCornerShape(
-    topStartPercent = 12,
-    topEndPercent = 12,
-    bottomStartPercent = 12,
-    bottomEndPercent = 12,
-)
+/** Насколько приглушён выезжающий знак: настоящая буква обязана выделяться. */
+private const val NoiseAlpha = 0.30f
 
-/**
- * Насколько приглушены мелькающие знаки.
- *
- * 0.45. При единице вращение читалось бы как мешанина равноправных букв;
- * при 0.2 мелькания не видно вовсе, и барабан выглядел бы просто сдвигом.
- */
-private const val PassingAlpha = 0.45f
-
-/**
- * Каскад одометра растянут сильнее, чем у шифратора.
- *
- * 0.72 против 0.55: барабаны обязаны останавливаться ощутимо по очереди.
- * С каскадом шифратора последние позиции вставали бы одновременно с первыми,
- * и ряд превращался бы обратно в шторку.
- */
-private const val DrumSpread = 0.72f
-
-/** Встал ли барабан этой позиции — для тестов и превью. */
-internal fun odometerSettled(progress: Float, index: Int, length: Int): Boolean =
-    charProgress(progress, index, length, spread = DrumSpread) >= 1f
-
-/** Длительность анимации одометра, миллисекунды. */
-internal const val ODOMETER_TRANSITION_MS = 820
+/** Шаг перерисовки анимации. */
+private const val FrameMs = 16L
