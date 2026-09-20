@@ -58,13 +58,13 @@ class SettingsRepository(private val dataStore: DataStore<Preferences>) {
         val API_FISH_VOICE = stringPreferencesKey("pref_api_fish_voice")
 
         /**
-         * Длина сегмента распознавания, секунды.
+         * Длина паузы, означающей конец фразы, секунды.
          *
-         * Хранится числом с плавающей точкой: значения вида 1.6 с шагом 0.2
-         * не выражаются целым, а округление до секунды дало бы заметную
-         * разницу между «субтитры успевают» и «субтитры отстают».
+         * Хранится числом с плавающей точкой: значения вида 0.6 с шагом 0.1
+         * целым не выражаются, а округление до секунды дало бы заметную
+         * разницу между «обрывает на вдохе» и «ждёшь после каждой фразы».
          */
-        val API_STT_CHUNK = floatPreferencesKey("pref_api_stt_chunk_seconds")
+        val API_STT_SILENCE = floatPreferencesKey("pref_api_stt_silence_seconds")
 
         /**
          * Профиль «мозга»: имя [com.my.amali.domain.entity.AiProfile].
@@ -133,11 +133,11 @@ class SettingsRepository(private val dataStore: DataStore<Preferences>) {
                 sttModel = this[Keys.API_STT_MODEL].orEmpty(),
                 ttsModel = this[Keys.API_TTS_MODEL].orEmpty(),
                 fishVoiceId = this[Keys.API_FISH_VOICE].orEmpty(),
-                sttChunkSeconds = (
-                    this[Keys.API_STT_CHUNK] ?: UserApiSettings.STT_CHUNK_DEFAULT_SECONDS
+                sttSilenceSeconds = (
+                    this[Keys.API_STT_SILENCE] ?: UserApiSettings.STT_SILENCE_DEFAULT_SECONDS
                     ).coerceIn(
-                    UserApiSettings.STT_CHUNK_MIN_SECONDS,
-                    UserApiSettings.STT_CHUNK_MAX_SECONDS,
+                    UserApiSettings.STT_SILENCE_MIN_SECONDS,
+                    UserApiSettings.STT_SILENCE_MAX_SECONDS,
                 ),
                 customEndpoint = this[Keys.API_CUSTOM_ENDPOINT].orEmpty(),
                 customModel = this[Keys.API_CUSTOM_MODEL].orEmpty(),
@@ -294,18 +294,18 @@ class SettingsRepository(private val dataStore: DataStore<Preferences>) {
     }
 
     /**
-     * Длина сегмента распознавания в секундах.
+     * Длина паузы, означающей конец фразы.
      *
      * Значение обрезается по границам из [UserApiSettings], а не принимается
-     * как есть: слайдер в интерфейсе — не единственный вызывающий, и запись
-     * «0.05 секунды» из любого другого места превратила бы распознавание в
-     * поток запросов к Whisper.
+     * как есть: слайдер — не единственный вызывающий, а запись «0.05
+     * секунды» из любого другого места означала бы, что ассистент
+     * перестаёт слушать на каждом межсловном промежутке.
      */
-    suspend fun setSttChunkSeconds(seconds: Float) {
+    suspend fun setSttSilenceSeconds(seconds: Float) {
         dataStore.edit {
-            it[Keys.API_STT_CHUNK] = seconds.coerceIn(
-                UserApiSettings.STT_CHUNK_MIN_SECONDS,
-                UserApiSettings.STT_CHUNK_MAX_SECONDS,
+            it[Keys.API_STT_SILENCE] = seconds.coerceIn(
+                UserApiSettings.STT_SILENCE_MIN_SECONDS,
+                UserApiSettings.STT_SILENCE_MAX_SECONDS,
             )
         }
     }

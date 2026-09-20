@@ -167,7 +167,6 @@
     <string name="history_no_results">Nichts gefunden</string>
     <string name="history_messages">Nachrichten: %1$d</string>
     <string name="history_delete_confirm">Gespräch löschen?</string>
-    <string name="assistant_connecting">einen Moment, verbinde…</string>
     <string name="appearance_glass_always_dark">Liquid Glass ist immer dunkel: nur so funktionieren Glas und Leuchten richtig.</string>
     <string name="history_empty">Noch keine Gespräche</string>
     <string name="history_empty_desc">Sprich mit Amalia, und deine Gespräche erscheinen hier.</string>
@@ -314,9 +313,9 @@
     <string name="settings_api_stt">Hören · Groq Whisper</string>
     <string name="settings_stt_title">Spracherkennung</string>
     <string name="settings_stt_key_shared">Das Hören nutzt denselben Groq-Schlüssel wie das Denken — kein separater Schlüssel nötig.</string>
-    <string name="settings_stt_chunk_title">Wie viel Sprache vor dem ersten Text</string>
-    <string name="settings_stt_chunk_desc">Kürzer — Untertitel erscheinen schneller, aber mehr Anfragen. Länger — sparsamer mit dem Kontingent.</string>
-    <string name="settings_stt_chunk_hint">Ändere es, wenn Untertitel hinterherhinken oder zu oft flackern.</string>
+    <string name="settings_stt_silence_title">Pause, die den Satz beendet</string>
+    <string name="settings_stt_silence_desc">Wie viel Stille gewartet wird, bevor du als fertig giltst.</string>
+    <string name="settings_stt_silence_hint">Verringere sie, wenn der Assistent zu spät antwortet. Erhöhe sie, wenn er dich mitten im Satz unterbricht.</string>
     <string name="settings_api_tts">Stimme · Fish Audio</string>
     <string name="settings_api_key_label">%1$s-Schlüssel</string>
     <string name="settings_api_key_placeholder">Schlüssel aus der Konsole einfügen</string>

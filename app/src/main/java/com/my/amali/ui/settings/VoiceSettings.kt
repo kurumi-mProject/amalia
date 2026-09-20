@@ -122,9 +122,9 @@ fun VoiceSettings(
 
             SttEngineCard()
 
-            SttChunkSlider(
-                value = settings.api.sttChunkSeconds,
-                onValueChange = { vm.setSttChunkSeconds(it) },
+            SttSilenceSlider(
+                value = settings.api.sttSilenceSeconds,
+                onValueChange = { vm.setSttSilenceSeconds(it) },
             )
 
             Spacer(Modifier.height(96.dp))
@@ -138,10 +138,10 @@ fun VoiceSettings(
  * ## Почему она перестала быть статичной
  *
  * Раньше здесь были захардкожены `voice_tts_engine_mock` и бейдж «DEMO» —
- * независимо от того, что реально работает. При зашитых ключах Deepgram,
- * Groq и Fish Audio пользователь всё равно видел «Демо (заглушка)»: экран
- * врал о состоянии системы, и по нему невозможно было понять, почему голос
- * звучит не так, как ожидалось.
+ * независимо от того, что реально работает. При зашитых ключах Groq и
+ * Fish Audio пользователь всё равно видел «Демо (заглушка)»: экран врал о
+ * состоянии системы, и по нему невозможно было понять, почему голос звучит
+ * не так, как ожидалось.
  *
  * Теперь карточка читает [ServiceLocator.hasLiveKeys] — то же условие, по
  * которому собирается конвейер, — и честно показывает:
@@ -246,26 +246,26 @@ private fun SttEngineCard(modifier: Modifier = Modifier) {
 }
 
 /**
- * Слайдер «сколько речи набирать до первого текста».
+ * Слайдер «сколько тишины считать концом фразы».
  *
  * Вынесен на экран голоса, потому что это единственная настройка
- * распознавания, которую человек действительно может оценить на слух:
- * подвигав ползунок, он слышит, как меняется живость субтитров.
+ * распознавания, которую человек способен оценить на слух: подвигав
+ * ползунок, он слышит, как быстро ассистент понимает, что он договорил.
  */
 @Composable
-private fun SttChunkSlider(
+private fun SttSilenceSlider(
     value: Float,
     onValueChange: (Float) -> Unit,
     modifier: Modifier = Modifier,
 ) {
     GlassSlider(
         modifier = modifier,
-        label = stringResource(R.string.settings_stt_chunk_title),
+        label = stringResource(R.string.settings_stt_silence_title),
         // Секунды одинаковы во всех локалях — держим короткий формат.
         valueText = "%.1f с".format(value),
         value = value,
-        valueRange = UserApiSettings.STT_CHUNK_MIN_SECONDS..
-            UserApiSettings.STT_CHUNK_MAX_SECONDS,
+        valueRange = UserApiSettings.STT_SILENCE_MIN_SECONDS..
+            UserApiSettings.STT_SILENCE_MAX_SECONDS,
         onValueChange = onValueChange,
     )
 }

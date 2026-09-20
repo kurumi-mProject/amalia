@@ -167,7 +167,6 @@
     <string name="history_no_results">कुछ नहीं मिला</string>
     <string name="history_messages">संदेश: %1$d</string>
     <string name="history_delete_confirm">बातचीत हटाएँ?</string>
-    <string name="assistant_connecting">रुकिए, कनेक्ट हो रहा है…</string>
     <string name="appearance_glass_always_dark">Liquid Glass हमेशा डार्क रहता है: इसी तरह काँच और उसकी चमक सही काम करते हैं।</string>
     <string name="history_empty">अभी कोई बातचीत नहीं</string>
     <string name="history_empty_desc">अमालिया से बात करो, बातचीत यहाँ दिखेगी।</string>
@@ -314,9 +313,9 @@
     <string name="settings_api_stt">सुनना · Groq Whisper</string>
     <string name="settings_stt_title">भाषण पहचान</string>
     <string name="settings_stt_key_shared">सुनना उसी Groq कुंजी पर चलता है जिस पर दिमाग — अलग कुंजी की ज़रूरत नहीं।</string>
-    <string name="settings_stt_chunk_title">पहले टेक्स्ट तक कितनी बात जमा करें</string>
-    <string name="settings_stt_chunk_desc">छोटा — सबटाइटल जल्दी आते हैं, पर अनुरोध ज़्यादा। बड़ा — कोटा बचता है।</string>
-    <string name="settings_stt_chunk_hint">बदलें अगर सबटाइटल पीछे चलें या बहुत जल्दी बदलें।</string>
+    <string name="settings_stt_silence_title">वाक्य खत्म करने वाली चुप्पी</string>
+    <string name="settings_stt_silence_desc">यह तय करने से पहले कितनी चुप्पी रुकें कि तुमने बात पूरी कर ली।</string>
+    <string name="settings_stt_silence_hint">अगर जवाब देर से आता है तो घटाएँ। अगर बीच में काटता है तो बढ़ाएँ।</string>
     <string name="settings_api_tts">आवाज़ · Fish Audio</string>
     <string name="settings_api_key_label">%1$s कुंजी</string>
     <string name="settings_api_key_placeholder">कंसोल से कुंजी चिपकाएँ</string>

@@ -193,7 +193,7 @@ object ServiceLocator {
                 api.customEndpoint,
                 api.customModel,
                 api.customKey,
-                api.sttChunkSeconds.toString(),
+                api.sttSilenceSeconds.toString(),
             ).joinToString(FINGERPRINT_SEPARATOR)
         }
 

@@ -1,11 +1,13 @@
 package com.my.amali.data.ai
 
 import android.Manifest
+import android.content.Context
 import android.content.pm.PackageManager
 import android.media.AudioFormat
 import android.media.AudioRecord
 import android.media.MediaRecorder
 import androidx.core.content.ContextCompat
+import com.my.amali.BuildConfig
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.channels.awaitClose
 import kotlinx.coroutines.flow.Flow
@@ -14,110 +16,68 @@ import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 
 /**
- * Распознавание речи на Groq Whisper с локальным детектором голоса.
+ * Распознавание речи: микрофон → громкость определяет конец фразы → Whisper.
  *
  * ════════════════════════════════════════════════════════════════════════
- *  ЧЕМ ЭТО ОТЛИЧАЕТСЯ ОТ ПРЕДЫДУЩЕГО ДВИЖКА
- * ════════════════════════════════════════════════════════════════════════
- *
- * Раньше распознавание было потоковым: веб-сокет, аудио уходило по 100 мс,
- * текст возвращался в реальном времени, а конец фразы определял сервер.
- * Схема давала живые субтитры, но упиралась в три вещи, которые человек
- * чувствует каждый раз:
- *
- *  1. **Холодный старт.** Пока сокет открывается (TCP, TLS, рукопожатие),
- *     микрофон уже пишет — и первые слова улетают в ещё не открытое
- *     соединение. Отсюда «задержка после нажатия» и «связь».
- *  2. **Цена обрыва.** Пропала сеть на середине фразы — потеряна вся фраза:
- *     сервер не получил остаток, финальный текст не пришёл.
- *  3. **Отдельный аккаунт.** Свой ключ, свой счёт, свой лимит — ещё одна
- *     сущность, которую пользователю нужно завести и оплатить.
- *
- * Здесь всё иначе: **короткие обычные HTTP-запросы**, а конец фразы
- * определяет детектор голоса на устройстве. Ничего не нужно ждать заранее,
- * ничего не теряется при обрыве, и всё живёт на том же ключе Groq, что и мозг.
- *
- * ════════════════════════════════════════════════════════════════════════
- *  КАК УСТРОЕН ЦИКЛ
+ *  ВСЯ ЛОГИКА В ТРЁХ ПРАВИЛАХ
  * ════════════════════════════════════════════════════════════════════════
  *
  * ```
- * AudioRecord 16 кГц mono
- *        │  кадры по 32 мс
- *        ▼
- *   Silero VAD ── речь? ── нет ──▶ копим тишину
- *        │ да                         │
- *        │                            └─ 600 мс тишины после речи → ФИНАЛ
- *        ▼
- *   пишем в буфер речевого сегмента
- *        │
- *        ├─ каждые N секунд (настройка) ─▶ turbo Whisper ─▶ Partial (субтитры)
- *        │
- *        └─ тишина 600 мс ─▶ Whisper ─▶ Final ─▶ конец потока
+ *  1. После нажатия микрофона пишем ВСЁ, не разбирая, речь это или нет.
+ *  2. Первую секунду конец фразы не проверяем — человек только собирается.
+ *  3. Дальше: если стало тихо на 600 мс — фраза кончилась, отправляем.
  * ```
  *
- * За одну длинную фразу уходит три запроса: два промежуточных ради субтитров
- * и один финальный ради точности. Это в разы меньше, чем отправлять всю фразу
- * целиком снова и снова, и с большим запасом укладывается в бесплатный лимит
- * 7200 секунд аудио в сутки.
+ * Никаких нейросетей, чанков, промежуточных гипотез и дообрезки. Громкость
+ * считается по кадру в 32 мс, тишина — по часам. Всё остальное берёт на
+ * себя Whisper: он и так делает распознавание лучше любого «умного»
+ * препроцессинга, была бы запись целиком.
  *
  * ════════════════════════════════════════════════════════════════════════
- *  ПОЧЕМУ ФИНАЛ ОТПРАВЛЯЕТСЯ ОТДЕЛЬНО, А НЕ БЕРЁТСЯ ИЗ ПОСЛЕДНЕГО ЧАНКА
+ *  ПОЧЕМУ ЭТО НАДЁЖНЕЕ НЕЙРОСЕТЕВОГО ДЕТЕКТОРА
  * ════════════════════════════════════════════════════════════════════════
  *
- * Промежуточный чанк — обрезанный кусок: он начинается с середины фразы и
- * заканчивается не на её конце. Распознавание такого куска даёт текст с
- * потерянным началом. Для субтитров это незаметно (человек видит, как текст
- * достраивается), но отправлять его в модель как команду нельзя: «включи
- * яркость на восемьдесят» превратилось бы в «яркость на восемьдесят».
- * Поэтому финальный запрос несёт полный речевой буфер с самого первого слова.
+ * Предыдущая версия несла в себе Silero VAD: модель на 2 МБ внутри APK,
+ * рантайм ONNX, отдельная нативная библиотека и правила R8, чтобы её не
+ * вырезали. Модель различает речь и шум тоньше — и ровно на этом
+ * проваливается в тех случаях, ради которых её ставили:
+ *
+ *  — **шёпот** обученная модель считает шумом: он не похож на «среднюю
+ *    речь». Человек шепчет — и ассистент молчит;
+ *  — **нестандартная интонация** (медленно, растягивая, с придыханием)
+ *    не проходит порог уверенности;
+ *  — **разная громкость записи** на разных телефонах: модель обучена на
+ *    нормализованном звуке, а микрофон конкретной модели может писать
+ *    заметно тише.
+ *
+ * Громкость всего этого не знает и знать не хочет. Она сравнивает кадр с
+ * тем, что было в этой же комнате секунду назад, поэтому одинаково честно
+ * работает и с шёпотом, и с криком, и в тишине, и в кафе.
  *
  * ════════════════════════════════════════════════════════════════════════
- *  ПОЧЕМУ В БУФЕР ПОПАДАЕТ ТОЛЬКО РЕЧЬ
+ *  ЧТО ВИДИТ ЧЕЛОВЕК
  * ════════════════════════════════════════════════════════════════════════
  *
- * В буфер пишутся кадры, которые VAD признал речью, плюс короткий хвост
- * тишины после последнего слова. Долгая тишина в запрос не уходит вообще:
- * человек может думать десять секунд после нажатия кнопки, и это не стоит
- * ни одного лишнего байта квоты. Тишина между словами внутри фразы остаётся —
- * иначе речь звучала бы как склейка обрывков и распознавалась бы хуже.
+ * Уровень микрофона уходит в UI каждый кадр, поэтому волна на экране дышит
+ * всё время записи — и когда человек говорит, и когда молчит. Текст
+ * появляется один раз, целиком, когда фраза распознана: промежуточных
+ * гипотез здесь нет, и это осознанно — они стоили дополнительного запроса
+ * к Whisper каждые несколько секунд, а человек всё равно читает только
+ * итог.
  */
-class GroqWhisperStt(private val context: android.content.Context) : SpeechToTextEngine {
+class GroqWhisperStt(private val context: Context) : SpeechToTextEngine {
 
-    private val client = GroqSttClient(context)
+    private val client = GroqSttClient()
 
-    /** Детектор создаётся один раз: загрузка модели ONNX занимает десятки мс. */
-    @Volatile
-    private var detector: VoiceActivityDetector? = null
+    /** Прогрев делать нечего: соединение открывается самим запросом. */
+    override suspend fun preconnect() = Unit
 
-    /**
-     * Прогрев: готовит детектор заранее, пока палец ещё на кнопке.
-     *
-     * Раньше здесь открывался веб-сокет. Теперь сокета нет, но есть модель
-     * VAD: её загрузка — единственная часть, которую можно сделать заранее,
-     * и она того стоит, потому что от неё зависит, услышим ли мы первое слово.
-     */
-    override suspend fun preconnect() {
-        ensureDetector()
-    }
-
-    override suspend fun initialize() {
-        ensureDetector()
-    }
+    override suspend fun initialize() = Unit
 
     override suspend fun close() {
-        detector?.close()
-        detector = null
         client.shutdown()
     }
 
-    /**
-     * Записывает одну фразу и возвращает её текст.
-     *
-     * Поток закрывается сам, когда срабатывает одно из условий: человек
-     * замолчал на 600 мс после речи, он так и не заговорил за 6 секунд, или
-     * запись достигла жёсткого лимита длительности.
-     */
     override fun transcribe(options: EngineOptions): Flow<SttEvent> = callbackFlow {
         if (ContextCompat.checkSelfPermission(context, Manifest.permission.RECORD_AUDIO)
             != PackageManager.PERMISSION_GRANTED
@@ -125,31 +85,24 @@ class GroqWhisperStt(private val context: android.content.Context) : SpeechToTex
             throw EngineException(ERROR_NO_PERMISSION)
         }
 
-        val apiKey = options.api.groqKey.trim().ifBlank { BuildConfigKey }
-        if (apiKey.isBlank()) throw EngineException(ERROR_NO_KEY)
-
-        val vad = ensureDetector()
-        val frameSamples = vad.frameSamples
-        val frameMs = VoiceActivityDetector.FRAME_MS.toLong()
-
-        val minBuffer = AudioRecord.getMinBufferSize(
-            SAMPLE_RATE, AudioFormat.CHANNEL_IN_MONO, AudioFormat.ENCODING_PCM_16BIT,
+        val apiKey = resolveKey(options)
+        val recorder = openRecorder()
+        val model = ModelCatalog.resolveForRequest(
+            ModelCatalog.Provider.GROQ_STT,
+            options.api.sttModel,
         )
-        if (minBuffer <= 0) throw EngineException(ERROR_MIC_UNAVAILABLE)
-
-        val recorder = openRecorder(minBuffer)
-        val model = ModelCatalog.resolveForRequest(ModelCatalog.Provider.GROQ_STT, options.api.sttModel)
-        val whisperLanguage = options.languageCode.trim()
+        val language = options.languageCode.trim()
         val prompt = recognitionPrompt(options)
-
-        // Буфер всей фразы — растёт пока говорит
-        val utterance = ShortAccumulator(MAX_UTTERANCE_SAMPLES)
-        var speechStarted = false
-        var silenceMs = 0L
-        val startedAt = System.currentTimeMillis()
+        // Пауза, означающая конец фразы: приходит из настроек, чтобы человек
+        // мог подстроить её под свою манеру речи, не пересобирая приложение.
+        val silenceMs = (options.api.sttSilenceSeconds * 1000f)
+            .toLong()
+            .coerceIn(MIN_SILENCE_MS, MAX_SILENCE_MS)
 
         val job = launch(Dispatchers.IO) {
-            val raw = ShortArray(frameSamples)
+            val gate = SpeechGate()
+            val take = VoiceRecorder(silenceMs = silenceMs)
+
             try {
                 recorder.startRecording()
                 if (recorder.recordingState != AudioRecord.RECORDSTATE_RECORDING) {
@@ -157,89 +110,89 @@ class GroqWhisperStt(private val context: android.content.Context) : SpeechToTex
                     return@launch
                 }
 
-                AmaliaLog.i("STT", "recording started | frameSamples=$frameSamples frameMs=${frameMs}ms")
+                AmaliaLog.i(
+                    AmaliaLog.tagWith("STT"),
+                    "listening | frame=${VoiceAudio.FRAME_MS}ms guard=${VoiceRecorder.START_GUARD_MS}ms silence=${VoiceRecorder.END_SILENCE_MS}ms",
+                )
 
+                val frame = ShortArray(VoiceAudio.FRAME_SAMPLES)
                 while (isActive) {
-                    val read = recorder.read(raw, 0, frameSamples)
+                    val read = recorder.read(frame, 0, frame.size)
                     if (read <= 0) continue
+                    val chunk = if (read == frame.size) frame else frame.copyOf(read)
 
-                    val frame = if (read == frameSamples) raw else raw.copyOf(read)
+                    val level = VoiceAudio.level(chunk)
+                    // Уровень отправляем всегда: волна должна дышать и в
+                    // тишине тоже — иначе кажется, что ассистент не слушает.
+                    trySend(SttEvent.Level(level))
 
-                    // Уровень громкости — всегда, независимо от VAD
-                    trySend(SttEvent.Level(VoiceSegmenter.level(frame)))
+                    // Решение о речи принимается по уровню и калиброванному
+                    // порогу: одна строка, один источник правды.
+                    val speech = gate.isSpeech(chunk, level)
+                    if (speech) gate.markSpeech() else gate.markSilence()
 
-                    val isSpeech = vad.isSpeech(frame)
-
-                    if (isSpeech) {
-                        if (!speechStarted) {
-                            AmaliaLog.i("STT", "★ speech started")
-                        }
-                        speechStarted = true
-                        silenceMs = 0
-                        utterance.append(frame)
-                    } else {
-                        if (speechStarted) {
-                            // Дописываем хвост тишины — последний согласный часто тише порога
-                            utterance.append(frame)
-                            silenceMs += frameMs
-
-                            if (silenceMs >= END_OF_SPEECH_MS) {
-                                AmaliaLog.i("STT", "★ end of speech | utteranceSamples=${utterance.size} silenceMs=${silenceMs}ms")
-                                break
-                            }
-                        } else {
-                            // Речь не началась — ждём NO_SPEECH_TIMEOUT_MS
-                            if (System.currentTimeMillis() - startedAt > NO_SPEECH_TIMEOUT_MS) {
-                                AmaliaLog.w("STT", "no speech timeout")
-                                channel.close()
-                                return@launch
-                            }
-                        }
-                    }
-
-                    // Жёсткий лимит длины
-                    if (utterance.size >= MAX_UTTERANCE_SAMPLES) {
-                        AmaliaLog.w("STT", "max utterance length reached")
+                    val done = take.accept(chunk, speech, VoiceAudio.FRAME_MS)
+                    if (done) {
+                        AmaliaLog.i(
+                            AmaliaLog.tagWith("STT"),
+                            "end of phrase | speech=${take.hasSpeech} samples=${take.length} " +
+                                "duration=${take.durationMs}ms silentFor=${take.silentForMs}ms",
+                        )
                         break
                     }
                 }
             } catch (e: SecurityException) {
-                close(EngineException(ERROR_PERMISSION_REVOKED, e)); return@launch
+                close(EngineException(ERROR_PERMISSION_REVOKED, e))
+                return@launch
             } catch (e: IllegalStateException) {
-                close(EngineException(ERROR_MIC_BUSY, e)); return@launch
+                close(EngineException(ERROR_MIC_BUSY, e))
+                return@launch
+            } catch (e: Throwable) {
+                close(EngineException(e.message ?: ERROR_MIC_UNAVAILABLE, e))
+                return@launch
             } finally {
                 runCatching {
-                    if (recorder.recordingState == AudioRecord.RECORDSTATE_RECORDING) recorder.stop()
+                    if (recorder.recordingState == AudioRecord.RECORDSTATE_RECORDING) {
+                        recorder.stop()
+                    }
                 }
+                runCatching { recorder.release() }
             }
 
-            if (!speechStarted || utterance.size == 0) {
-                AmaliaLog.w("STT", "no speech in buffer")
+            if (!take.hasSpeech || take.length == 0) {
+                // Ничего не расслышали: закрываем поток без текста, и
+                // оркестратор скажет «не услышала ни слова».
+                AmaliaLog.w(AmaliaLog.tagWith("STT"), "no speech detected")
                 channel.close()
                 return@launch
             }
 
-            // Отправляем ВЕСЬ буфер — никаких хвостов, никаких обрезков
-            AmaliaLog.i("STT", "sending to Whisper | samples=${utterance.size} (~${utterance.size / SAMPLE_RATE}s)")
-            val finalText = runCatching {
+            val seconds = take.length.toFloat() / VoiceAudio.SAMPLE_RATE
+            AmaliaLog.i(
+                AmaliaLog.tagWith("STT"),
+                "sending to whisper | ${"%.2f".format(seconds)}s | model=$model",
+            )
+
+            val text = runCatching {
                 client.transcribe(
-                    wav = VoiceSegmenter.toWav(utterance.toArray()),
-                    languageCode = whisperLanguage,
+                    wav = take.toWav(),
+                    languageCode = language,
                     model = model,
                     apiKey = apiKey,
                     prompt = prompt,
                 )
             }.getOrElse { error ->
-                AmaliaLog.e("STT", "whisper error: ${error.message}", error)
+                AmaliaLog.e(AmaliaLog.tagWith("STT"), "whisper failed: ${error.message}", error)
                 close(EngineException(error.message ?: ERROR_RECOGNITION, error))
                 return@launch
             }
 
-            val cleaned = VoiceSegmenter.collapseRepeats(finalText)
-            AmaliaLog.i("STT", "whisper result: \"${cleaned.take(80)}\"")
-
-            if (cleaned.isNotBlank()) {
-                trySend(SttEvent.Final(cleaned))
+            AmaliaLog.i(
+                AmaliaLog.tagWith("STT"),
+                "recognized | \"${text.take(80)}\" | ${text.length} chars",
+            )
+            if (text.isNotBlank()) {
+                trySend(SttEvent.Final(text))
             }
             channel.close()
         }
@@ -252,54 +205,66 @@ class GroqWhisperStt(private val context: android.content.Context) : SpeechToTex
     }
 
     /**
-     * Детектор создаётся лениво и потокобезопасно.
+     * Ключ: свой из настроек, иначе зашитый в сборку.
      *
-     * `synchronized` здесь не для красоты: [preconnect] вызывается из UI
-     * (касание кнопки), а [transcribe] — из корутины разговора, и оба могут
-     * прийти почти одновременно. Без синхронизации модель загрузилась бы
-     * дважды, а лишняя сессия ONNX — это десятки мегабайт памяти.
+     * Слух и мозг работают на одном ключе Groq — распознавание идёт в том же
+     * аккаунте, поэтому отдельного поля в настройках не существует.
      */
-    private fun ensureDetector(): VoiceActivityDetector {
-        detector?.let { return it }
-        synchronized(this) {
-            detector?.let { return it }
-            val created = VoiceActivityDetector.create(context)
-            detector = created
-            return created
-        }
-    }
-
-    private fun openRecorder(minBuffer: Int): AudioRecord {
-        val readBytes = minBuffer.coerceAtLeast(READ_CHUNK_BYTES)
-        val recorder = try {
-            AudioRecord(
-                // VOICE_RECOGNITION отключает агрессивную обработку речи
-                // (эхоподавление, AGC): она помогает звонкам, но «сглаживает»
-                // тихие слова и портит распознавание.
-                MediaRecorder.AudioSource.VOICE_RECOGNITION,
-                SAMPLE_RATE,
-                AudioFormat.CHANNEL_IN_MONO,
-                AudioFormat.ENCODING_PCM_16BIT,
-                readBytes * 4,
-            )
-        } catch (e: Exception) {
-            throw EngineException(ERROR_MIC_UNAVAILABLE, e)
-        }
-        if (recorder.state != AudioRecord.STATE_INITIALIZED) {
-            recorder.release()
-            throw EngineException(ERROR_MIC_BUSY)
-        }
-        return recorder
+    private fun resolveKey(options: EngineOptions): String {
+        val user = options.api.groqKey.trim()
+        val key = user.ifBlank { BuildConfig.GROQ_API_KEY }
+        if (key.isBlank()) throw EngineException(ERROR_NO_KEY)
+        return key
     }
 
     /**
-     * Подсказка для Whisper.
+     * Открывает микрофон под распознавание речи.
+     *
+     * `VOICE_RECOGNITION` вместо `MIC`: он отключает агрессивную обработку
+     * (эхоподавление, автоматическую регулировку усиления), которая помогает
+     * в звонках, но «сглаживает» тихие слова. Для распознавания нужен
+     * честный звук, даже если он тихий.
+     *
+     * Если источник недоступен (редкие устройства), пробуем `MIC` — лучше
+     * записать с обработкой, чем не записать вовсе.
+     */
+    private fun openRecorder(): AudioRecord {
+        val minBuffer = AudioRecord.getMinBufferSize(
+            VoiceAudio.SAMPLE_RATE,
+            AudioFormat.CHANNEL_IN_MONO,
+            AudioFormat.ENCODING_PCM_16BIT,
+        )
+        if (minBuffer <= 0) throw EngineException(ERROR_MIC_UNAVAILABLE)
+
+        val size = minBuffer * BUFFER_MULTIPLIER
+        val sources = intArrayOf(
+            MediaRecorder.AudioSource.VOICE_RECOGNITION,
+            MediaRecorder.AudioSource.MIC,
+        )
+        for (source in sources) {
+            val recorder = runCatching {
+                @Suppress("DEPRECATION")
+                AudioRecord(
+                    source,
+                    VoiceAudio.SAMPLE_RATE,
+                    AudioFormat.CHANNEL_IN_MONO,
+                    AudioFormat.ENCODING_PCM_16BIT,
+                    size,
+                )
+            }.getOrNull() ?: continue
+            if (recorder.state == AudioRecord.STATE_INITIALIZED) return recorder
+            recorder.release()
+        }
+        throw EngineException(ERROR_MIC_UNAVAILABLE)
+    }
+
+    /**
+     * Подсказка для Whisper — короткий словарь ожидаемых слов.
      *
      * Модель не знает предметной области и на слух пишет «вай фай» или
-     * «включи ютуп». Короткий список ожидаемых слов снимает почти все такие
-     * ошибки: имена устройств, команд и приложений, которыми человек реально
-     * пользуется. Это не инструкция, а словарь — Whisper применяет его как
-     * смещение вероятностей при выборе токенов.
+     * «ютуп». Список слов смещает вероятности при выборе токенов и снимает
+     * почти все такие ошибки. Это не инструкция, а словарь: он не мешает
+     * распознать фразу, которой в списке нет.
      */
     private fun recognitionPrompt(options: EngineOptions): String {
         val builder = StringBuilder(BASE_PROMPT)
@@ -315,27 +280,21 @@ class GroqWhisperStt(private val context: android.content.Context) : SpeechToTex
         return builder.toString()
     }
 
-    private fun samplesFor(seconds: Float): Int =
-        (seconds * VoiceSegmenter.SAMPLE_RATE).toInt()
-
     private companion object {
-        const val SAMPLE_RATE = VoiceSegmenter.SAMPLE_RATE
+        /** Запас над минимальным буфером AudioRecord — против щелчков. */
+        const val BUFFER_MULTIPLIER = 4
 
-        /** Сколько читать за раз; кратно кадру VAD (512 сэмплов = 1024 байта). */
-        const val READ_CHUNK_BYTES = 3_200
-
-        /** Тишина после речи → конец фразы. 600мс — баланс между «обрезает» и «тормозит». */
-        const val END_OF_SPEECH_MS = 600L
-
-        /** Сколько ждать первого слова до таймаута. */
-        const val NO_SPEECH_TIMEOUT_MS = 8_000L
-
-        /** Сколько сэмплов речи максимум держим в буфере одной фразы (30 сек). */
-        val MAX_UTTERANCE_SAMPLES: Int = (30 * SAMPLE_RATE)
+        /** Перестраховка на случай, если настройка пришла битой. */
+        const val MIN_SILENCE_MS = 300L
+        const val MAX_SILENCE_MS = 2_000L
 
         /** Сколько названий приложений и синонимов вмещать в подсказку. */
         const val APPS_IN_PROMPT = 8
 
+        /**
+         * Базовый словарь. Собран из того, что Амалия реально умеет делать, —
+         * чтобы «включи блютуз» распознавалось одинаково у всех.
+         */
         const val BASE_PROMPT =
             "Амалия, вайфай, блютуз, яркость, громкость, фонарик, будильник, " +
                 "таймер, погода, ютуб, телеграм, вкл, выкл"
@@ -348,33 +307,5 @@ class GroqWhisperStt(private val context: android.content.Context) : SpeechToTex
         const val ERROR_MIC_UNAVAILABLE = "Микрофон недоступен на этом устройстве."
         const val ERROR_MIC_BUSY = "Микрофон занят другим приложением."
         const val ERROR_RECOGNITION = "Не удалось распознать речь."
-
-        val BuildConfigKey: String
-            get() = com.my.amali.BuildConfig.GROQ_API_KEY
     }
-}
-
-/**
- * Накопитель сэмплов речи с жёстким потолком.
- *
- * Отдельный класс, а не `MutableList<Short>`: речь идёт о десятках тысяч
- * сэмплов за фразу, и рост списка объектами `Short` дал бы тысячи аллокаций
- * на ровном месте. Массив с ручным размером держит одну непрерывную область.
- */
-private class ShortAccumulator(private val capacity: Int) {
-    val buffer = ShortArray(capacity.coerceAtLeast(1))
-    var size: Int = 0
-        private set
-
-    /** Дописывает кадр; при переполнении молча отбрасывает лишнее. */
-    fun append(frame: ShortArray) {
-        val room = buffer.size - size
-        if (room <= 0) return
-        val count = minOf(room, frame.size)
-        System.arraycopy(frame, 0, buffer, size, count)
-        size += count
-    }
-
-    /** Копия ровно набранной длины — то, что уходит в запрос распознавания. */
-    fun toArray(): ShortArray = buffer.copyOf(size)
 }

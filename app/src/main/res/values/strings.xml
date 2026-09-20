@@ -39,7 +39,6 @@
     <!-- === Ассистент === -->
     <string name="assistant_idle">на связи</string>
     <string name="assistant_listening">слушаю…</string>
-    <string name="assistant_connecting">подождите, подключаюсь…</string>
     <string name="assistant_thinking">думаю…</string>
     <string name="assistant_speaking">говорю…</string>
     <string name="assistant_error">ошибка</string>
@@ -331,9 +330,9 @@
     <string name="settings_api_stt">Слух · Groq Whisper</string>
     <string name="settings_stt_title">Настройки распознавания речи</string>
     <string name="settings_stt_key_shared">Слух работает на том же ключе Groq, что и мозг — отдельный ключ не нужен.</string>
-    <string name="settings_stt_chunk_title">Сколько речи набирать до первого текста</string>
-    <string name="settings_stt_chunk_desc">Короче — субтитры появляются живее, но запросов больше. Длиннее — экономнее по квоте.</string>
-    <string name="settings_stt_chunk_hint">Меняй, если субтитры отстают или наоборот мелькают слишком часто.</string>
+    <string name="settings_stt_silence_title">Пауза, означающая конец фразы</string>
+    <string name="settings_stt_silence_desc">Сколько тишины ждать, прежде чем считать, что ты договорил.</string>
+    <string name="settings_stt_silence_hint">Уменьши, если ассистент медлит с ответом. Увеличь, если он обрывает тебя на паузе между словами.</string>
     <string name="settings_api_tts">Голос · Fish Audio</string>
     <string name="settings_api_key_label">Ключ %1$s</string>
     <string name="settings_api_key_placeholder">вставь ключ из консоли</string>

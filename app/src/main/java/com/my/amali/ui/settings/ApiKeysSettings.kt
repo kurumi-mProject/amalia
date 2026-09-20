@@ -176,9 +176,9 @@ fun ApiKeysSettings(
 
             GroqSttGroup(
                 modelValue = api.sttModel,
-                chunkSeconds = api.sttChunkSeconds,
+                silenceSeconds = api.sttSilenceSeconds,
                 onModelChange = { vm.setProviderModel(ModelCatalog.Provider.GROQ_STT, it) },
-                onChunkChange = { vm.setSttChunkSeconds(it) },
+                onSilenceChange = { vm.setSttSilenceSeconds(it) },
             )
 
             SectionTitle(stringResource(R.string.settings_api_tts))
@@ -502,30 +502,30 @@ private fun CustomProviderGroup(
 }
 
 /**
- * Блок распознавания речи: модель Whisper и длина сегмента.
+ * Блок распознавания речи: модель Whisper и пауза конца фразы.
  *
  * ## Почему здесь нет поля для ключа
  *
- * Слух и мозг работают на одном ключе Groq — распознавание идёт в Whisper
+ * Слух и мозг работают на одном ключе Groq: распознавание идёт в Whisper
  * внутри того же аккаунта. Второе поле с тем же значением было бы не
- * настройкой, а ловушкой: человек вписал бы ключ в одно из них, не понял,
- * почему не работает, и решил, что приложение сломано. Поэтому у блока
- * ровно две настройки — те, что действительно меняют результат.
+ * настройкой, а ловушкой — человек вписал бы ключ в одно из них, не понял,
+ * почему не работает, и решил, что приложение сломано.
  *
- * ## Что означает «длина сегмента»
+ * ## Что означает «пауза конца фразы»
  *
- * Это не «через сколько отправить запрос», а «сколько речи набирать, прежде
- * чем показать распознанный текст на экране». Меньше — субтитры живее, но
- * запросов к Whisper больше; больше — экономнее, но текст появляется реже.
- * Границы и значение по умолчанию заданы в [UserApiSettings] по живому
- * замеру лимита.
+ * Ассистент пишет всё, что слышит, и перестаёт слушать, когда наступает
+ * тишина. Слайдер задаёт её длину: сколько миллисекунд молчания означают,
+ * что человек договорил. Меньше — реагирует проворнее, но рискует оборвать
+ * фразу на вдохе между словами; больше — надёжнее, но заставляет ждать.
+ *
+ * Границы и значение по умолчанию заданы в [UserApiSettings].
  */
 @Composable
 private fun GroqSttGroup(
     modelValue: String,
-    chunkSeconds: Float,
+    silenceSeconds: Float,
     onModelChange: (String) -> Unit,
-    onChunkChange: (Float) -> Unit,
+    onSilenceChange: (Float) -> Unit,
 ) {
     val options = remember { modelOptionsFor(ModelCatalog.Provider.GROQ_STT) }
     val provider = ModelCatalog.Provider.GROQ_STT
@@ -574,42 +574,41 @@ private fun GroqSttGroup(
             GlassDivider()
             Spacer(Modifier.height(Spacing.sm))
 
-            // Длина сегмента: слайдер с шагом 0.2 с. Формат «1.6 s» без
-            // перевода — секунды одинаковы во всех языках, а приписка
-            // словами только удлинила бы строку.
+            // Пауза конца фразы: слайдер с шагом 0.1 с. Секунды одинаковы
+            // во всех языках, поэтому формат короткий и без перевода.
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Column(Modifier.weight(1f)) {
                     Text(
-                        text = stringResource(R.string.settings_stt_chunk_title),
+                        text = stringResource(R.string.settings_stt_silence_title),
                         style = MaterialTheme.typography.bodyLarge,
                         color = MaterialTheme.colorScheme.onSurface,
                     )
                     Spacer(Modifier.height(2.dp))
                     Text(
-                        text = stringResource(R.string.settings_stt_chunk_desc),
+                        text = stringResource(R.string.settings_stt_silence_desc),
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
                 }
                 Spacer(Modifier.width(Spacing.sm))
                 Text(
-                    text = "%.1f с".format(chunkSeconds),
+                    text = "%.1f с".format(silenceSeconds),
                     style = MaterialTheme.typography.labelLarge,
                     color = MaterialTheme.colorScheme.primary,
                 )
             }
 
             Slider(
-                value = chunkSeconds,
-                onValueChange = onChunkChange,
-                valueRange = UserApiSettings.STT_CHUNK_MIN_SECONDS..
-                    UserApiSettings.STT_CHUNK_MAX_SECONDS,
-                steps = STT_CHUNK_STEPS,
+                value = silenceSeconds,
+                onValueChange = onSilenceChange,
+                valueRange = UserApiSettings.STT_SILENCE_MIN_SECONDS..
+                    UserApiSettings.STT_SILENCE_MAX_SECONDS,
+                steps = STT_SILENCE_STEPS,
                 modifier = Modifier.fillMaxWidth(),
             )
 
             Text(
-                text = stringResource(R.string.settings_stt_chunk_hint),
+                text = stringResource(R.string.settings_stt_silence_hint),
                 style = MaterialTheme.typography.labelSmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.8f),
             )
@@ -618,14 +617,14 @@ private fun GroqSttGroup(
 }
 
 /**
- * Число промежуточных делений слайдера.
+ * Число промежуточных делений слайдера паузы.
  *
- * Диапазон 0.6…4.0 с шагом 0.2 — это 17 возможных значений, то есть 16
+ * Диапазон 0.4…1.5 с шагом 0.1 — это 12 возможных значений, то есть 10
  * промежуточных точек между крайними. Считается здесь, а не вводится
  * числом: иначе при смене границ слайдер начал бы «дробить» значения
  * неравномерно.
  */
-private const val STT_CHUNK_STEPS: Int = 16
+private const val STT_SILENCE_STEPS: Int = 10
 
 /**
  * Обычное текстовое поле без маскировки — для адреса и имени модели.

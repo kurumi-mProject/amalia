@@ -167,7 +167,6 @@
     <string name="history_no_results">لم يتم العثور على شيء</string>
     <string name="history_messages">الرسائل: %1$d</string>
     <string name="history_delete_confirm">حذف المحادثة؟</string>
-    <string name="assistant_connecting">انتظر قليلًا، جارٍ الاتصال…</string>
     <string name="appearance_glass_always_dark">نمط Liquid Glass داكن دائمًا: هكذا يعمل الزجاج وتوهجه بشكل صحيح.</string>
     <string name="history_empty">لا محادثات بعد</string>
     <string name="history_empty_desc">تحدث مع أماليا وستظهر محادثاتك هنا.</string>
@@ -314,9 +313,9 @@
     <string name="settings_api_stt">السمع · Groq Whisper</string>
     <string name="settings_stt_title">التعرف على الكلام</string>
     <string name="settings_stt_key_shared">يعمل السمع على مفتاح Groq نفسه الذي يعمل عليه العقل — لا حاجة لمفتاح منفصل.</string>
-    <string name="settings_stt_chunk_title">مقدار الكلام قبل ظهور النص</string>
-    <string name="settings_stt_chunk_desc">أقصر: تظهر الترجمة أسرع لكن الطلبات أكثر. أطول: أوفر للحصة.</string>
-    <string name="settings_stt_chunk_hint">غيّره إن كانت الترجمة متأخرة أو تتغير بسرعة كبيرة.</string>
+    <string name="settings_stt_silence_title">الصمت الذي ينهي الجملة</string>
+    <string name="settings_stt_silence_desc">مدة الصمت التي تنتظرها قبل اعتبارك أنهيت كلامك.</string>
+    <string name="settings_stt_silence_hint">قلّلها إن تأخر الرد، وزِدها إن قاطعك في منتصف الجملة.</string>
     <string name="settings_api_tts">الصوت · Fish Audio</string>
     <string name="settings_api_key_label">مفتاح %1$s</string>
     <string name="settings_api_key_placeholder">الصق المفتاح من وحدة التحكم</string>

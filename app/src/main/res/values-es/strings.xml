@@ -167,7 +167,6 @@
     <string name="history_no_results">No se encontró nada</string>
     <string name="history_messages">mensajes: %1$d</string>
     <string name="history_delete_confirm">¿Eliminar la conversación?</string>
-    <string name="assistant_connecting">espera, conectando…</string>
     <string name="appearance_glass_always_dark">Liquid Glass siempre es oscuro: así funcionan bien el cristal y su brillo.</string>
     <string name="history_empty">Aún no hay conversaciones</string>
     <string name="history_empty_desc">Habla con Amalia y tus conversaciones aparecerán aquí.</string>
@@ -314,9 +313,9 @@
     <string name="settings_api_stt">Escucha · Groq Whisper</string>
     <string name="settings_stt_title">Reconocimiento de voz</string>
     <string name="settings_stt_key_shared">La escucha usa la misma clave de Groq que el cerebro: no hace falta otra.</string>
-    <string name="settings_stt_chunk_title">Cuánta voz reunir antes del primer texto</string>
-    <string name="settings_stt_chunk_desc">Más corto: los subtítulos aparecen antes, pero hay más solicitudes. Más largo: ahorra cuota.</string>
-    <string name="settings_stt_chunk_hint">Cámbialo si los subtítulos se retrasan o parpadean demasiado.</string>
+    <string name="settings_stt_silence_title">Pausa que termina la frase</string>
+    <string name="settings_stt_silence_desc">Cuánto silencio esperar antes de considerar que has terminado.</string>
+    <string name="settings_stt_silence_hint">Bájala si el asistente tarda en responder. Súbela si te corta a media frase.</string>
     <string name="settings_api_tts">Voz · Fish Audio</string>
     <string name="settings_api_key_label">Clave de %1$s</string>
     <string name="settings_api_key_placeholder">pega la clave de la consola</string>

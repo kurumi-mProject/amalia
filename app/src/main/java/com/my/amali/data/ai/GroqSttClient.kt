@@ -1,7 +1,5 @@
 package com.my.amali.data.ai
 
-import android.content.Context
-import com.my.amali.BuildConfig
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import okhttp3.MediaType.Companion.toMediaType
@@ -42,7 +40,7 @@ import java.util.concurrent.TimeUnit
  * запросы, жёсткий потолок длительности — чтобы 7200 секунд хватило на
  * месяцы нормального использования, а не на один разговор.
  */
-internal class GroqSttClient(private val context: Context) {
+internal class GroqSttClient {
 
     private val client = OkHttpClient.Builder()
         .connectTimeout(CONNECT_TIMEOUT_SECONDS, TimeUnit.SECONDS)
@@ -53,7 +51,7 @@ internal class GroqSttClient(private val context: Context) {
     /**
      * Распознаёт один WAV-кусок.
      *
-     * @param wav готовый WAV: 16 кГц, mono, 16 бит (см. [VoiceSegmenter.toWav]).
+     * @param wav готовый WAV: 16 кГц, mono, 16 бит (см. [VoiceAudio.toWav]).
      * @param languageCode код языка для подсказки модели; пусто — определить самому.
      * @param model идентификатор модели Whisper; пусто → рекомендованная.
      * @param prompt подсказка со словами, которые модель иначе пишет неверно:
@@ -178,8 +176,5 @@ internal class GroqSttClient(private val context: Context) {
         const val ERROR_SERVER = "Сервис распознавания речи временно недоступен."
         const val ERROR_BAD_REQUEST = "Запись не принята сервисом распознавания."
         const val ERROR_OTHER = "Распознавание речи недоступно."
-
-        /** Ключ из сборки — используется, если пользователь свой не вписал. */
-        val BUILD_KEY: String get() = BuildConfig.GROQ_API_KEY
     }
 }

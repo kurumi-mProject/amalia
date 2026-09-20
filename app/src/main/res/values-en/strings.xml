@@ -35,7 +35,6 @@
 
     <string name="assistant_idle">online</string>
     <string name="assistant_listening">listening…</string>
-    <string name="assistant_connecting">please wait, connecting…</string>
     <string name="assistant_thinking">thinking…</string>
     <string name="assistant_speaking">speaking…</string>
     <string name="assistant_error">error</string>
@@ -314,9 +313,9 @@
     <string name="settings_api_stt">Hearing · Groq Whisper</string>
     <string name="settings_stt_title">Speech recognition</string>
     <string name="settings_stt_key_shared">Hearing runs on the same Groq key as the brain — no separate key needed.</string>
-    <string name="settings_stt_chunk_title">How much speech to collect before text</string>
-    <string name="settings_stt_chunk_desc">Shorter — captions appear faster, but more requests. Longer — lighter on the quota.</string>
-    <string name="settings_stt_chunk_hint">Change it if captions lag behind or flicker too often.</string>
+    <string name="settings_stt_silence_title">Pause that ends a phrase</string>
+    <string name="settings_stt_silence_desc">How much silence to wait before deciding you have finished.</string>
+    <string name="settings_stt_silence_hint">Lower it if the assistant is slow to answer. Raise it if it cuts you off mid-sentence.</string>
     <string name="settings_api_tts">Voice · Fish Audio</string>
     <string name="settings_api_key_label">%1$s key</string>
     <string name="settings_api_key_placeholder">paste the key from the console</string>

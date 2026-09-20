@@ -167,7 +167,6 @@
     <string name="history_no_results">Rien trouvé</string>
     <string name="history_messages">messages : %1$d</string>
     <string name="history_delete_confirm">Supprimer la conversation ?</string>
-    <string name="assistant_connecting">un instant, connexion…</string>
     <string name="appearance_glass_always_dark">Liquid Glass est toujours sombre : c\'est ainsi que le verre et sa lueur fonctionnent correctement.</string>
     <string name="history_empty">Pas encore de conversations</string>
     <string name="history_empty_desc">Parle à Amalia et tes conversations apparaîtront ici.</string>
@@ -314,9 +313,9 @@
     <string name="settings_api_stt">Écoute · Groq Whisper</string>
     <string name="settings_stt_title">Reconnaissance vocale</string>
     <string name="settings_stt_key_shared">L\'écoute utilise la même clé Groq que le cerveau — pas de clé séparée.</string>
-    <string name="settings_stt_chunk_title">Combien de parole avant le premier texte</string>
-    <string name="settings_stt_chunk_desc">Plus court : les sous-titres arrivent plus vite, mais plus de requêtes. Plus long : économe en quota.</string>
-    <string name="settings_stt_chunk_hint">Change-le si les sous-titres traînent ou clignotent trop souvent.</string>
+    <string name="settings_stt_silence_title">Pause qui termine la phrase</string>
+    <string name="settings_stt_silence_desc">Combien de silence attendre avant de considérer que tu as fini.</string>
+    <string name="settings_stt_silence_hint">Baisse-la si l’assistant tarde à répondre. Augmente-la s’il te coupe en pleine phrase.</string>
     <string name="settings_api_tts">Voix · Fish Audio</string>
     <string name="settings_api_key_label">Clé %1$s</string>
     <string name="settings_api_key_placeholder">collez la clé de la console</string>

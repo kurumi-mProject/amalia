@@ -180,14 +180,14 @@ class SettingsViewModel : ViewModel() {
     }
 
     /**
-     * Длина сегмента распознавания в секундах.
+     * Сколько тишины считать концом фразы.
      *
-     * Меняется на лету: следующий же сегмент речи будет нарезан новой
-     * длиной. Перезапуск приложения не нужен — движок читает настройку
-     * из свежих [com.my.amali.data.ai.EngineOptions] на каждом запросе.
+     * Меняется на лету: следующая же фраза будет закрыта по новой паузе.
+     * Перезапуск не нужен — движок читает настройку из свежих
+     * [com.my.amali.data.ai.EngineOptions] на каждой записи.
      */
-    fun setSttChunkSeconds(seconds: Float) = viewModelScope.launch {
-        settingsRepository.setSttChunkSeconds(seconds)
+    fun setSttSilenceSeconds(seconds: Float) = viewModelScope.launch {
+        settingsRepository.setSttSilenceSeconds(seconds)
     }
 
     // ── Приватность ──────────────────────────────────────────────────────

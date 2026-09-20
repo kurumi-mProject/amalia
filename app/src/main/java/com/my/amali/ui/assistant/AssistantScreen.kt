@@ -820,10 +820,16 @@ private fun WelcomeCard(
 }
 
 /**
- * Карточка слушания: живые субтитры распознавания.
+ * Карточка слушания.
  *
- * Пока соединение STT не поднялось (~1 с), показывается честное
- * «подключаюсь» — иначе пользователь успевает решить, что его не слышат.
+ * Пока человек говорит, текст не показывается — и это осознанно. Запись
+ * отправляется в распознавание один раз, когда фраза закончена, поэтому
+ * промежуточного текста не существует физически. Показывать вместо него
+ * что-то выдуманное («слушаю…», «распознаю…») значило бы обещать то, чего
+ * приложение не делает.
+ *
+ * Когда фраза распознана, сюда попадает уже готовый текст: он приходит
+ * одновременно с ответом, и человек видит, что именно было услышано.
  */
 @Composable
 private fun ListeningCard(transcript: String) {
@@ -836,9 +842,12 @@ private fun ListeningCard(transcript: String) {
             color = MaterialTheme.colorScheme.secondary,
         )
         Spacer(Modifier.height(Spacing.xs))
-        when {
-            transcript.isBlank() -> TypingDots()
-            else -> Text(
+        if (transcript.isBlank()) {
+            // Живая волна уже дышит под карточкой, поэтому здесь достаточно
+            // пульсирующих точек — второго индикатора не нужно.
+            TypingDots()
+        } else {
+            Text(
                 text = transcript,
                 style = MaterialTheme.typography.bodyMedium,
                 color = MaterialTheme.colorScheme.onSurface,
@@ -1445,8 +1454,6 @@ private fun welcomeSuggestions(): List<String> = listOf(
 
 /** Сколько строк работающих инструментов показывать до счётчика «+N». */
 private const val VISIBLE_TOOL_ROWS = 3
-
-/** Через сколько миллисекунд подсказка «подключаюсь» сменяется точками. */
 
 /** Потолок высоты текста ответа: дальше — внутренний скролл, а не рост карточки. */
 private val ReplyMaxHeight = 180.dp

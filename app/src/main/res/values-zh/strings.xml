@@ -167,7 +167,6 @@
     <string name="history_no_results">未找到任何内容</string>
     <string name="history_messages">消息: %1$d</string>
     <string name="history_delete_confirm">删除对话？</string>
-    <string name="assistant_connecting">请稍等，正在连接…</string>
     <string name="appearance_glass_always_dark">Liquid Glass 始终为深色：这样玻璃与其光效才能正确呈现。</string>
     <string name="history_empty">还没有对话</string>
     <string name="history_empty_desc">和阿玛莉亚聊聊，对话会显示在这里。</string>
@@ -314,9 +313,9 @@
     <string name="settings_api_stt">听觉 · Groq Whisper</string>
     <string name="settings_stt_title">语音识别</string>
     <string name="settings_stt_key_shared">听觉与大脑使用同一个 Groq 密钥，无需单独的密钥。</string>
-    <string name="settings_stt_chunk_title">出现文字前收集多少语音</string>
-    <string name="settings_stt_chunk_desc">越短字幕出现越快，但请求更多。越长越省额度。</string>
-    <string name="settings_stt_chunk_hint">如果字幕滞后或闪动过快，可以调整。</string>
+    <string name="settings_stt_silence_title">视为说完的静音</string>
+    <string name="settings_stt_silence_desc">等多久安静才认为你说完了。</string>
+    <string name="settings_stt_silence_hint">回答太慢就调短，中途被打断就调长。</string>
     <string name="settings_api_tts">语音 · Fish Audio</string>
     <string name="settings_api_key_label">%1$s 密钥</string>
     <string name="settings_api_key_placeholder">粘贴控制台中的密钥</string>

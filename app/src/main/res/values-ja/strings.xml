@@ -167,7 +167,6 @@
     <string name="history_no_results">見つかりませんでした</string>
     <string name="history_messages">メッセージ: %1$d</string>
     <string name="history_delete_confirm">会話を削除しますか？</string>
-    <string name="assistant_connecting">少々お待ちください、接続中…</string>
     <string name="appearance_glass_always_dark">Liquid Glass は常にダークです。そうすることでガラスと光が正しく機能します。</string>
     <string name="history_empty">まだ会話がありません</string>
     <string name="history_empty_desc">アマリアと話すと会話がここに表示されます。</string>
@@ -314,9 +313,9 @@
     <string name="settings_api_stt">聞き取り · Groq Whisper</string>
     <string name="settings_stt_title">音声認識</string>
     <string name="settings_stt_key_shared">聞き取りは頭脳と同じ Groq キーで動きます。別のキーは不要です。</string>
-    <string name="settings_stt_chunk_title">最初のテキストまでに集める音声の長さ</string>
-    <string name="settings_stt_chunk_desc">短いほど字幕は速く出ますが、リクエストは増えます。長いほど枠を節約できます。</string>
-    <string name="settings_stt_chunk_hint">字幕が遅れる、または忙しすぎるなら調整してください。</string>
+    <string name="settings_stt_silence_title">発話の終わりとみなす無音</string>
+    <string name="settings_stt_silence_desc">話し終えたと判断するまで待つ無音の長さ。</string>
+    <string name="settings_stt_silence_hint">返事が遅いと感じたら短く。文中で遮られるなら長く。</string>
     <string name="settings_api_tts">声 · Fish Audio</string>
     <string name="settings_api_key_label">%1$s のキー</string>
     <string name="settings_api_key_placeholder">コンソールのキーを貼り付け</string>
