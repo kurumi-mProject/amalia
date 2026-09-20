@@ -130,6 +130,14 @@ internal val allGlyphs: List<Pair<String, List<Pair<Float, Float>>>> = listOf(
         12f to 3.2f, 12f to 20.8f, 16f to 7.6f, 16f to 16.4f,
         20f to 10.6f, 20f to 13.4f,
     ),
+    "AmaliaWave" to listOf(
+        5.6f to 9.4f, 5.6f to 14.6f, 12f to 4.8f, 12f to 19.2f,
+        18.4f to 8.2f, 18.4f to 15.8f,
+    ),
+    "AmaliaMic" to listOf(
+        9.4f to 4.7f, 14.6f to 10.9f, 6.8f to 10.1f, 6.8f to 11.3f,
+        17.2f to 11.3f, 17.2f to 10.1f, 12f to 16.5f, 12f to 19.3f,
+    ),
     "AmaliaHistory" to listOf(
         8.2f to 4.6f, 17.8f to 4.6f, 19.8f to 13.2f, 8.2f to 15.2f, 6.2f to 6.6f,
         13.2f to 9.2f, 16.6f to 9.2f,
@@ -204,6 +212,61 @@ val AmaliaVoice: ImageVector = amaliaIcon("AmaliaVoice") {
     lineTo(16f, 16.4f)
     moveTo(20f, 10.6f)
     lineTo(20f, 13.4f)
+}
+
+/**
+ * Волна — глиф для строки настроек индикатора звука.
+ *
+ * Три полосы разной высоты, а не пять-семь, как у вкладки «Ассистент»:
+ * этот глиф живёт в строке списка размером 21dp, где частый ряд сливается
+ * в заливку. Три полосы читаются как «звук» даже в 16dp, и при этом не
+ * спорят с [AmaliaVoice] — тот показывает речь, этот показывает реакцию.
+ */
+val AmaliaWave: ImageVector = amaliaIcon("AmaliaWave") {
+    moveTo(5.6f, 9.4f)
+    lineTo(5.6f, 14.6f)
+    moveTo(12f, 4.8f)
+    lineTo(12f, 19.2f)
+    moveTo(18.4f, 8.2f)
+    lineTo(18.4f, 15.8f)
+}
+
+/**
+ * Микрофон — единственный глиф семьи, который не обозначает раздел,
+ * а приглашает к действию.
+ *
+ * ## Форма
+ *
+ * Капсула, дужка-держатель и ножка. Ключевое решение — **капсула уже, чем
+ * у Material**: у Material-микрофона корпус шириной 6 из 24 при скруглении
+ * 3 выглядит как таблетка и в 30dp читается тяжёлым. Здесь корпус шириной
+ * 5.2 со скруглением 2.6, а дужка проходит шире корпуса на 1.6 с каждой
+ * стороны — так силуэт остаётся лёгким, но не теряет узнаваемость.
+ *
+ * ## Почему не из общего набора
+ *
+ * Микрофон в этом приложении — не «записать звук», а «начать разговор»:
+ * он стоит в центре главного экрана один, без подписи, и от него зависит
+ * вся композиция. Из-за этого важна не столько правильность пиктограммы,
+ * сколько её оптический вес: глиф обязан быть чуть легче геометрического
+ * центра, иначе экран в покое выглядит перегруженным.
+ */
+val AmaliaMic: ImageVector = amaliaIcon("AmaliaMic") {
+    // Корпус: капсула со скруглением 2.6.
+    moveTo(9.4f, 4.7f)
+    arcToRelative(2.6f, 2.6f, 0f, isMoreThanHalf = false, isPositiveArc = true, dx1 = 5.2f, dy1 = 0f)
+    lineTo(14.6f, 10.9f)
+    arcToRelative(2.6f, 2.6f, 0f, isMoreThanHalf = false, isPositiveArc = true, dx1 = -5.2f, dy1 = 0f)
+    close()
+    // Дужка-держатель: шире корпуса на 1.6 с каждой стороны.
+    moveTo(6.8f, 10.1f)
+    lineTo(6.8f, 11.3f)
+    arcToRelative(5.2f, 5.2f, 0f, isMoreThanHalf = false, isPositiveArc = false, dx1 = 5.2f, dy1 = 5.2f)
+    arcToRelative(5.2f, 5.2f, 0f, isMoreThanHalf = false, isPositiveArc = false, dx1 = 5.2f, dy1 = -5.2f)
+    lineTo(17.2f, 10.1f)
+    // Ножка.
+    moveTo(12f, 16.5f)
+    lineTo(12f, 19.3f)
 }
 
 /**

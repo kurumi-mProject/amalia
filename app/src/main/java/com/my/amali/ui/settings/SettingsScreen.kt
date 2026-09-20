@@ -41,6 +41,7 @@ import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.my.amali.R
+import com.my.amali.ui.icons.AmaliaWave
 import com.my.amali.ui.components.AmaliaScreen
 import com.my.amali.ui.components.GlassCard
 import com.my.amali.ui.components.GlassDivider
@@ -66,6 +67,7 @@ fun SettingsScreen(
     onOpenAppearance: () -> Unit,
     onOpenLanguage: () -> Unit,
     onOpenVoice: () -> Unit,
+    onOpenWave: () -> Unit,
     onOpenDevice: () -> Unit,
     onOpenApps: () -> Unit,
     onOpenPrivacy: () -> Unit,
@@ -168,6 +170,21 @@ fun SettingsScreen(
                     title = stringResource(R.string.settings_voice),
                     subtitle = stringResource(R.string.settings_voice_desc),
                     onClick = onOpenVoice,
+                )
+                GlassDivider()
+                // Строка волны стоит сразу после «Голоса и речи»: она
+                // относится к тому же разговору, но настраивает не голос,
+                // а его отображение. Рядом — чтобы не искать в другом
+                // разделе то, что меняешь по ходу подбора.
+                SettingsActionRow(
+                    icon = AmaliaWave,
+                    title = stringResource(R.string.settings_wave),
+                    subtitle = stringResource(R.string.settings_wave_desc),
+                    value = stringResource(
+                        R.string.settings_wave_value,
+                        settings.wave.spikeCount,
+                    ),
+                    onClick = onOpenWave,
                 )
                 GlassDivider()
                 SettingsActionRow(

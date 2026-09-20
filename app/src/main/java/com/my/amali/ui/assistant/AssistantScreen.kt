@@ -87,6 +87,7 @@ import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.my.amali.R
+import com.my.amali.domain.entity.UserSettings
 import com.my.amali.domain.entity.VoiceState
 import com.my.amali.ui.components.GlassCard
 import com.my.amali.ui.components.GradientBackground
@@ -98,7 +99,7 @@ import com.my.amali.ui.icons.AmaliaClose
 import com.my.amali.ui.icons.AmaliaCopy
 import com.my.amali.ui.icons.AmaliaRepeat
 import com.my.amali.ui.icons.AmaliaSettings
-import com.my.amali.ui.components.VoiceOrb
+import com.my.amali.ui.components.AmaliaVoiceVisual
 import com.my.amali.ui.components.SuggestionChips
 import com.my.amali.ui.theme.AmaliaTheme
 import com.my.amali.ui.theme.AmaliaVisuals
@@ -184,6 +185,7 @@ fun AssistantScreen(
 ) {
     val vm: AssistantViewModel = androidx.lifecycle.viewmodel.compose.viewModel()
     val state by vm.uiState.collectAsStateWithLifecycle()
+    val settings by vm.userSettings.collectAsStateWithLifecycle()
 
     // Продолжение разговора, выбранного в истории. Срабатывает ровно один
     // раз на каждый новый id: как только ViewModel пересадила сессию,
@@ -206,6 +208,10 @@ fun AssistantScreen(
         contract = ActivityResultContracts.RequestPermission(),
     ) { granted -> vm.onMicPermissionResult(granted) }
 
+    // Источник взаимодействия для микрофона: indication = null, потому что
+    // рябь на этом элементе конфликтует с волной — она и есть отклик.
+    val micInteraction = remember { MutableInteractionSource() }
+
     LaunchedEffect(state.micPermissionRequired) {
         if (state.micPermissionRequired) {
             permissionLauncher.launch(Manifest.permission.RECORD_AUDIO)
@@ -214,6 +220,7 @@ fun AssistantScreen(
 
     AssistantScreenContent(
         state = state,
+        settings = settings,
         onMicClick = vm::toggleConversation,
         onMicPress = vm::warmupStt,
         onPickSuggestion = vm::startConversation,
@@ -252,6 +259,14 @@ fun AssistantScreen(
 @Composable
 fun AssistantScreenContent(
     state: AssistantUiState,
+    /**
+     * Пользовательские настройки: сейчас отсюда берётся геометрия волны.
+     *
+     * Передаются целиком, а не одной волной: экран уже зависит от темы и
+     * палитры, а настройки — такая же среда, и дробить их на отдельные
+     * параметры значит плодить сигнатуру, которую никто не читает.
+     */
+    settings: UserSettings,
     onMicClick: () -> Unit,
     onMicPress: () -> Unit,
     onPickSuggestion: (String) -> Unit,
@@ -444,15 +459,24 @@ fun AssistantScreenContent(
 
             Spacer(Modifier.height(2.dp))
 
-            VoiceOrb(
-                isActive = state.voiceState != VoiceState.Idle &&
+            // Волна включается в любом состоянии, кроме покоя и ошибки:
+            // именно в этих двух случаях звука нет, и показывать «свидетельство
+            // звука» было бы ложью. Ошибка отдельно — при ней микрофон не
+            // работает, и волна должна молчать, а не дрожать.
+            AmaliaVoiceVisual(
+                enabled = state.voiceState != VoiceState.Idle &&
                     state.voiceState != VoiceState.Error,
-                state = state.voiceState,
-                stateLabel = voiceStateLabel(state.voiceState),
                 level = state.audioLevel,
-                onClick = onMicClick,
-                onPress = onMicPress,
-                waveHeight = if (compact) 104.dp else 132.dp,
+                settings = settings.wave,
+                color = stateColor(state.voiceState),
+                micSize = if (compact) 28.dp else 32.dp,
+                modifier = Modifier
+                    .clickable(
+                        interactionSource = micInteraction,
+                        indication = null,
+                        onClick = onMicClick,
+                    )
+                    .size(if (compact) 132.dp else 156.dp),
             )
 
             Spacer(Modifier.height(Spacing.sm))
@@ -1505,6 +1529,7 @@ private fun AssistantCompactPreview() {
 private fun PreviewShell(state: AssistantUiState) {
     AssistantScreenContent(
         state = state,
+        settings = UserSettings.DEFAULT,
         onMicClick = {},
         onMicPress = {},
         onPickSuggestion = {},

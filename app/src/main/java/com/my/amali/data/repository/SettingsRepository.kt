@@ -12,6 +12,7 @@ import com.my.amali.domain.entity.AiProfile
 import com.my.amali.domain.entity.AppLanguage
 import com.my.amali.domain.entity.UserApiSettings
 import com.my.amali.domain.entity.UserSettings
+import com.my.amali.domain.entity.WaveSettings
 import com.my.amali.ui.theme.AmaliaMotif
 import com.my.amali.ui.theme.AmaliaVisualTheme
 import com.my.amali.ui.theme.DarkModePreference
@@ -44,6 +45,21 @@ class SettingsRepository(private val dataStore: DataStore<Preferences>) {
         val RESUME_SESSION = booleanPreferencesKey("pref_resume_session")
         val MOTIF = stringPreferencesKey("pref_motif")
         val MOTIF_DENSITY = floatPreferencesKey("pref_motif_density")
+
+        // ── Живая волна ──────────────────────────────────────────────────
+        //
+        // Каждый параметр — отдельный ключ, а не один JSON-блок. Причина та
+        // же, что и у API-ключей: пользователь крутит слайдеры по одному, и
+        // запись всей группы при каждом движении ползунка означала бы
+        // перезапись семи значений вместо одного.
+        val WAVE_COUNT = intPreferencesKey("pref_wave_count")
+        val WAVE_WIDTH = floatPreferencesKey("pref_wave_width")
+        val WAVE_GAP = floatPreferencesKey("pref_wave_gap")
+        val WAVE_HEIGHT = floatPreferencesKey("pref_wave_height")
+        val WAVE_RADIUS = floatPreferencesKey("pref_wave_radius")
+        val WAVE_SENSITIVITY = floatPreferencesKey("pref_wave_sensitivity")
+        val WAVE_SMOOTHING = floatPreferencesKey("pref_wave_smoothing")
+        val WAVE_FILLED = booleanPreferencesKey("pref_wave_filled")
 
         // ── API-ключи и модели провайдеров ───────────────────────────────
         //
@@ -126,6 +142,7 @@ class SettingsRepository(private val dataStore: DataStore<Preferences>) {
             motif = motif,
             motifDensity = (this[Keys.MOTIF_DENSITY] ?: UserSettings.DEFAULT.motifDensity)
                 .coerceIn(0f, 1f),
+            wave = readWaveSettings(),
             api = UserApiSettings(
                 groqKey = this[Keys.API_GROQ_KEY].orEmpty(),
                 fishAudioKey = this[Keys.API_FISH_KEY].orEmpty(),
@@ -240,6 +257,76 @@ class SettingsRepository(private val dataStore: DataStore<Preferences>) {
     /** Густота декораций, [0.0, 1.0]. 0 фактически выключает слой. */
     suspend fun setMotifDensity(value: Float) {
         dataStore.edit { it[Keys.MOTIF_DENSITY] = value.coerceIn(0f, 1f) }
+
+    // ── Живая волна ─────────────────────────────────────────────────────
+
+    /**
+     * Собирает настройки волны из хранилища.
+     *
+     * Вынесено отдельным методом, потому что восемь значений читаются
+     * одним блоком: держать их внутри общего `UserSettings(...)` значит
+     * превратить и без того длинный конструктор в нечитаемую простыню.
+     */
+    private fun Preferences.readWaveSettings(): WaveSettings {
+        val default = WaveSettings()
+        return WaveSettings(
+            spikeCount = (this[Keys.WAVE_COUNT] ?: default.spikeCount)
+                .coerceIn(WaveSettings.COUNT_MIN, WaveSettings.COUNT_MAX),
+            spikeWidth = (this[Keys.WAVE_WIDTH] ?: default.spikeWidth)
+                .coerceIn(WaveSettings.WIDTH_MIN, WaveSettings.WIDTH_MAX),
+            spikeGap = (this[Keys.WAVE_GAP] ?: default.spikeGap)
+                .coerceIn(WaveSettings.GAP_MIN, WaveSettings.GAP_MAX),
+            maxHeight = (this[Keys.WAVE_HEIGHT] ?: default.maxHeight)
+                .coerceIn(WaveSettings.HEIGHT_MIN, WaveSettings.HEIGHT_MAX),
+            cornerRadius = (this[Keys.WAVE_RADIUS] ?: default.cornerRadius)
+                .coerceIn(WaveSettings.RADIUS_MIN, WaveSettings.RADIUS_MAX),
+            sensitivity = (this[Keys.WAVE_SENSITIVITY] ?: default.sensitivity)
+                .coerceIn(WaveSettings.SENSITIVITY_MIN, WaveSettings.SENSITIVITY_MAX),
+            smoothing = (this[Keys.WAVE_SMOOTHING] ?: default.smoothing)
+                .coerceIn(WaveSettings.SMOOTHING_MIN, WaveSettings.SMOOTHING_MAX),
+            filled = this[Keys.WAVE_FILLED] ?: default.filled,
+        )
+    }
+
+    /**
+     * Сохраняет всю геометрию волны одним вызовом.
+     *
+     * Один метод вместо восьми — сознательно: экран настроек волны содержит
+     * превью, которое должно обновляться сразу при движении любого ползунка,
+     * а не по нажатию «Сохранить». Восемь отдельных вызовов DataStore из
+     * одного места всё равно слились бы в одну запись, но восемь suspend-
+     * функций в UI дали бы восемь корутин на каждое движение пальца.
+     *
+     * Значения зажимаются по границам [WaveSettings] здесь, а не в UI: UI
+     * может прислать что угодно из превью или теста, а испорченное значение
+     * в хранилище переживёт перезапуск приложения.
+     */
+    suspend fun setWaveSettings(wave: WaveSettings) {
+        dataStore.edit { prefs ->
+            prefs[Keys.WAVE_COUNT] = wave.spikeCount.coerceIn(
+                WaveSettings.COUNT_MIN, WaveSettings.COUNT_MAX,
+            )
+            prefs[Keys.WAVE_WIDTH] = wave.spikeWidth.coerceIn(
+                WaveSettings.WIDTH_MIN, WaveSettings.WIDTH_MAX,
+            )
+            prefs[Keys.WAVE_GAP] = wave.spikeGap.coerceIn(
+                WaveSettings.GAP_MIN, WaveSettings.GAP_MAX,
+            )
+            prefs[Keys.WAVE_HEIGHT] = wave.maxHeight.coerceIn(
+                WaveSettings.HEIGHT_MIN, WaveSettings.HEIGHT_MAX,
+            )
+            prefs[Keys.WAVE_RADIUS] = wave.cornerRadius.coerceIn(
+                WaveSettings.RADIUS_MIN, WaveSettings.RADIUS_MAX,
+            )
+            prefs[Keys.WAVE_SENSITIVITY] = wave.sensitivity.coerceIn(
+                WaveSettings.SENSITIVITY_MIN, WaveSettings.SENSITIVITY_MAX,
+            )
+            prefs[Keys.WAVE_SMOOTHING] = wave.smoothing.coerceIn(
+                WaveSettings.SMOOTHING_MIN, WaveSettings.SMOOTHING_MAX,
+            )
+            prefs[Keys.WAVE_FILLED] = wave.filled
+        }
+    }
     }
 
     /** Сбрасывает все настройки к значениям по умолчанию. */

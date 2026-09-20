@@ -7,6 +7,7 @@ import com.my.amali.data.ai.ModelCatalog
 import com.my.amali.data.repository.ConversationRepository
 import com.my.amali.data.repository.SettingsRepository
 import com.my.amali.domain.entity.AiProfile
+import com.my.amali.domain.entity.WaveSettings
 import com.my.amali.domain.entity.AppLanguage
 import com.my.amali.domain.entity.UserSettings
 import com.my.amali.ui.theme.AmaliaMotif
@@ -88,6 +89,20 @@ class SettingsViewModel : ViewModel() {
 
     fun setMotifDensity(value: Float) = viewModelScope.launch {
         settingsRepository.setMotifDensity(value)
+    }
+
+    // ── Живая волна ──────────────────────────────────────────────────────
+
+    /**
+     * Сохраняет геометрию волны целиком.
+     *
+     * Принимает весь объект, а не отдельное поле: экран настроек волны
+     * держит текущее значение у себя и при каждом движении ползунка шлёт
+     * новую копию. Это позволяет обойтись одним методом вместо восьми и
+     * гарантирует, что в хранилище не окажется «половины» нового состояния.
+     */
+    fun setWave(wave: WaveSettings) = viewModelScope.launch {
+        settingsRepository.setWaveSettings(wave)
     }
 
     // ── Язык ─────────────────────────────────────────────────────────────

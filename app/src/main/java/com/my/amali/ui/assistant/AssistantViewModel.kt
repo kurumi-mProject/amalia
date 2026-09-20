@@ -158,6 +158,18 @@ class AssistantViewModel(
     private val settings: StateFlow<UserSettings> = settingsRepo.settings
         .stateIn(viewModelScope, SharingStarted.Eagerly, UserSettings.DEFAULT)
 
+    /**
+     * Настройки, доступные экрану.
+     *
+     * Отдельный публичный поток, а не поле внутри [AssistantUiState]:
+     * состояние экрана меняется на каждом кадре разговора (уровень звука,
+     * транскрипт, фаза), и складывать туда же настройки значит заставлять
+     * подписчиков перерисовываться на каждое изменение громкости. Здесь
+     * настройки меняются редко — при редактировании в разделе «Волна», — и
+     * экран читает их отдельной подпиской.
+     */
+    val userSettings: StateFlow<UserSettings> = settings
+
     private val player = AudioPlayer()
 
     private var conversationJob: Job? = null

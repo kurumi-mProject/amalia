@@ -180,6 +180,72 @@ data class UserApiSettings(
     }
 }
 
+/**
+ * Настройки живой волны: количество полос, их размер и реакция на голос.
+ *
+ * ## Границы диапазонов — не произвол
+ *
+ * Каждое поле ограничено так, чтобы результат оставался читаемым:
+ *
+ *  — [spikeCount] от 5 до 31. Меньше пяти — уже не волна, а три точки;
+ *    больше тридцати одного при ширине 3dp и зазоре 4dp не влезает в
+ *    экран 360dp и полосы становятся сплошной заливкой.
+ *  — [spikeWidth] от 2 до 8dp. 1dp на плотных экранах превращается в
+ *    волосок и мерцает при движении; шире 8dp волна перестаёт читаться
+ *    как «много полос» и становится столбиками.
+ *  — [spikeGap] от 1 до 10dp. При нулевом зазоре полосы сливаются.
+ *  — [maxHeight] от 16 до 80dp. Это высота самой высокой полосы при
+ *    максимальной громкости; 80dp — предел, после которого волна начинает
+ *    конкурировать с главным текстом экрана.
+ *  — [cornerRadius] от 0 до 8dp в половину ширины полосы: больше — и
+ *    прямоугольник превращается в капсулу, теряя направление роста.
+ *  — [sensitivity] от 0.5 до 4. Волна должна реагировать заметно тише или
+ *    заметно громче реального сигнала: у разных микрофонов разная АРУ.
+ *  — [smoothing] от 0.05 до 0.6. Это доля пути, которую полоса проходит к
+ *    новой цели за кадр. Меньше — плавно и «текуче», больше — резко и
+ *    «дёргано». Оба края имеют право на существование.
+ *
+ * @property spikeCount сколько полос рисуется.
+ * @property spikeWidth ширина одной полосы, dp.
+ * @property spikeGap зазор между полосами, dp.
+ * @property maxHeight максимальная высота полосы при полной громкости, dp.
+ * @property cornerRadius скругление концов полос, dp.
+ * @property sensitivity множитель реакции на уровень громкости.
+ * @property smoothing сглаживание движения, [0.05, 0.6].
+ * @property filled true — полосы заливкой; false — контуром двойной толщины.
+ */
+data class WaveSettings(
+    val spikeCount: Int = 11,
+    val spikeWidth: Float = 3f,
+    val spikeGap: Float = 4f,
+    val maxHeight: Float = 44f,
+    val cornerRadius: Float = 1.5f,
+    val sensitivity: Float = 1.6f,
+    val smoothing: Float = 0.22f,
+    val filled: Boolean = true,
+) {
+    /** Полная ширина волны в dp — используется для превью и расчётов. */
+    val totalWidthDp: Float
+        get() = spikeCount * spikeWidth + (spikeCount - 1) * spikeGap
+
+    companion object {
+        const val COUNT_MIN = 5
+        const val COUNT_MAX = 31
+        const val WIDTH_MIN = 2f
+        const val WIDTH_MAX = 8f
+        const val GAP_MIN = 1f
+        const val GAP_MAX = 10f
+        const val HEIGHT_MIN = 16f
+        const val HEIGHT_MAX = 80f
+        const val RADIUS_MIN = 0f
+        const val RADIUS_MAX = 8f
+        const val SENSITIVITY_MIN = 0.5f
+        const val SENSITIVITY_MAX = 4f
+        const val SMOOTHING_MIN = 0.05f
+        const val SMOOTHING_MAX = 0.6f
+    }
+}
+
 data class UserSettings(
     val visualTheme: AmaliaVisualTheme = AmaliaVisualTheme.LIQUID_GLASS,
     val darkModePref: DarkModePreference = DarkModePreference.SYSTEM,
@@ -194,6 +260,16 @@ data class UserSettings(
     val resumeLastSession: Boolean = true,
     val motif: AmaliaMotif = AmaliaMotif.AUTO,
     val motifDensity: Float = 0.85f,
+    /**
+     * Геометрия и поведение живой волны главного экрана.
+     *
+     * Вынесено в настройки сознательно: волна — единственный объект, который
+     * пользователь видит каждую секунду разговора, и «правильной» её формы не
+     * существует. Кому-то нужно 9 широких полос, кому-то — 21 тонкая; у кого-то
+     * тихий микрофон, и без поднятой чувствительности волна почти не движется.
+     * Всё это — вопрос привычки и устройства, а не дизайна.
+     */
+    val wave: WaveSettings = WaveSettings(),
     /**
      * Ключи и модели провайдеров, которые пользователь задал сам.
      *

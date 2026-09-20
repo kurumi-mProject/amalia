@@ -31,6 +31,7 @@ import com.my.amali.ui.history.ConversationListScreen
 import com.my.amali.ui.onboarding.OnboardingScreen
 import com.my.amali.ui.permissions.PermissionsScreen
 import com.my.amali.ui.settings.AboutSettings
+import com.my.amali.ui.settings.WaveSettingsScreen
 import com.my.amali.ui.settings.ApiKeysSettings
 import com.my.amali.ui.settings.AppPickerSettings
 import com.my.amali.ui.settings.AppearanceSettings
@@ -146,6 +147,7 @@ fun AmaliaNavHost(
                     onOpenAppearance = { navController.navigate("${Destinations.Settings.route}/appearance") },
                     onOpenLanguage = { navController.navigate("${Destinations.Settings.route}/language") },
                     onOpenVoice = { navController.navigate("${Destinations.Settings.route}/voice") },
+                    onOpenWave = { navController.navigate("${Destinations.Settings.route}/wave") },
                     onOpenDevice = { navController.navigate("${Destinations.Settings.route}/device") },
                     onOpenPrivacy = { navController.navigate("${Destinations.Settings.route}/privacy") },
                     onOpenNotifications = { navController.navigate("${Destinations.Settings.route}/notifications") },
@@ -193,6 +195,9 @@ fun AmaliaNavHost(
             }
             composable("${Destinations.Settings.route}/voice") {
                 VoiceSettings(onBack = { navController.popBackStack() })
+            }
+            composable("${Destinations.Settings.route}/wave") {
+                WaveSettingsScreen(onBack = { navController.popBackStack() })
             }
             composable("${Destinations.Settings.route}/api") {
                 ApiKeysSettings(onBack = { navController.popBackStack() })
