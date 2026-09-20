@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- Источник семьи иконок Амалии. Глиф: закрыть — крест. -->
+<svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+    <g stroke="#FFFFFF" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" fill="none">
+        <path d="M5.4 5.4l13.2 13.2"/>
+        <path d="M18.6 5.4L5.4 18.6"/>
+    </g>
+</svg>

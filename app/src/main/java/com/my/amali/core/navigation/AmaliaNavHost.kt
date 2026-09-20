@@ -13,6 +13,9 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.navigation.NavHostController
@@ -56,6 +59,17 @@ fun AmaliaNavHost(
 ) {
     val backStackEntry by navController.currentBackStackEntryAsState()
     val currentRoute = backStackEntry?.destination?.route
+
+    /**
+     * Разговор, который нужно продолжить на главном экране.
+     *
+     * Кнопка «продолжить» живёт в деталях истории, а сама сессия — в
+     * `AssistantViewModel` главного экрана. Мост между ними держится здесь:
+     * навигация просит ассистента пересадить сессию, и как только это
+     * сделано, сигнал сбрасывается, чтобы повторная композиция не
+     * перезапустила пересадку.
+     */
+    var pendingResumeConversationId by remember { mutableStateOf<String?>(null) }
 
     Box(
         modifier = modifier
@@ -109,6 +123,11 @@ fun AmaliaNavHost(
                             restoreState = true
                         }
                     },
+                    // Разговор, выбранный в истории: ассистент пересаживает
+                    // на него свою сессию, и как только это произошло —
+                    // сигнал сбрасывается.
+                    resumeConversationId = pendingResumeConversationId,
+                    onResumeHandled = { pendingResumeConversationId = null },
                     modifier = Modifier.fillMaxSize(),
                 )
             }
@@ -152,6 +171,17 @@ fun AmaliaNavHost(
                 ConversationDetailScreen(
                     conversationId = conversationId,
                     onBack = { navController.popBackStack() },
+                    onResumeConversation = { id ->
+                        // Продолжение разговора — это действие главного
+                        // экрана, поэтому оно ведёт к ассистенту, а не
+                        // остаётся в истории: пользователь именно хочет
+                        // вернуться к диалогу с Амалией, а не читать ленту.
+                        navController.navigate(Destinations.Assistant.route) {
+                            popUpTo(Destinations.History.route) { inclusive = false }
+                            launchSingleTop = true
+                        }
+                        pendingResumeConversationId = id
+                    },
                 )
             }
 

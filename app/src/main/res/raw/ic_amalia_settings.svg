@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- Источник семьи иконок Амалии. lucide/settings-2 - кружки заменены бегунками-грифами -->
+<svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+    <g stroke="#FFFFFF" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" fill="none">
+        <path d="M4 7.4h5.2"/>
+        <path d="M13.4 7.4H20"/>
+        <path d="M12.4 4.9v5"/>
+        <path d="M4 16.6h3.6"/>
+        <path d="M11.8 16.6H20"/>
+        <path d="M10.8 14.1v5"/>
+    </g>
+</svg>

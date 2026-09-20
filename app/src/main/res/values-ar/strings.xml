@@ -237,7 +237,6 @@
     <string name="time_minutes_ago">قبل %1$d دقيقة</string>
     <string name="time_hours_ago">قبل %1$d ساعة</string>
     <string name="time_days_ago">قبل %1$d يوم</string>
-    <string name="history_resume">متابعة في محادثة جديدة</string>
 
     <!-- Device control: access levels -->
     <string name="device_access_direct">Direct control</string>
@@ -351,4 +350,10 @@
     <string name="settings_profile_custom_hint">اكتب العنوان والنموذج والمفتاح أدناه ثم فعّله</string>
     <string name="settings_custom_activate">تفعيل هذا الملف</string>
     <string name="settings_custom_active">قيد الاستخدام الآن</string>
+    <string name="assistant_hint_listening">تحدّث، أنا أسمعك</string>
+    <string name="assistant_hint_thinking">لحظة، أفكّر</string>
+    <string name="assistant_hint_speaking">اضغط للمقاطعة</string>
+    <string name="assistant_hint_error">حاول مرة أخرى</string>
+    <string name="history_resume">متابعة هذه المحادثة</string>
+    <string name="history_resume_desc">ستتذكّر أماليا هذا الحديث وستجيب على أساسه.</string>
 </resources>

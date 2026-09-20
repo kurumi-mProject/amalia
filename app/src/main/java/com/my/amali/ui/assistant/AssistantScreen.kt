@@ -50,19 +50,10 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.rounded.AddComment
-import androidx.compose.material.icons.rounded.AutoAwesome
-import androidx.compose.material.icons.rounded.Close
-import androidx.compose.material.icons.rounded.ContentCopy
-import androidx.compose.material.icons.rounded.History
 import androidx.compose.material.icons.rounded.KeyboardArrowDown
 import androidx.compose.material.icons.rounded.KeyboardArrowUp
-import androidx.compose.material.icons.rounded.Refresh
-import androidx.compose.material.icons.rounded.Settings
 import androidx.compose.material.icons.rounded.Tune
 import androidx.compose.material.icons.rounded.VolumeOff
-import androidx.compose.material.icons.rounded.WarningAmber
-import androidx.compose.material.icons.rounded.WbTwilight
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
@@ -93,17 +84,22 @@ import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.tooling.preview.Preview
-import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.my.amali.R
 import com.my.amali.domain.entity.VoiceState
 import com.my.amali.ui.components.GlassCard
-import com.my.amali.ui.components.GlassIconButton
 import com.my.amali.ui.components.GradientBackground
-import com.my.amali.ui.components.MicButton
+import com.my.amali.ui.components.CircadianLamp
+import com.my.amali.ui.icons.AmaliaAdd
+import com.my.amali.ui.icons.AmaliaAlert
+import com.my.amali.ui.icons.AmaliaHistory
+import com.my.amali.ui.icons.AmaliaClose
+import com.my.amali.ui.icons.AmaliaCopy
+import com.my.amali.ui.icons.AmaliaRepeat
+import com.my.amali.ui.icons.AmaliaSettings
+import com.my.amali.ui.components.VoiceOrb
 import com.my.amali.ui.components.SuggestionChips
-import com.my.amali.ui.components.CircadianPreviewDialog
 import com.my.amali.ui.theme.AmaliaTheme
 import com.my.amali.ui.theme.AmaliaVisuals
 import com.my.amali.ui.theme.CircadianPhase
@@ -112,7 +108,6 @@ import com.my.amali.ui.theme.LocalLightProfile
 import com.my.amali.ui.theme.Radius
 import com.my.amali.ui.theme.Spacing
 import com.my.amali.ui.theme.glassSurface
-import com.my.amali.ui.theme.iconAccent
 import com.my.amali.ui.theme.paletteChip
 import kotlinx.coroutines.launch
 
@@ -127,7 +122,7 @@ import kotlinx.coroutines.launch
  *  2. компактная шапка: пульс состояния, имя, счётчик разговоров,
  *     индикатор текущего света, история и настройки;
  *  3. стеклянная карточка диалога — **единственная гибкая область**;
- *  4. герой-блок: слово состояния, голосовой орб, подпись-подсказка;
+ *  4. голосовой блок: слово состояния, живая волна, подпись-подсказка;
  *  5. запас под плавающую нижнюю навигацию.
  *
  * ═══════════════════════════════════════════════════════════
@@ -153,7 +148,7 @@ import kotlinx.coroutines.launch
  *
  * Микрофон перестал быть «кнопкой со свечением» и стал героем экрана:
  * ореол реагирует на уровень голоса, кольца расходятся по факту разговора,
- * орбита вращается всегда — видно, что система жива, ещё до первого слова.
+ * волна дышит всегда — видно, что система жива, ещё до первого слова.
  * Размер вырос до 104dp, тач-зона — 172dp: это главное действие, и оно
  * не должно требовать прицеливания.
  *
@@ -176,17 +171,27 @@ import kotlinx.coroutines.launch
  * превью ниже рисуют настоящий экран во всех фазах: раньше `@Preview`
  * вызывал `viewModel()` и падал с «No ViewModelStoreOwner was provided».
  *
- * @param onNavigateToHistory переход к истории разговоров.
- * @param onNavigateToSettings переход к настройкам.
+ * @param resumeConversationId разговор из истории, который нужно продолжить.
+ * @param onResumeHandled сигнал «пересадка выполнена» — сбрасывает запрос.
  */
 @Composable
 fun AssistantScreen(
     onNavigateToHistory: () -> Unit = {},
     onNavigateToSettings: () -> Unit = {},
+    resumeConversationId: String? = null,
+    onResumeHandled: () -> Unit = {},
     modifier: Modifier = Modifier,
 ) {
     val vm: AssistantViewModel = androidx.lifecycle.viewmodel.compose.viewModel()
     val state by vm.uiState.collectAsStateWithLifecycle()
+
+    // Продолжение разговора, выбранного в истории. Срабатывает ровно один
+    // раз на каждый новый id: как только ViewModel пересадила сессию,
+    // навигация сбрасывает сигнал, и повторной композиции уже нечего делать.
+    LaunchedEffect(resumeConversationId) {
+        val id = resumeConversationId ?: return@LaunchedEffect
+        vm.resumeConversation(id, onResumed = onResumeHandled)
+    }
 
     // LocalClipboardManager объявлен deprecated: он не поддерживает suspend и
     // не умеет отдавать в буфер ничего, кроме текста. LocalClipboard работает
@@ -207,13 +212,6 @@ fun AssistantScreen(
         }
     }
 
-    // Диалог превью циркадного света (рассвет → закат)
-    var showCircadianPreview by remember { mutableStateOf(false) }
-
-    if (showCircadianPreview) {
-        CircadianPreviewDialog(onDismissRequest = { showCircadianPreview = false })
-    }
-
     AssistantScreenContent(
         state = state,
         onMicClick = vm::toggleConversation,
@@ -221,7 +219,6 @@ fun AssistantScreen(
         onPickSuggestion = vm::startConversation,
         onRepeat = vm::repeatLast,
         onDismissError = vm::dismissError,
-        onNewSession = vm::startNewSession,
         onCopy = {
             clipboardScope.launch {
                 clipboard.setClipEntry(
@@ -236,9 +233,11 @@ fun AssistantScreen(
             ).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
             runCatching { context.startActivity(intent) }
         },
-        onNavigateToHistory = onNavigateToHistory,
-        onNavigateToSettings = onNavigateToSettings,
-        onShowCircadianPreview = { showCircadianPreview = true },
+        // «Новый разговор» — единственная кнопка верхней зоны. Она
+        // появляется, только когда есть что закрывать: в покое кнопка
+        // была бы шумом без действия.
+        showsNewSession = state.amaliaReply.isNotEmpty() || state.userTranscript.isNotEmpty(),
+        onNewSession = vm::startNewSession,
         modifier = modifier,
     )
 }
@@ -259,11 +258,9 @@ fun AssistantScreenContent(
     onRepeat: () -> Unit,
     onDismissError: () -> Unit,
     onNewSession: () -> Unit,
+    showsNewSession: Boolean,
     onCopy: () -> Unit,
     onOpenAppSettings: () -> Unit,
-    onNavigateToHistory: () -> Unit,
-    onNavigateToSettings: () -> Unit,
-    onShowCircadianPreview: () -> Unit = {},
     modifier: Modifier = Modifier,
 ) {
     val visuals = LocalAmaliaVisuals.current
@@ -273,7 +270,7 @@ fun AssistantScreenContent(
     val suggestions = welcomeSuggestions()
 
     // На коротких экранах сжимается только «воздух» между блоками:
-    // карточка диалога и орб обязаны остаться целыми.
+    // карточка диалога и волна обязаны остаться целыми.
     val screenHeight = LocalConfiguration.current.screenHeightDp
     val compact = screenHeight < 700
 
@@ -286,6 +283,21 @@ fun AssistantScreenContent(
             luminance = light.displayLuminance,
         )
 
+        // Одно дыхание на весь экран. Раньше приветствие, волна и точка в
+        // шапке дышали каждый со своим периодом (3.2 / 5.6 / 2.6 с) — четыре
+        // независимых ритма, которые глаз читает как шум, а не как покой.
+        // Здесь один такт, из него выводится всё живое на экране.
+        val breathTransition = rememberInfiniteTransition(label = "screenBreath")
+        val breath by breathTransition.animateFloat(
+            initialValue = 0f,
+            targetValue = 1f,
+            animationSpec = infiniteRepeatable(
+                tween(10_000, easing = LinearEasing),
+                RepeatMode.Reverse,
+            ),
+            label = "screenBreathValue",
+        )
+
         Column(
             modifier = Modifier
                 .fillMaxSize()
@@ -294,23 +306,39 @@ fun AssistantScreenContent(
                 .imePadding(),
             horizontalAlignment = Alignment.CenterHorizontally,
         ) {
-            AssistantTopBar(
-                modifier = Modifier.widthIn(max = 560.dp),
-                conversationCount = state.conversationCount,
-                voiceState = state.voiceState,
-                showLight = visuals.useBioTime,
-                lightLabel = lightLabel,
+            // === ГЕРОЙ: главный текст — основа экрана ===
+            // После снятия шапки (имя, счётчик разговоров, кнопки истории
+            // и настроек) верх освободился, и крупная фраза получила его
+            // целиком. Это и есть «благородство» экрана — один большой
+            // текст на воздухе вместо пяти мелких элементов в ряд.
+            val welcome = DialogPhase.of(state) == DialogPhase.Welcome
+
+            // === СВЕТ: единственный элемент в шапке ===
+            // Свёрнутая лампа стоит всегда и на одном месте — под главным
+            // текстом. Она сообщает, что интерфейс живой и по какому свету
+            // сейчас нарисован; слова внутри неё раскрываются по тапу или
+            // сами при входе. Будь она в углу, она спорила бы с текстом;
+            // по центру она читается как «солнце» композиции.
+            Spacer(Modifier.height(Spacing.sm))
+            CircadianLamp(
+                label = lightLabel,
                 cct = cct,
-                // «Новый разговор» показывается только когда есть что закрывать:
-                // в покое кнопка была бы шумом без действия.
-                showNewSession = state.amaliaReply.isNotEmpty(),
-                onNewSession = onNewSession,
-                onNavigateToHistory = onNavigateToHistory,
-                onNavigateToSettings = onNavigateToSettings,
-                onShowCircadianPreview = onShowCircadianPreview,
+                autoExpandOnStart = true,
             )
 
-            Spacer(Modifier.weight(if (compact) 0.12f else 0.22f))
+            Spacer(Modifier.height(Spacing.md))
+            GreetingHero(breath = breath)
+
+            if (welcome) {
+                Spacer(Modifier.weight(1f))
+            } else {
+                Spacer(Modifier.height(Spacing.md))
+            }
+
+            // === ДОПОЛНИТЕЛЬНОЕ: карточки диалога под героем ===
+            // В покое здесь стоят только чипы «что сказать». С началом
+            // разговора герой остаётся сверху как заголовок экрана, а
+            // карточка разговора занимает центр.
 
             // === ДИАЛОГ: единственная гибкая область экрана ===
             Box(
@@ -331,18 +359,15 @@ fun AssistantScreenContent(
                     label = "dialog",
                 ) { phase ->
                     Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                        // Герой-приветствие: крупная типографика фазы суток
-                        // занимает «воздух» над карточкой в покое. Именно он
-                        // делает экран элегантным, а не пустым. На компактных
-                        // экранах воздух жертвуется первым.
-                        if (phase == DialogPhase.Welcome && !compact) {
-                            GreetingHero()
-                            Spacer(Modifier.height(Spacing.md))
-                        }
                         when (phase) {
-                            DialogPhase.Welcome -> WelcomeCard(
+                            // В покое карточки нет вовсе: чипы «что сказать»
+                            // живут прямо на экране, без стеклянной коробки
+                            // вокруг. Коробка ради одной строки текста —
+                            // лишний объект в кадре, а элегантность здесь
+                            // держится на том, что считать нечего.
+                            DialogPhase.Welcome -> SuggestionChips(
                                 suggestions = suggestions,
-                                onPickSuggestion = onPickSuggestion,
+                                onClick = onPickSuggestion,
                             )
                             DialogPhase.Listening -> ListeningCard(transcript = state.userTranscript)
                             DialogPhase.Thinking -> ThinkingCard(
@@ -384,42 +409,72 @@ fun AssistantScreenContent(
                 }
             }
 
-            Spacer(Modifier.height(if (compact) Spacing.xs else Spacing.sm))
+            // === ДЕЙСТВИЯ ДИАЛОГА ===
+            // «Новый разговор» живёт здесь, рядом с самим разговором, а не
+            // в шапке экрана: оно относится к текущей беседе, а не к
+            // приложению целиком.
+            AnimatedVisibility(
+                visible = showsNewSession,
+                enter = fadeIn(tween(220)) + expandVertically(tween(240)),
+                exit = fadeOut(tween(140)) + shrinkVertically(tween(180)),
+            ) {
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = Spacing.screen, vertical = Spacing.xs),
+                    horizontalArrangement = Arrangement.spacedBy(Spacing.xs),
+                ) {
+                    GlassTextAction(
+                        icon = AmaliaAdd,
+                        text = stringResource(R.string.assistant_new_session),
+                        onClick = onNewSession,
+                    )
+                }
+            }
 
-            // === ГЕРОЙ: состояние + главное действие + подпись ===
+            // === ГОЛОСОВОЙ БЛОК: слово + волна + подпись ===
+            // Ритм этого блока задан намеренно: слово и волна стоят плотно
+            // (2dp) — они один объект, «что происходит» и «куда нажать».
+            // А от карточки диалога блок отделён крупно (20dp), потому что
+            // это уже другая смысловая зона. Раньше везде стояло 4dp, и
+            // именно поэтому всё «слипалось»: глаз не находил границ.
+            Spacer(Modifier.height(if (compact) Spacing.sm else Spacing.lg))
+
             StatusLabel(state = state.voiceState)
 
-            Spacer(Modifier.height(if (compact) Spacing.xxs else Spacing.xs))
+            Spacer(Modifier.height(2.dp))
 
-            MicButton(
+            VoiceOrb(
                 isActive = state.voiceState != VoiceState.Idle &&
                     state.voiceState != VoiceState.Error,
+                state = state.voiceState,
                 stateLabel = voiceStateLabel(state.voiceState),
                 level = state.audioLevel,
                 onClick = onMicClick,
                 onPress = onMicPress,
+                waveHeight = if (compact) 104.dp else 132.dp,
             )
 
-            Spacer(Modifier.height(Spacing.xxs))
+            Spacer(Modifier.height(Spacing.sm))
 
-            // Подпись — под орбом: кнопка обязана стоять максимально близко
-            // к нижнему краю, это главное действие экрана.
+            // Подпись — под волной: главное действие обязано стоять
+            // максимально близко к нижнему краю, в зоне большого пальца.
+            // Текст меняется по состоянию, потому что «Нажми и говори»
+            // в момент, когда ассистент уже слушает, — просто неправда.
             Text(
-                text = if (state.isBusy) {
-                    stringResource(R.string.assistant_stop)
-                } else {
-                    stringResource(R.string.assistant_welcome_hint)
-                },
-                style = MaterialTheme.typography.labelSmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.60f),
+                text = stringResource(voiceHintRes(state.voiceState, state.isBusy)),
+                style = MaterialTheme.typography.labelMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.72f),
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis,
                 modifier = Modifier.padding(horizontal = Spacing.md),
             )
 
-            // Запас ровно под плавающую нижнюю навигацию: 64dp панель +
-            // 12dp нижний паддинг + воздух. Ни пикселем больше — иначе
-            // главное действие уезжает вверх из зоны большого пальца.
+            // Запас под плавающую нижнюю навигацию: 64dp панель + 12dp её
+            // паддинг + воздух. Меньше 88dp нельзя — панель наедет на
+            // подпись; больше — главное действие уедет из зоны большого
+            // пальца. Волна сама по себе даёт воздух, поэтому здесь
+            // хватает нижней границы запаса.
             Spacer(Modifier.height(BottomBarReserve))
         }
     }
@@ -433,16 +488,19 @@ fun AssistantScreenContent(
  * Герой-приветствие главного экрана: крупная типографика фазы суток
  * и приглашение к разговору.
  *
- * Занимает «воздух» над карточкой диалога в покое — именно пустое
- * пространство прежде делало экран безликим. Приветствие следует
- * циркадному движку: тот же [LocalLightProfile], что красит фон,
- * выбирает и слова, поэтому текст и свет никогда не расходятся.
+ * Стоит в верхней трети, на воздухе, и не делит место ни с карточкой,
+ * ни с лампой: это самый крупный текст приложения и главный носитель
+ * «благородства» экрана.
  *
- * Фирменная деталь — тонкая дышащая черта под текстом: экран живёт
- * даже в абсолютном покое, 3.2 с на цикл, без резких движений.
+ * Свет и слова берутся из одного [LocalLightProfile], поэтому текст
+ * и фон не могут разойтись.
+ *
+ * @param breath общая фаза дыхания экрана 0..1. Раньше у черты был свой
+ *   период 3.2 с, и она дышала «против» волны; теперь такт один на весь
+ *   экран, поэтому движения читаются как одно.
  */
 @Composable
-private fun GreetingHero(modifier: Modifier = Modifier) {
+private fun GreetingHero(breath: Float, modifier: Modifier = Modifier) {
     val light = LocalLightProfile.current
     val greetingRes = when (light.phase) {
         CircadianPhase.DAWN, CircadianPhase.MORNING -> R.string.greeting_morning
@@ -450,16 +508,10 @@ private fun GreetingHero(modifier: Modifier = Modifier) {
         CircadianPhase.DUSK, CircadianPhase.EVENING -> R.string.greeting_evening
         CircadianPhase.NIGHT, CircadianPhase.DEEP_NIGHT -> R.string.greeting_night
     }
-    val transition = rememberInfiniteTransition(label = "greetingBreath")
-    val breath by transition.animateFloat(
-        initialValue = 0.35f,
-        targetValue = 1f,
-        animationSpec = infiniteRepeatable(
-            tween(3_200, easing = LinearEasing),
-            RepeatMode.Reverse,
-        ),
-        label = "greetingBar",
-    )
+
+    // Дыхание приходит снаружи — один такт на весь экран. Диапазон
+    // 0.35..1.0 оставлен прежним: черта не должна «моргать», она дышит.
+    val barAlpha = 0.35f + 0.65f * breath
     Column(
         modifier = modifier
             .fillMaxWidth()
@@ -468,28 +520,34 @@ private fun GreetingHero(modifier: Modifier = Modifier) {
     ) {
         Text(
             text = stringResource(greetingRes),
-            style = MaterialTheme.typography.displaySmall,
-            modifier = Modifier.widthIn(max = 420.dp),
+            // displayMedium, а не displaySmall: приветствие — главный
+            // текст приложения, и после снятия шапки у него есть право
+            // звучать крупно. Оно и даёт ощущение «благородства»: одна
+            // большая фраза на воздухе вместо пяти мелких элементов.
+            style = MaterialTheme.typography.displayMedium,
+            modifier = Modifier.widthIn(max = 440.dp),
             color = MaterialTheme.colorScheme.onBackground,
             textAlign = TextAlign.Center,
+            maxLines = 2,
+            overflow = TextOverflow.Ellipsis,
         )
-        Spacer(Modifier.height(Spacing.xxs))
+        Spacer(Modifier.height(Spacing.xs))
         Text(
             text = stringResource(R.string.greeting_prompt),
-            style = MaterialTheme.typography.bodySmall,
-            color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.80f),
+            style = MaterialTheme.typography.bodyMedium,
+            color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.82f),
             textAlign = TextAlign.Center,
         )
-        Spacer(Modifier.height(Spacing.sm))
+        Spacer(Modifier.height(Spacing.md))
         Box(
             modifier = Modifier
-                .size(width = 38.dp, height = 2.5.dp)
+                .size(width = 44.dp, height = 2.5.dp)
                 .clip(RoundedCornerShape(Radius.chip))
                 .background(
                     Brush.horizontalGradient(
                         listOf(
-                            MaterialTheme.colorScheme.primary.copy(alpha = 0.95f * breath),
-                            MaterialTheme.colorScheme.secondary.copy(alpha = 0.55f * breath),
+                            MaterialTheme.colorScheme.primary.copy(alpha = 0.95f * barAlpha),
+                            MaterialTheme.colorScheme.secondary.copy(alpha = 0.55f * barAlpha),
                         ),
                     ),
                 ),
@@ -528,205 +586,47 @@ private fun voiceStateLabel(state: VoiceState): String = stringResource(
     },
 )
 
-// ============================================================
-//  ШАПКА
-// ============================================================
-
-@Composable
-private fun AssistantTopBar(
-    conversationCount: Int,
-    voiceState: VoiceState,
-    showLight: Boolean,
-    lightLabel: String,
-    cct: Int,
-    showNewSession: Boolean,
-    onNewSession: () -> Unit,
-    onNavigateToHistory: () -> Unit,
-    onNavigateToSettings: () -> Unit,
-    onShowCircadianPreview: () -> Unit = {},
-    modifier: Modifier = Modifier,
-) {
-    Row(
-        modifier = modifier
-            .fillMaxWidth()
-            .padding(
-                start = Spacing.md,
-                end = Spacing.xs,
-                top = Spacing.xxs,
-            ),
-        verticalAlignment = Alignment.CenterVertically,
-    ) {
-        StatePulse(voiceState = voiceState)
-        Spacer(Modifier.width(Spacing.xs))
-        Column(Modifier.weight(1f)) {
-            Text(
-                text = stringResource(R.string.app_name),
-                style = MaterialTheme.typography.titleSmall,
-                color = MaterialTheme.colorScheme.onBackground,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis,
-            )
-            // Вторая строка — контекст, а не статус: сколько разговоров
-            // в памяти и какой сейчас свет. Чип света живёт здесь, а не
-            // в верхнем ряду: в верхнем он вместе с тремя кнопками не
-            // оставлял имени ни сантиметра на экране 360dp.
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Text(
-                    text = if (conversationCount > 0) {
-                        stringResource(R.string.assistant_conversations_count, conversationCount)
-                    } else {
-                        stringResource(R.string.assistant_idle)
-                    },
-                    style = MaterialTheme.typography.labelSmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.78f),
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis,
-                    // Текст уступает место чипу: цифру можно и обрезать,
-                    // а свет — нет, он объясняет смену палитры.
-                    modifier = Modifier.weight(1f, fill = false),
-                )
-                AnimatedVisibility(visible = showLight) {
-                    LightChip(
-                        label = lightLabel,
-                        cct = cct,
-                        isWarm = cct <= 3200,
-                        modifier = Modifier.padding(start = Spacing.xxs),
-                    )
-                }
-                // Кнопка-превью рассвет→закат: только когда bio-time включён,
-                // иначе превью не имеет контекста (фон не меняется).
-                AnimatedVisibility(visible = showLight) {
-                    GlassIconButton(
-                        icon = Icons.Rounded.WbTwilight,
-                        contentDescription = stringResource(R.string.appearance_preview),
-                        onClick = onShowCircadianPreview,
-                    )
-                }
-            }
-        }
-
-        // Новый разговор: доступен, когда на экране уже есть ответ —
-        // то есть когда «начать заново» действительно что-то значит.
-        AnimatedVisibility(visible = showNewSession) {
-            GlassIconButton(
-                icon = Icons.Rounded.AddComment,
-                contentDescription = stringResource(R.string.assistant_new_session),
-                onClick = onNewSession,
-            )
-        }
-        GlassIconButton(
-            icon = Icons.Rounded.History,
-            contentDescription = stringResource(R.string.nav_history),
-            onClick = onNavigateToHistory,
-            badge = conversationCount > 0,
-        )
-        // Настройки — через overflow-меню: шапка не должна перегружаться.
-        GlassIconButton(
-            icon = Icons.Rounded.Settings,
-            contentDescription = stringResource(R.string.nav_settings),
-            onClick = onNavigateToSettings,
-        )
-    }
-}
-
 /**
- * Компактный чип «какой сейчас свет»: фаза суток + цветовая температура.
+ * Подсказка под волной — что именно делать прямо сейчас.
  *
- * Показывает ровно те две величины, которые рассчитал CircadianEngine,
- * поэтому индикатор невозможно «разъехать» с фактическим фоном: и то,
- * и другое читает один [LocalLightProfile].
+ * Раньше здесь стояли всего две строки: «Нажми и говори» либо
+ * «остановить». Из-за этого в фазе «думаю» экран предлагал «остановить»
+ * (то есть обещал действие, которого не ждут), а в фазе «слушаю» —
+ * «Нажми и говори», хотя человек уже говорит. Подсказка обязана
+ * описывать текущий шаг, а не исходное состояние.
  */
 @Composable
-private fun LightChip(
-    label: String,
-    cct: Int,
-    isWarm: Boolean,
-    modifier: Modifier = Modifier,
-) {
-    Row(
-        modifier = modifier
-            .heightIn(min = 22.dp)
-            .clip(RoundedCornerShape(Radius.chip))
-            .glassSurface(shape = RoundedCornerShape(Radius.chip))
-            .padding(horizontal = Spacing.xs, vertical = 2.dp)
-            .semantics { contentDescription = "$label, $cct K" },
-        verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(4.dp),
-    ) {
-        // Точка-индикатор тонирована светом палитры: тёплый вечер — янтарь,
-        // холодное утро — лёд. Цвет не константа, а производная палитры,
-        // поэтому чип не спорит с фоном ни в одной фазе суток.
-        val dotColor = if (isWarm) {
-            Color(0xFFE8B054)
-        } else {
-            Color(0xFF9EC2F0)
-        }
-        Box(
-            modifier = Modifier
-                .size(6.dp)
-                .clip(CircleShape)
-                .background(dotColor),
-        )
-        Text(
-            text = "$label · ${cct}K",
-            style = MaterialTheme.typography.labelSmall,
-            color = MaterialTheme.colorScheme.tertiary.copy(alpha = 0.88f),
-            maxLines = 1,
-        )
-    }
+private fun voiceHintRes(state: VoiceState, busy: Boolean): Int = when (state) {
+    VoiceState.Idle -> R.string.assistant_welcome_hint
+    VoiceState.Listening -> R.string.assistant_hint_listening
+    VoiceState.Thinking -> R.string.assistant_hint_thinking
+    VoiceState.Speaking -> R.string.assistant_hint_speaking
+    VoiceState.Error -> R.string.assistant_hint_error
 }
+
+// ============================================================
+//  РЕЖИМ ЦИКЛА (для превью CircadianLamp)
+// ============================================================
 
 /**
- * Дышащая точка слева от имени — «Амалия на связи».
+ * Запускается ли раскрытие лампы автоматически при появлении экрана.
  *
- * В покое дышит медленно (2.6 с), в разговоре часто (0.9 с): по одному
- * взгляду на точку видно, слушают тебя или нет.
+ * В реальном приложении — всегда true: пользователь обязан один раз
+ * увидеть, что внутри скрыт текст, иначе аффорданс не читается. В превью
+ * это всё равно не работает (анимации в превью не запускаются), поэтому
+ * параметр существует ровно для того, чтобы превью не притворялись,
+ * будто они что-то анимируют.
  */
-@Composable
-private fun StatePulse(voiceState: VoiceState) {
-    val transition = rememberInfiniteTransition(label = "statePulse")
-    val breath by transition.animateFloat(
-        initialValue = 0.45f,
-        targetValue = 1f,
-        animationSpec = infiniteRepeatable(
-            tween(if (voiceState == VoiceState.Idle) 2_600 else 900, easing = LinearEasing),
-            repeatMode = RepeatMode.Reverse,
-        ),
-        label = "breath",
-    )
-    val color by animateColorAsState(
-        targetValue = stateColor(voiceState),
-        animationSpec = tween(360),
-        label = "pulseColor",
-    )
-
-    Box(
-        modifier = Modifier.size(18.dp),
-        contentAlignment = Alignment.Center,
-    ) {
-        Box(
-            modifier = Modifier
-                .size(18.dp)
-                .clip(CircleShape)
-                .background(color.copy(alpha = 0.14f * breath)),
-        )
-        Box(
-            modifier = Modifier
-                .size(7.dp)
-                .clip(CircleShape)
-                .background(color.copy(alpha = 0.55f + 0.45f * breath)),
-        )
-    }
-}
+private const val LAMP_AUTO_EXPAND = true
 
 // ============================================================
 //  СОСТОЯНИЕ
 // ============================================================
 
 /**
- * Слово состояния — главный текстовый якорь экрана.
+ * Слово состояния — главный текстовый якорь голосового блока.
  *
- * Стоит непосредственно над орбом, поэтому «что происходит» и «что нажать»
+ * Стоит вплотную над волной, поэтому «что происходит» и «куда нажать»
  * читаются одним взглядом. Смена слова — вертикальный слайд: движение
  * совпадает с направлением разговора (вниз — слушание, вверх — ответ).
  */
@@ -756,9 +656,17 @@ private fun StatusLabel(state: VoiceState, modifier: Modifier = Modifier) {
     }
 }
 
+/**
+ * Цвет слова состояния.
+ *
+ * В покое — приглушённый «onBackground», а не «onSurfaceVariant». Разница
+ * не косметическая: `onSurfaceVariant` — служебный цвет для второстепенного
+ * текста, и главный якорь экрана в нём выглядел выключенным. Здесь покой
+ * читается спокойным, но живым: это состояние ожидания, а не отказа.
+ */
 @Composable
 private fun stateColor(state: VoiceState): Color = when (state) {
-    VoiceState.Idle -> MaterialTheme.colorScheme.onSurfaceVariant
+    VoiceState.Idle -> MaterialTheme.colorScheme.onBackground.copy(alpha = 0.88f)
     VoiceState.Listening -> MaterialTheme.colorScheme.secondary
     // «Думаю» — третичный акцент, а не серый: фаза активная, и она должна
     // читаться живой, а не «погасшей».
@@ -770,58 +678,6 @@ private fun stateColor(state: VoiceState): Color = when (state) {
 // ============================================================
 //  КАРТОЧКИ ДИАЛОГА
 // ============================================================
-
-/**
- * Приветственная карточка: кто говорит, что делать и что можно сказать.
- *
- * Подсказки — чипы с нормальной тач-зоной и горизонтальным скроллом.
- * Раньше они были строками текста с ролью кнопки: выглядели как абзац,
- * тапать по ним не хотелось, а на длинном переводе строка обрезалась.
- */
-@Composable
-private fun WelcomeCard(
-    suggestions: List<String>,
-    onPickSuggestion: (String) -> Unit,
-) {
-    GlassCard(
-        modifier = Modifier.padding(horizontal = Spacing.screen),
-        cornerRadius = Radius.lg,
-    ) {
-        Row(verticalAlignment = Alignment.CenterVertically) {
-            AmaliaAvatar(size = 34.dp)
-            Spacer(Modifier.width(Spacing.sm))
-            Column(Modifier.weight(1f)) {
-                Text(
-                    text = stringResource(R.string.assistant_welcome_hint),
-                    style = MaterialTheme.typography.titleSmall,
-                    color = MaterialTheme.colorScheme.onSurface,
-                )
-                Spacer(Modifier.height(2.dp))
-                Text(
-                    text = stringResource(R.string.assistant_welcome_desc),
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    maxLines = 2,
-                    overflow = TextOverflow.Ellipsis,
-                )
-            }
-        }
-
-        if (suggestions.isNotEmpty()) {
-            Spacer(Modifier.height(Spacing.sm))
-            Text(
-                text = stringResource(R.string.assistant_welcome_chips),
-                style = MaterialTheme.typography.labelSmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.75f),
-            )
-            Spacer(Modifier.height(Spacing.xs))
-            SuggestionChips(
-                suggestions = suggestions,
-                onClick = onPickSuggestion,
-            )
-        }
-    }
-}
 
 /**
  * Карточка слушания.
@@ -841,11 +697,9 @@ private fun ListeningCard(transcript: String) {
         modifier = Modifier.padding(horizontal = Spacing.screen),
         cornerRadius = Radius.lg,
     ) {
-        CardLabel(
-            text = stringResource(R.string.assistant_listening),
-            color = MaterialTheme.colorScheme.secondary,
-        )
-        Spacer(Modifier.height(Spacing.xs))
+        // Лейбл «слушаю» здесь больше не нужен: слово состояния уже стоит
+        // под волной, и дублировать его внутри карточки — значит писать
+        // одно и то же дважды в одном кадре.
         if (transcript.isBlank()) {
             // Живая волна уже дышит под карточкой, поэтому здесь достаточно
             // пульсирующих точек — второго индикатора не нужно.
@@ -881,11 +735,7 @@ private fun ThinkingCard(
             )
             Spacer(Modifier.height(Spacing.sm))
         }
-        CardLabel(
-            text = stringResource(R.string.assistant_thinking),
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-        )
-        Spacer(Modifier.height(Spacing.xs))
+        // Слово «думаю» живёт под волной — здесь оно было бы повтором.
         if (activeTools.isEmpty()) {
             TypingDots()
         } else {
@@ -899,13 +749,27 @@ private fun ThinkingCard(
  *
  * Показываются максимум [VISIBLE_TOOL_ROWS] строк: «выключи всё» с десятью
  * командами не должно превращать карточку в пропасть, которая выталкивает
- * орб за пределы экрана. Остальное — счётчиком.
+ * волну за пределы экрана. Остальное — счётчиком.
  */
 @Composable
 private fun ToolActivityStrip(tools: List<ToolActivity>) {
+    // Одна бесконечная анимация на всю полосу, а не по одной на инструмент.
+    val strip = rememberInfiniteTransition(label = "toolStrip")
+    val breath by strip.animateFloat(
+        initialValue = 0f,
+        targetValue = 1f,
+        animationSpec = infiniteRepeatable(
+            tween(1_640, easing = LinearEasing),
+            repeatMode = RepeatMode.Reverse,
+        ),
+        label = "toolStripBreath",
+    )
     Column(verticalArrangement = Arrangement.spacedBy(Spacing.xxs)) {
-        tools.take(VISIBLE_TOOL_ROWS).forEach { tool ->
-            ToolChip(tool = tool)
+        tools.take(VISIBLE_TOOL_ROWS).forEachIndexed { index, tool ->
+            // Сдвиг по индексу: чипы дышат «волной», а не хором, но
+            // источник движения по-прежнему один.
+            val phase = ((breath + index * 0.18f) % 1f + 1f) % 1f
+            ToolChip(tool = tool, breathBase = phase)
         }
         if (tools.size > VISIBLE_TOOL_ROWS) {
             Text(
@@ -921,18 +785,22 @@ private fun ToolActivityStrip(tools: List<ToolActivity>) {
     }
 }
 
+/**
+ * Один инструмент в работе.
+ *
+ * @param breathBase общая фаза пульсации полосы 0..1. Раньше каждый чип
+ *   заводил собственный `InfiniteTransition`: четыре активных инструмента
+ *   означали четыре независимые бесконечные анимации, каждая со своими
+ *   подписками и своим кадровым расчётом. Теперь фаза одна на полосу, а
+ *   чипы лишь читают её со сдвигом: визуально то же самое, по кадрам —
+ *   вчетверо дешевле.
+ */
 @Composable
-private fun ToolChip(tool: ToolActivity) {
-    val transition = rememberInfiniteTransition(label = "tool-${tool.name}")
-    val breath by transition.animateFloat(
-        initialValue = 0.4f,
-        targetValue = 1f,
-        animationSpec = infiniteRepeatable(
-            tween(820, easing = LinearEasing),
-            repeatMode = RepeatMode.Reverse,
-        ),
-        label = "tool-breath",
-    )
+private fun ToolChip(
+    tool: ToolActivity,
+    breathBase: Float,
+) {
+    val breath = 0.4f + 0.6f * breathBase
     Row(
         modifier = Modifier
             .fillMaxWidth()
@@ -1013,11 +881,14 @@ private fun ReplyCard(
         }
 
         Row(verticalAlignment = Alignment.CenterVertically) {
-            AmaliaAvatar(size = 22.dp)
-            Spacer(Modifier.width(Spacing.xs))
-            CardLabel(
-                text = stringResource(R.string.app_name),
-                color = MaterialTheme.colorScheme.secondary,
+            // Имя говорящего убрано: на этом экране говорит только один
+            // голос, и подписывать его не нужно. Вместо имени — тонкая
+            // акцентная черта, которая просто отмечает начало ответа.
+            Box(
+                modifier = Modifier
+                    .size(width = 22.dp, height = 2.dp)
+                    .clip(RoundedCornerShape(Radius.chip))
+                    .background(MaterialTheme.colorScheme.secondary),
             )
             Spacer(Modifier.weight(1f))
             if (contextCompressed) {
@@ -1095,12 +966,12 @@ private fun ReplyCard(
                 verticalAlignment = Alignment.CenterVertically,
             ) {
                 GlassTextAction(
-                    icon = Icons.Rounded.Refresh,
+                    icon = AmaliaRepeat,
                     text = stringResource(R.string.assistant_repeat),
                     onClick = onRepeat,
                 )
                 GlassTextAction(
-                    icon = Icons.Rounded.ContentCopy,
+                    icon = AmaliaCopy,
                     text = stringResource(R.string.assistant_copy),
                     onClick = onCopy,
                 )
@@ -1244,7 +1115,7 @@ private fun ContextChip(literalCount: Int, modifier: Modifier = Modifier) {
         horizontalArrangement = Arrangement.spacedBy(4.dp),
     ) {
         Icon(
-            imageVector = Icons.Rounded.AutoAwesome,
+            imageVector = AmaliaHistory,
             contentDescription = null,
             tint = MaterialTheme.colorScheme.tertiary,
             modifier = Modifier.size(11.dp),
@@ -1253,30 +1124,6 @@ private fun ContextChip(literalCount: Int, modifier: Modifier = Modifier) {
             text = label,
             style = MaterialTheme.typography.labelSmall,
             color = MaterialTheme.colorScheme.tertiary,
-        )
-    }
-}
-
-/** Аватар Амалии: стеклянный кружок с цветовым «зрачком» текущей палитры. */
-@Composable
-private fun AmaliaAvatar(
-    modifier: Modifier = Modifier,
-    size: Dp = 34.dp,
-) {
-    val accent = iconAccent()
-    val label = stringResource(R.string.app_name)
-    Box(
-        modifier = modifier
-            .size(size)
-            .paletteChip(shape = CircleShape, strength = 1f)
-            .semantics { contentDescription = label },
-        contentAlignment = Alignment.Center,
-    ) {
-        Icon(
-            imageVector = Icons.Rounded.AutoAwesome,
-            contentDescription = null,
-            tint = accent,
-            modifier = Modifier.size(size / 2.4f),
         )
     }
 }
@@ -1305,7 +1152,7 @@ private fun ErrorCard(
     ) {
         Row(verticalAlignment = Alignment.CenterVertically) {
             Icon(
-                imageVector = Icons.Rounded.WarningAmber,
+                imageVector = AmaliaAlert,
                 contentDescription = null,
                 tint = MaterialTheme.colorScheme.error,
                 modifier = Modifier.size(16.dp),
@@ -1319,7 +1166,7 @@ private fun ErrorCard(
             // Крестик в углу: закрыть, не повторяя. Отдельной строкой он
             // отнимал бы высоту у главного действия карточки.
             Icon(
-                imageVector = Icons.Rounded.Close,
+                imageVector = AmaliaClose,
                 contentDescription = stringResource(R.string.common_close),
                 tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.85f),
                 modifier = Modifier
@@ -1343,13 +1190,13 @@ private fun ErrorCard(
             verticalAlignment = Alignment.CenterVertically,
         ) {
             GlassTextAction(
-                icon = Icons.Rounded.Refresh,
+                icon = AmaliaRepeat,
                 text = stringResource(R.string.common_retry),
                 onClick = onRetry,
             )
             if (onOpenSettings != null) {
                 GlassTextAction(
-                    icon = Icons.Rounded.Settings,
+                    icon = AmaliaSettings,
                     text = stringResource(R.string.permission_open_settings),
                     onClick = onOpenSettings,
                 )
@@ -1467,7 +1314,7 @@ private val ReplyMaxHeight = 180.dp
  *
  * Считается, а не берётся «на глаз»: 64dp высота панели + 12dp её собственный
  * вертикальный паддинг ×2 + 8dp воздуха = 96dp. Ровно столько, чтобы панель
- * не наехала на подпись под орбом. Прежние 84dp были меньше фактической
+ * не наехала на подпись под волной. Прежние 84dp были меньше фактической
  * высоты панели (88dp), и подпись уходила под стекло на 4dp.
  */
 private val BottomBarReserve = 88.dp
@@ -1566,7 +1413,7 @@ private val MultiToolPreviewState = AssistantUiState(
     ),
 )
 
-/** Экран в покое: приветствие, подсказки, орб. */
+/** Экран в покое: приветствие, свет, подсказки, волна. */
 @Preview(name = "Assistant · Idle", widthDp = 412, heightDp = 915, showBackground = true)
 @Composable
 private fun AssistantIdlePreview() {
@@ -1575,7 +1422,7 @@ private fun AssistantIdlePreview() {
     }
 }
 
-/** Слушание: живые субтитры и активный орб. */
+/** Слушание: живые субтитры и живая волна. */
 @Preview(name = "Assistant · Listening", widthDp = 412, heightDp = 915, showBackground = true)
 @Composable
 private fun AssistantListeningPreview() {
@@ -1644,7 +1491,7 @@ private fun AssistantNightPreview() {
     }
 }
 
-/** Компактный экран (640dp высоты) — проверка, что орб не выдавливает карточку. */
+/** Компактный экран (640dp высоты) — проверка, что волна не выдавливает карточку. */
 @Preview(name = "Assistant · Compact", widthDp = 360, heightDp = 640, showBackground = true)
 @Composable
 private fun AssistantCompactPreview() {
@@ -1664,11 +1511,9 @@ private fun PreviewShell(state: AssistantUiState) {
         onRepeat = {},
         onDismissError = {},
         onNewSession = {},
+        showsNewSession = state.amaliaReply.isNotEmpty(),
         onCopy = {},
         onOpenAppSettings = {},
-        onNavigateToHistory = {},
-        onNavigateToSettings = {},
-        onShowCircadianPreview = {},
         modifier = PreviewModifier,
     )
 }

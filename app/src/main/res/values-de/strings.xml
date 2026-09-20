@@ -237,7 +237,6 @@
     <string name="time_minutes_ago">vor %1$d Min</string>
     <string name="time_hours_ago">vor %1$d Std</string>
     <string name="time_days_ago">vor %1$d T</string>
-    <string name="history_resume">In neuem Chat fortsetzen</string>
 
     <!-- Device control: access levels -->
     <string name="device_access_direct">Direct control</string>
@@ -351,4 +350,10 @@
     <string name="settings_profile_custom_hint">URL, Modell und Schlüssel unten eingeben — dann aktivieren</string>
     <string name="settings_custom_activate">Dieses Profil aktivieren</string>
     <string name="settings_custom_active">Wird gerade verwendet</string>
+    <string name="assistant_hint_listening">Sprich, ich höre zu</string>
+    <string name="assistant_hint_thinking">Einen Moment, ich denke nach</string>
+    <string name="assistant_hint_speaking">Tippen zum Unterbrechen</string>
+    <string name="assistant_hint_error">Versuch es noch einmal</string>
+    <string name="history_resume">Dieses Gespräch fortsetzen</string>
+    <string name="history_resume_desc">Amalia erinnert sich daran und antwortet im Kontext.</string>
 </resources>

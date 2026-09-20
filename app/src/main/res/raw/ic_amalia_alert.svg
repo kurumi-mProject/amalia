@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- Источник семьи иконок Амалии. Глиф: предупреждение — ромб с восклицанием. -->
+<svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+    <g stroke="#FFFFFF" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" fill="none">
+        <path d="M12 3.2L20.8 12 12 20.8 3.2 12z"/>
+        <path d="M12 8.2v5.2"/>
+        <path d="M12 16.4h0.01"/>
+    </g>
+</svg>

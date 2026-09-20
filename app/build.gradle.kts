@@ -145,4 +145,11 @@ dependencies {
 
     // ===== Desugaring =====
     coreLibraryDesugaring("com.android.tools:desugar_jdk_libs:2.1.4")
+
+    // ===== Тесты геометрии иконок =====
+    // Единственная проверка, которая не может быть сделана глазами:
+    // иконки нарисованы координатами, и выход за рабочее поле виден
+    // не в превью, а только в навбаре на устройстве. Тест ловит это
+    // сборкой — см. `ui/icons/AmaliaIconsTest`.
+    testImplementation("junit:junit:4.13.2")
 }

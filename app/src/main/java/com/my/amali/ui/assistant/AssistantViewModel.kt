@@ -431,6 +431,70 @@ class AssistantViewModel(
         if (lastUser.isNotBlank()) launchCycle(prompt = lastUser)
     }
 
+    /**
+     * Продолжает разговор, открытый из истории.
+     *
+     * ## Зачем это нужно
+     *
+     * Пользователь может начать новый диалог (кнопка «Новый разговор»),
+     * а потом вспомнить, что не договорил в старом. Раньше единственным
+     * выходом было найти разговор в истории и читать его — продолжить
+     * было нельзя, потому что ассистент работал ровно с одной сессией.
+     *
+     * Здесь сессия **пересаживается** на указанный разговор: её история,
+     * резюме и граница пересказа берутся из сохранённого разговора, а
+     * следующие реплики дописываются уже в него. Никакого «второго
+     * параллельного диалога» не возникает — ассистент по-прежнему ведёт
+     * одну сессию, просто она теперь другая.
+     *
+     * @param conversationId id разговора из истории.
+     * @param onResumed вызывается, когда сессия действительно пересажена:
+     *   экран истории по этому сигналу закрывается и ведёт на главный.
+     */
+    fun resumeConversation(conversationId: String, onResumed: () -> Unit = {}) {
+        viewModelScope.launch {
+            val conversation = runCatching {
+                conversationRepo.conversations.first()
+                    .firstOrNull { it.id == conversationId }
+            }.getOrNull() ?: return@launch
+
+            // Гасим всё, что могло идти в текущей сессии: голос, аудио,
+            // незавершённый цикл. Продолжение разговора не имеет права
+            // накладываться на недосказанную фразу.
+            conversationJob?.cancel()
+            conversationJob = null
+            orchestrator.cancelSpeech()
+            playJob?.cancel()
+            playJob = null
+            player.stopImmediately()
+            ttsScope.coroutineContext[Job]?.children?.forEach { it.cancel() }
+
+            sessionMessages.clear()
+            sessionMessages += conversation.messages.takeLast(SESSION_TRIM)
+            sessionConversationId = conversation.id
+            conversationSummary = conversation.contextSummary
+            summarizedCount = conversation.summarizedCount
+            messagesSinceSummary = 0
+
+            // На экране — последняя пара «вопрос → ответ», остальное доступно
+            // в истории: вываливать весь разговор в карточку нельзя.
+            val lastUser = conversation.messages.lastOrNull { it.role == MessageRole.USER }
+            val lastReply = conversation.messages.lastOrNull { it.role == MessageRole.ASSISTANT }
+            _uiState.update {
+                AssistantUiState(
+                    isFirstLaunch = false,
+                    conversationCount = it.conversationCount,
+                    userTranscript = lastUser?.content.orEmpty(),
+                    amaliaReply = lastReply?.content.orEmpty(),
+                    replyProgress = 1f,
+                    contextCompressed = !conversationSummary.isNullOrBlank(),
+                    contextMessageCount = historyForModel().size,
+                )
+            }
+            onResumed()
+        }
+    }
+
     override fun onCleared() {
         conversationJob?.cancel()
         playJob?.cancel()

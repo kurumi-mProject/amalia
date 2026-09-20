@@ -237,7 +237,6 @@
     <string name="time_minutes_ago">%1$d分前</string>
     <string name="time_hours_ago">%1$d時間前</string>
     <string name="time_days_ago">%1$d日前</string>
-    <string name="history_resume">新しい会話で続ける</string>
 
     <!-- Device control: access levels -->
     <string name="device_access_direct">Direct control</string>
@@ -351,4 +350,10 @@
     <string name="settings_profile_custom_hint">下の欄にURL・モデル・キーを入れて有効にしてください</string>
     <string name="settings_custom_activate">このプロフィールを有効にする</string>
     <string name="settings_custom_active">現在使用中</string>
+    <string name="assistant_hint_listening">話してください、聞いています</string>
+    <string name="assistant_hint_thinking">少々お待ちください、考えています</string>
+    <string name="assistant_hint_speaking">タップで中断</string>
+    <string name="assistant_hint_error">もう一度お試しください</string>
+    <string name="history_resume">この会話を続ける</string>
+    <string name="history_resume_desc">アマリアはこの会話を覚えて、それを踏まえて答えます。</string>
 </resources>

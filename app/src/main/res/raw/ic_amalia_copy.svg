@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- Источник семьи иконок Амалии. Глиф: копировать — два листа со сдвигом. -->
+<svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+    <g stroke="#FFFFFF" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" fill="none">
+        <path d="M9.2 5.4V3.6h11.2v11.2h-1.8"/>
+        <path d="M3.6 9.2h11.2v11.2H3.6z"/>
+    </g>
+</svg>

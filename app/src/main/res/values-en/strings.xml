@@ -237,7 +237,6 @@
     <string name="time_minutes_ago">%1$d min ago</string>
     <string name="time_hours_ago">%1$d h ago</string>
     <string name="time_days_ago">%1$d d ago</string>
-    <string name="history_resume">Continue in a new chat</string>
 
     <!-- Device control: access levels -->
     <string name="device_access_direct">Direct control</string>
@@ -351,4 +350,10 @@
     <string name="settings_profile_custom_hint">Enter the URL, model and key in the block below, then enable it</string>
     <string name="settings_custom_activate">Enable this profile</string>
     <string name="settings_custom_active">Currently in use</string>
+    <string name="assistant_hint_listening">Speak, I'm listening</string>
+    <string name="assistant_hint_thinking">One moment, thinking</string>
+    <string name="assistant_hint_speaking">Tap to interrupt</string>
+    <string name="assistant_hint_error">Try again</string>
+    <string name="history_resume">Continue this conversation</string>
+    <string name="history_resume_desc">Amalia will remember this talk and answer with it in mind.</string>
 </resources>

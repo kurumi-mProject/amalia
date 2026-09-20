@@ -52,6 +52,13 @@
     <string name="assistant_copy">копировать</string>
     <string name="assistant_share">поделиться</string>
     <string name="assistant_stop">остановить</string>
+    <!-- Подсказка под волной: что делать прямо сейчас. Семь фраз на
+         каждый шаг цикла — раньше их было две, и в фазе «думаю» экран
+         предлагал «остановить», хотя прерывать было нечего. -->
+    <string name="assistant_hint_listening">Говори, я слушаю</string>
+    <string name="assistant_hint_thinking">Секунду, подумаю</string>
+    <string name="assistant_hint_speaking">Нажми, чтобы перебить</string>
+    <string name="assistant_hint_error">Попробуй ещё раз</string>
 
     <!-- === Подсказки === -->
     <string name="suggestion_hello">Привет</string>
@@ -254,7 +261,8 @@
     <string name="time_minutes_ago">%1$d мин назад</string>
     <string name="time_hours_ago">%1$d ч назад</string>
     <string name="time_days_ago">%1$d дн назад</string>
-    <string name="history_resume">Продолжить в новом диалоге</string>
+    <string name="history_resume">Продолжить этот разговор</string>
+    <string name="history_resume_desc">Амалия вспомнит эту беседу и ответит с учётом неё.</string>
 
     <!-- Управление устройством: уровни доступа -->
     <string name="device_access_direct">Прямое управление</string>

@@ -237,7 +237,6 @@
     <string name="time_minutes_ago">%1$d मिनट पहले</string>
     <string name="time_hours_ago">%1$d घंटे पहले</string>
     <string name="time_days_ago">%1$d दिन पहले</string>
-    <string name="history_resume">नई बातचीत में जारी रखें</string>
 
     <!-- Device control: access levels -->
     <string name="device_access_direct">Direct control</string>
@@ -351,4 +350,10 @@
     <string name="settings_profile_custom_hint">नीचे URL, मॉडल और कुंजी भरें — फिर चालू करें</string>
     <string name="settings_custom_activate">यह प्रोफ़ाइल चालू करें</string>
     <string name="settings_custom_active">अभी उपयोग में है</string>
+    <string name="assistant_hint_listening">बोलिए, मैं सुन रही हूँ</string>
+    <string name="assistant_hint_thinking">एक पल, सोच रही हूँ</string>
+    <string name="assistant_hint_speaking">रोकने के लिए टैप करें</string>
+    <string name="assistant_hint_error">फिर से कोशिश करें</string>
+    <string name="history_resume">यह बातचीत जारी रखें</string>
+    <string name="history_resume_desc">अमालिया इसे याद रखेगी और इसके अनुसार जवाब देगी।</string>
 </resources>

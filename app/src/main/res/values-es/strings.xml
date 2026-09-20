@@ -237,7 +237,6 @@
     <string name="time_minutes_ago">hace %1$d min</string>
     <string name="time_hours_ago">hace %1$d h</string>
     <string name="time_days_ago">hace %1$d d</string>
-    <string name="history_resume">Continuar en un chat nuevo</string>
 
     <!-- Device control: access levels -->
     <string name="device_access_direct">Direct control</string>
@@ -351,4 +350,10 @@
     <string name="settings_profile_custom_hint">Escribe la URL, el modelo y la clave abajo, luego actívalo</string>
     <string name="settings_custom_activate">Activar este perfil</string>
     <string name="settings_custom_active">En uso ahora</string>
+    <string name="assistant_hint_listening">Habla, te escucho</string>
+    <string name="assistant_hint_thinking">Un momento, lo estoy pensando</string>
+    <string name="assistant_hint_speaking">Toca para interrumpir</string>
+    <string name="assistant_hint_error">Inténtalo de nuevo</string>
+    <string name="history_resume">Continuar esta conversación</string>
+    <string name="history_resume_desc">Amalia recordará esta charla y responderá según ella.</string>
 </resources>

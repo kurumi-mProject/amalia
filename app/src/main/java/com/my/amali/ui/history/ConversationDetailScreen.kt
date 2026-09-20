@@ -12,7 +12,10 @@ import androidx.compose.animation.fadeOut
 import androidx.compose.animation.shrinkVertically
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.combinedClickable
+import androidx.compose.foundation.interaction.MutableInteractionSource
+import androidx.compose.foundation.interaction.collectIsPressedAsState
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -52,13 +55,16 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.scale
 import androidx.compose.ui.draw.rotate
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.ClipEntry
 import androidx.compose.ui.platform.LocalClipboard
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.role
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -75,6 +81,7 @@ import com.my.amali.ui.components.AmaliaScreen
 import com.my.amali.ui.components.EmptyState
 import com.my.amali.ui.components.GlassDialog
 import com.my.amali.ui.components.GlassIconButton
+import com.my.amali.ui.icons.AmaliaVoice
 import com.my.amali.ui.theme.Radius
 import com.my.amali.ui.theme.Spacing
 import com.my.amali.ui.theme.glassSurface
@@ -103,6 +110,7 @@ import com.my.amali.ui.theme.paletteChip
 fun ConversationDetailScreen(
     conversationId: String,
     onBack: () -> Unit,
+    onResumeConversation: (String) -> Unit = {},
     modifier: Modifier = Modifier,
 ) {
     val vm: ConversationDetailViewModel = viewModel(
@@ -175,6 +183,15 @@ fun ConversationDetailScreen(
                 ),
                 verticalArrangement = Arrangement.spacedBy(Spacing.sm),
             ) {
+                // Продолжение разговора — первым элементом списка, до реплик.
+                // Порядок не случаен: человек пришёл в историю с намерением
+                // «вернуться к этому разговору», и намерение у него свежее,
+                // чем желание перечитывать. Кнопка вверху экономит прокрутку
+                // до конца ленты на длинном диалоге.
+                item(key = "resume-action") {
+                    ResumeConversationAction(onResume = { onResumeConversation(conversationId) })
+                }
+
                 items(rows, key = { it.key }) { row ->
                     when (row) {
                         is DetailRow.Day -> DayDivider(row.timestamp)
@@ -222,6 +239,75 @@ fun ConversationDetailScreen(
 // ════════════════════════════════════════════════════════════
 //  СТРОКИ ЭКРАНА
 // ════════════════════════════════════════════════════════════
+
+/**
+ * Кнопка «продолжить этот разговор».
+ *
+ * Стоит первым элементом ленты, до реплик. Смысл: пользователь открывает
+ * старый разговор не чтобы перечитать, а чтобы **договорить**. Без этой
+ * кнопки единственным выходом было вернуться на главный экран и услышать
+ * там уже другую сессию — то есть потерять контекст, ради которого он и
+ * заходил в историю.
+ *
+ * Визуально это стеклянная карточка с акцентным глифом и двумя строками:
+ * действие и объяснение. Кнопка одна — второе действие («удалить») уже
+ * живёт в шапке экрана, дублировать его здесь не нужно.
+ */
+@Composable
+private fun ResumeConversationAction(
+    onResume: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    val interaction = remember { MutableInteractionSource() }
+    val pressed by interaction.collectIsPressedAsState()
+    val scale by animateFloatAsState(
+        targetValue = if (pressed) 0.978f else 1f,
+        animationSpec = spring(
+            dampingRatio = Spring.DampingRatioLowBouncy,
+            stiffness = Spring.StiffnessMediumLow,
+        ),
+        label = "resumePress",
+    )
+
+    Row(
+        modifier = modifier
+            .fillMaxWidth()
+            .scale(scale)
+            .glassSurface(shape = RoundedCornerShape(Radius.md), elevated = true)
+            .clickable(
+                interactionSource = interaction,
+                indication = null,
+                onClick = onResume,
+            )
+            .padding(horizontal = Spacing.md, vertical = Spacing.sm)
+            .semantics { role = Role.Button },
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(Spacing.sm),
+    ) {
+        Icon(
+            imageVector = AmaliaVoice,
+            contentDescription = null,
+            tint = iconAccent(),
+            modifier = Modifier.size(18.dp),
+        )
+        Column(Modifier.weight(1f)) {
+            Text(
+                text = stringResource(R.string.history_resume),
+                style = MaterialTheme.typography.titleSmall,
+                color = MaterialTheme.colorScheme.onSurface,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+            )
+            Text(
+                text = stringResource(R.string.history_resume_desc),
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.78f),
+                maxLines = 2,
+                overflow = TextOverflow.Ellipsis,
+            )
+        }
+    }
+}
 
 private sealed interface DetailRow {
     val key: Any

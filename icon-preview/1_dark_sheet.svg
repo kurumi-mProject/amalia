@@ -1,0 +1,74 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="660" height="560" viewBox="0 0 660 560">
+<style>
+ .lbl { font-family: ui-sans-serif, system-ui, sans-serif; font-size:12px; fill:#8A8F98; }
+ .sub { font-family: ui-sans-serif, system-ui, sans-serif; font-size:10px; fill:#5A5F68; }
+ .ttl { font-family: ui-sans-serif, system-ui, sans-serif; font-size:15px; fill:#E6E8EC; font-weight:600; }
+</style>
+<rect width="660" height="560" fill="#07080A"/>
+<text class="ttl" x="30" y="38">Amalia icons — Liquid Glass (тёмная база)</text>
+<rect x="30" y="56" width="180" height="140" rx="20" fill="#0E0F12"/>
+<rect x="30" y="56" width="180" height="140" rx="20" fill="url(#g)"/>
+<g transform="translate(84.0,86) scale(3.0)" stroke="#F2F4F8" stroke-width="1.7" fill="none" stroke-linecap="round" stroke-linejoin="round"><path d="M4 10.2v3.6"/>
+<path d="M8 6.4v11.2"/>
+<path d="M12 3.2v17.6"/>
+<path d="M16 7.6v8.8"/>
+<path d="M20 10.6v2.8"/></g>
+<text class="lbl" x="120.0" y="168" text-anchor="middle">voice</text>
+<text class="sub" x="120.0" y="184" text-anchor="middle">вкладка «Ассистент»</text>
+<rect x="230" y="56" width="180" height="140" rx="20" fill="#0E0F12"/>
+<rect x="230" y="56" width="180" height="140" rx="20" fill="url(#g)"/>
+<g transform="translate(284.0,86) scale(3.0)" stroke="#F2F4F8" stroke-width="1.7" fill="none" stroke-linecap="round" stroke-linejoin="round"><path d="M8.2 4.6h9.6a2 2 0 0 1 2 2v6.6a2 2 0 0 1-2 2H8.2a2 2 0 0 1-2-2V6.6a2 2 0 0 1 2-2z"/>
+<path d="M13.2 9.2h3.4"/>
+<path d="M4.2 9.4v8a2 2 0 0 0 2 2h8.4"/></g>
+<text class="lbl" x="320.0" y="168" text-anchor="middle">history</text>
+<text class="sub" x="320.0" y="184" text-anchor="middle">вкладка «История»</text>
+<rect x="430" y="56" width="180" height="140" rx="20" fill="#0E0F12"/>
+<rect x="430" y="56" width="180" height="140" rx="20" fill="url(#g)"/>
+<g transform="translate(484.0,86) scale(3.0)" stroke="#F2F4F8" stroke-width="1.7" fill="none" stroke-linecap="round" stroke-linejoin="round"><path d="M4 7.4h5.2"/>
+<path d="M13.4 7.4H20"/>
+<path d="M12.4 4.9v5"/>
+<path d="M4 16.6h3.6"/>
+<path d="M11.8 16.6H20"/>
+<path d="M10.8 14.1v5"/></g>
+<text class="lbl" x="520.0" y="168" text-anchor="middle">settings</text>
+<text class="sub" x="520.0" y="184" text-anchor="middle">вкладка «Настройки»</text>
+<rect x="30" y="216" width="180" height="140" rx="20" fill="#0E0F12"/>
+<rect x="30" y="216" width="180" height="140" rx="20" fill="url(#g)"/>
+<g transform="translate(84.0,246) scale(3.0)" stroke="#F2F4F8" stroke-width="1.7" fill="none" stroke-linecap="round" stroke-linejoin="round"><path d="M12 12.4v4.2"/>
+<path d="M6.2 11.2a1.6 1.6 0 0 1-1.4-2.36l2.6-4.9a1.6 1.6 0 0 1 1.4-0.74h6.4a1.6 1.6 0 0 1 1.4 0.74l2.6 4.9a1.6 1.6 0 0 1-1.4 2.36z"/>
+<path d="M9.4 19.2h5.2"/>
+<path d="M10.4 21.4h3.2"/></g>
+<text class="lbl" x="120.0" y="328" text-anchor="middle">lamp</text>
+<text class="sub" x="120.0" y="344" text-anchor="middle">свёрнутая лампа (15dp!)</text>
+<rect x="230" y="216" width="180" height="140" rx="20" fill="#0E0F12"/>
+<rect x="230" y="216" width="180" height="140" rx="20" fill="url(#g)"/>
+<g transform="translate(284.0,246) scale(3.0)" stroke="#F2F4F8" stroke-width="1.7" fill="none" stroke-linecap="round" stroke-linejoin="round"><path d="M5.59 15.7 4.6 12 5.59 8.3 8.3 5.59 12 4.6 15.7 5.59 18.41 8.3 19.4 12 18.41 15.7 15.7 18.41 12 19.4 8.3 18.41"/>
+<path d="M5.59 15.7 8.0 18.7 4.6 18.7z"/></g>
+<text class="lbl" x="320.0" y="328" text-anchor="middle">repeat</text>
+<text class="sub" x="320.0" y="344" text-anchor="middle">повторить ответ</text>
+<rect x="430" y="216" width="180" height="140" rx="20" fill="#0E0F12"/>
+<rect x="430" y="216" width="180" height="140" rx="20" fill="url(#g)"/>
+<g transform="translate(484.0,246) scale(3.0)" stroke="#F2F4F8" stroke-width="1.7" fill="none" stroke-linecap="round" stroke-linejoin="round"><path d="M9.2 5.4V3.6h11.2v11.2h-1.8"/>
+<path d="M3.6 9.2h11.2v11.2H3.6z"/></g>
+<text class="lbl" x="520.0" y="328" text-anchor="middle">copy</text>
+<text class="sub" x="520.0" y="344" text-anchor="middle">копировать</text>
+<rect x="30" y="376" width="180" height="140" rx="20" fill="#0E0F12"/>
+<rect x="30" y="376" width="180" height="140" rx="20" fill="url(#g)"/>
+<g transform="translate(84.0,406) scale(3.0)" stroke="#F2F4F8" stroke-width="1.7" fill="none" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3.2L20.8 12 12 20.8 3.2 12z"/>
+<path d="M12 8.2v5.2"/>
+<path d="M12 16.4h0.01"/></g>
+<text class="lbl" x="120.0" y="488" text-anchor="middle">alert</text>
+<text class="sub" x="120.0" y="504" text-anchor="middle">ошибка</text>
+<rect x="230" y="376" width="180" height="140" rx="20" fill="#0E0F12"/>
+<rect x="230" y="376" width="180" height="140" rx="20" fill="url(#g)"/>
+<g transform="translate(284.0,406) scale(3.0)" stroke="#F2F4F8" stroke-width="1.7" fill="none" stroke-linecap="round" stroke-linejoin="round"><path d="M5.4 5.4l13.2 13.2"/>
+<path d="M18.6 5.4L5.4 18.6"/></g>
+<text class="lbl" x="320.0" y="488" text-anchor="middle">close</text>
+<text class="sub" x="320.0" y="504" text-anchor="middle">закрыть</text>
+<rect x="430" y="376" width="180" height="140" rx="20" fill="#0E0F12"/>
+<rect x="430" y="376" width="180" height="140" rx="20" fill="url(#g)"/>
+<g transform="translate(484.0,406) scale(3.0)" stroke="#F2F4F8" stroke-width="1.7" fill="none" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5.6v12.8"/>
+<path d="M5.6 12h12.8"/></g>
+<text class="lbl" x="520.0" y="488" text-anchor="middle">add</text>
+<text class="sub" x="520.0" y="504" text-anchor="middle">новый разговор</text>
+</svg>

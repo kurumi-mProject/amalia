@@ -237,7 +237,6 @@
     <string name="time_minutes_ago">%1$d 分钟前</string>
     <string name="time_hours_ago">%1$d 小时前</string>
     <string name="time_days_ago">%1$d 天前</string>
-    <string name="history_resume">在新对话中继续</string>
 
     <!-- Device control: access levels -->
     <string name="device_access_direct">Direct control</string>
@@ -351,4 +350,10 @@
     <string name="settings_profile_custom_hint">在下方填写地址、模型和密钥，然后启用</string>
     <string name="settings_custom_activate">启用此配置</string>
     <string name="settings_custom_active">当前正在使用</string>
+    <string name="assistant_hint_listening">说吧，我在听</string>
+    <string name="assistant_hint_thinking">稍等，我在想</string>
+    <string name="assistant_hint_speaking">点按可打断</string>
+    <string name="assistant_hint_error">再试一次</string>
+    <string name="history_resume">继续这段对话</string>
+    <string name="history_resume_desc">阿玛莉亚会记住这次交谈，并据此回答。</string>
 </resources>
