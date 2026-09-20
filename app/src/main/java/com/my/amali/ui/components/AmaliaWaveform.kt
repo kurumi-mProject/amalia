@@ -14,6 +14,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.CornerRadius
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Brush
@@ -124,9 +125,14 @@ fun AmaliaWaveform(
     }
 
     val brush = remember(color) { SolidColor(color) }
-    val stroke = remember(settings.spikeWidth) {
-        Stroke(width = settings.spikeWidth.dp.toPx().coerceAtLeast(1.2f))
-    }
+
+    // Толщина обводки нужна в пикселях, но переводить dp в пиксели можно
+    // только внутри DrawScope. Поэтому перевод делается здесь, через
+    // плотность из композиции: тот же результат, но без обращения к
+    // DrawScope за его пределами.
+    val density = LocalDensity.current
+    val strokeWidthPx = with(density) { settings.spikeWidth.dp.toPx() }.coerceAtLeast(1.2f)
+    val stroke = remember(strokeWidthPx) { Stroke(width = strokeWidthPx) }
 
     val widthDp = settings.totalWidthDp.dp
     val heightDp = settings.maxHeight.dp

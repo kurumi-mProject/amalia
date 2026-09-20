@@ -208,10 +208,6 @@ fun AssistantScreen(
         contract = ActivityResultContracts.RequestPermission(),
     ) { granted -> vm.onMicPermissionResult(granted) }
 
-    // Источник взаимодействия для микрофона: indication = null, потому что
-    // рябь на этом элементе конфликтует с волной — она и есть отклик.
-    val micInteraction = remember { MutableInteractionSource() }
-
     LaunchedEffect(state.micPermissionRequired) {
         if (state.micPermissionRequired) {
             permissionLauncher.launch(Manifest.permission.RECORD_AUDIO)
@@ -278,6 +274,10 @@ fun AssistantScreenContent(
     onOpenAppSettings: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
+    // Источник взаимодействия для микрофона: indication = null, потому что
+    // рябь на этом элементе конфликтует с волной — она и есть отклик.
+    val micInteraction = remember { MutableInteractionSource() }
+
     val visuals = LocalAmaliaVisuals.current
     val light = LocalLightProfile.current
     val lightLabel = light.lightLabel

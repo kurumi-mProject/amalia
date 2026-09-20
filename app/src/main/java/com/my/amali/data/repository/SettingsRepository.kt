@@ -257,6 +257,7 @@ class SettingsRepository(private val dataStore: DataStore<Preferences>) {
     /** Густота декораций, [0.0, 1.0]. 0 фактически выключает слой. */
     suspend fun setMotifDensity(value: Float) {
         dataStore.edit { it[Keys.MOTIF_DENSITY] = value.coerceIn(0f, 1f) }
+    }
 
     // ── Живая волна ─────────────────────────────────────────────────────
 
@@ -326,7 +327,6 @@ class SettingsRepository(private val dataStore: DataStore<Preferences>) {
             )
             prefs[Keys.WAVE_FILLED] = wave.filled
         }
-    }
     }
 
     /** Сбрасывает все настройки к значениям по умолчанию. */

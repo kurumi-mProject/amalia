@@ -29,7 +29,7 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.my.amali.R
 import com.my.amali.domain.entity.WaveSettings
-import com.my.amali.ui.components.AmaliaButton
+import com.my.amali.ui.components.SecondaryButton
 import com.my.amali.ui.components.AmaliaScreen
 import com.my.amali.ui.components.AmaliaWaveform
 import com.my.amali.ui.components.GlassCard
@@ -237,10 +237,9 @@ fun WaveSettingsScreen(
 
             Spacer(Modifier.height(Spacing.xs))
 
-            AmaliaButton(
+            SecondaryButton(
                 text = stringResource(R.string.settings_wave_reset),
                 onClick = { vm.setWave(WaveSettings()) },
-                primary = false,
                 modifier = Modifier.fillMaxWidth(),
             )
 
