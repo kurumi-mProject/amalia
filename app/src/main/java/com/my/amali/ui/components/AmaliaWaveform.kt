@@ -20,6 +20,7 @@ import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import com.my.amali.domain.entity.WaveSettings
+import com.my.amali.domain.entity.WaveSettings.Companion.COUNT_MAX
 import com.my.amali.domain.entity.WaveSettings.Companion.COUNT_MIN
 import com.my.amali.domain.entity.WaveSettings.Companion.GAP_MAX
 import com.my.amali.domain.entity.WaveSettings.Companion.GAP_MIN

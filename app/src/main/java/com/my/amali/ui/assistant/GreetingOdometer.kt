@@ -11,6 +11,7 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
@@ -267,13 +268,14 @@ private fun OdometerDrum(
                 modifier = Modifier.width(metrics.slotWidth),
             )
         } else {
+            // Само смещение столбца. `Modifier.offset` с лямбдой считается
+            // на фазе размещения, а не композиции: при сдвиге на каждом кадре
+            // это единственный способ не пересобирать поддерево целиком.
+            // Округление до целых пикселей обязательно — при дробном сдвиге
+            // сглаживание размазывает глифы, и мелькание читается как мыло,
+            // а не как вращение.
             Column(
-                modifier = Modifier.offset {
-                    // Округление до целых пикселей: при дробном сдвиге
-                    // сглаживание размазывает глифы, и мелькание читается
-                    // как мыло, а не как вращение.
-                    IntOffset(x = 0, y = -(direction * travel).roundToInt())
-                },
+                modifier = Modifier.offset { IntOffset(x = 0, y = -(direction * travel).roundToInt()) },
                 horizontalAlignment = Alignment.CenterHorizontally,
             ) {
                 column.forEach { drumChar ->

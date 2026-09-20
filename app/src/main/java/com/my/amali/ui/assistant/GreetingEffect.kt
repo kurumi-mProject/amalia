@@ -212,10 +212,17 @@ internal fun scrambleAmount(progress: Float, index: Int, length: Int): Float {
     return (1f - p + jitter * (1f - p)).coerceIn(0f, 1f)
 }
 
-/** Случайный знак из набора, похожего на текст: буквы и цифры без I/O/l/0. */
+/**
+ * Случайный знак из набора, похожего на текст.
+ *
+ * Набор — обычная [String], а не константа времени компиляции: строковые
+ * константы в Kotlin длиннее 65 тысяч символов не бывают, но главное —
+ * у строки есть готовый метод [String.length] и индексация, которых нет
+ * у `const val`. Пул короткий, и держать его константой незачем.
+ */
 internal fun randomGlyph(random: Random): Char {
-    val pool = GlyphPool
-    return pool[random.nextInt(pool.size)]
+    val pool = GlyphAlphabet
+    return pool[random.nextInt(pool.length)]
 }
 
 /**
@@ -225,7 +232,7 @@ internal fun randomGlyph(random: Random): Char {
  * в шрифте, и «расшифровка» начала бы читаться как уже готовый текст,
  * в котором мелькают настоящие слова.
  */
-private const val GlyphPool = "ABCDEFGHJKMNPQRSTUVWXYZ23456789"
+private const val GlyphAlphabet = "ABCDEFGHJKMNPQRSTUVWXYZ23456789"
 
 /** Длительность перехода фразы: сорок кадров при 60 Гц — как раз на грани. */
 internal const val GREETING_TRANSITION_MS = 640
