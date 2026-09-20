@@ -86,7 +86,7 @@ class GroqWhisperStt(private val context: Context) : SpeechToTextEngine {
         }
 
         val apiKey = resolveKey(options)
-        val recorder = openRecorder()
+        val mic: AudioRecord = openRecorder()
         val model = ModelCatalog.resolveForRequest(
             ModelCatalog.Provider.GROQ_STT,
             options.api.sttModel,
@@ -100,12 +100,15 @@ class GroqWhisperStt(private val context: Context) : SpeechToTextEngine {
             .coerceIn(MIN_SILENCE_MS, MAX_SILENCE_MS)
 
         val job = launch(Dispatchers.IO) {
-            val gate = SpeechGate()
-            val take = VoiceRecorder(silenceMs = silenceMs)
+            val gate: SpeechGate = SpeechGate()
+            // Именно `take`, а не `recorder`: рядом живёт `mic` — системный
+            // AudioRecord, и два «рекордера» в одном цикле читались бы как
+            // ошибка. Здесь — наша запись фразы, там — железо.
+            val take: VoiceRecorder = VoiceRecorder(silenceMs = silenceMs)
 
             try {
-                recorder.startRecording()
-                if (recorder.recordingState != AudioRecord.RECORDSTATE_RECORDING) {
+                mic.startRecording()
+                if (mic.recordingState != AudioRecord.RECORDSTATE_RECORDING) {
                     close(EngineException(ERROR_MIC_BUSY))
                     return@launch
                 }
@@ -117,7 +120,7 @@ class GroqWhisperStt(private val context: Context) : SpeechToTextEngine {
 
                 val frame = ShortArray(VoiceAudio.FRAME_SAMPLES)
                 while (isActive) {
-                    val read = recorder.read(frame, 0, frame.size)
+                    val read = mic.read(frame, 0, frame.size)
                     if (read <= 0) continue
                     val chunk = if (read == frame.size) frame else frame.copyOf(read)
 
@@ -126,10 +129,9 @@ class GroqWhisperStt(private val context: Context) : SpeechToTextEngine {
                     // тишине тоже — иначе кажется, что ассистент не слушает.
                     trySend(SttEvent.Level(level))
 
-                    // Решение о речи принимается по уровню и калиброванному
+                    // Решение о речи принимается по уровню и измеренному
                     // порогу: одна строка, один источник правды.
                     val speech = gate.isSpeech(chunk, level)
-                    if (speech) gate.markSpeech() else gate.markSilence()
 
                     val done = take.accept(chunk, speech, VoiceAudio.FRAME_MS)
                     if (done) {
@@ -152,11 +154,11 @@ class GroqWhisperStt(private val context: Context) : SpeechToTextEngine {
                 return@launch
             } finally {
                 runCatching {
-                    if (recorder.recordingState == AudioRecord.RECORDSTATE_RECORDING) {
-                        recorder.stop()
+                    if (mic.recordingState == AudioRecord.RECORDSTATE_RECORDING) {
+                        mic.stop()
                     }
                 }
-                runCatching { recorder.release() }
+                runCatching { mic.release() }
             }
 
             if (!take.hasSpeech || take.length == 0) {
@@ -199,8 +201,8 @@ class GroqWhisperStt(private val context: Context) : SpeechToTextEngine {
 
         awaitClose {
             job.cancel()
-            runCatching { recorder.stop() }
-            runCatching { recorder.release() }
+            runCatching { mic.stop() }
+            runCatching { mic.release() }
         }
     }
 
@@ -242,7 +244,7 @@ class GroqWhisperStt(private val context: Context) : SpeechToTextEngine {
             MediaRecorder.AudioSource.MIC,
         )
         for (source in sources) {
-            val recorder = runCatching {
+            val candidate = runCatching {
                 @Suppress("DEPRECATION")
                 AudioRecord(
                     source,
@@ -252,8 +254,8 @@ class GroqWhisperStt(private val context: Context) : SpeechToTextEngine {
                     size,
                 )
             }.getOrNull() ?: continue
-            if (recorder.state == AudioRecord.STATE_INITIALIZED) return recorder
-            recorder.release()
+            if (candidate.state == AudioRecord.STATE_INITIALIZED) return candidate
+            candidate.release()
         }
         throw EngineException(ERROR_MIC_UNAVAILABLE)
     }

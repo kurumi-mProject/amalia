@@ -34,7 +34,7 @@ val GlassTypography = Typography(
         fontWeight = FontWeight.Light,
         fontSize = 52.sp,
         lineHeight = 56.sp,
-        letterSpacing = (-1.4).sp,
+        letterSpacing = 0.sp,
         lineHeightStyle = CenteredLines,
     ),
     displayMedium = TextStyle(
@@ -42,7 +42,7 @@ val GlassTypography = Typography(
         fontWeight = FontWeight.Light,
         fontSize = 42.sp,
         lineHeight = 46.sp,
-        letterSpacing = (-1).sp,
+        letterSpacing = 0.sp,
         lineHeightStyle = CenteredLines,
     ),
     displaySmall = TextStyle(
@@ -50,7 +50,7 @@ val GlassTypography = Typography(
         fontWeight = FontWeight.Normal,
         fontSize = 34.sp,
         lineHeight = 40.sp,
-        letterSpacing = (-0.6).sp,
+        letterSpacing = 0.sp,
         lineHeightStyle = CenteredLines,
     ),
     headlineLarge = TextStyle(
@@ -58,7 +58,7 @@ val GlassTypography = Typography(
         fontWeight = FontWeight.Normal,
         fontSize = 30.sp,
         lineHeight = 36.sp,
-        letterSpacing = (-0.5).sp,
+        letterSpacing = 0.sp,
         lineHeightStyle = CenteredLines,
     ),
     headlineMedium = TextStyle(
@@ -66,7 +66,7 @@ val GlassTypography = Typography(
         fontWeight = FontWeight.Normal,
         fontSize = 27.sp,
         lineHeight = 33.sp,
-        letterSpacing = (-0.4).sp,
+        letterSpacing = 0.sp,
         lineHeightStyle = CenteredLines,
     ),
     headlineSmall = TextStyle(
@@ -74,7 +74,7 @@ val GlassTypography = Typography(
         fontWeight = FontWeight.Medium,
         fontSize = 22.sp,
         lineHeight = 28.sp,
-        letterSpacing = (-0.2).sp,
+        letterSpacing = 0.sp,
         lineHeightStyle = CenteredLines,
     ),
     titleLarge = TextStyle(
@@ -82,7 +82,7 @@ val GlassTypography = Typography(
         fontWeight = FontWeight.Medium,
         fontSize = 20.sp,
         lineHeight = 26.sp,
-        letterSpacing = (-0.1).sp,
+        letterSpacing = 0.sp,
         lineHeightStyle = CenteredLines,
     ),
     titleMedium = TextStyle(
@@ -156,27 +156,27 @@ val BioTypography = Typography(
     displayLarge = GlassTypography.displayLarge.copy(
         fontSize = 48.sp,
         lineHeight = 56.sp,
-        letterSpacing = (-0.6).sp,
+        letterSpacing = 0.sp,
     ),
     displayMedium = GlassTypography.displayMedium.copy(
         fontSize = 40.sp,
         lineHeight = 48.sp,
-        letterSpacing = (-0.4).sp,
+        letterSpacing = 0.sp,
     ),
     displaySmall = GlassTypography.displaySmall.copy(
         fontSize = 32.sp,
         lineHeight = 42.sp,
-        letterSpacing = (-0.2).sp,
+        letterSpacing = 0.sp,
     ),
     headlineLarge = GlassTypography.headlineLarge.copy(
         fontSize = 29.sp,
         lineHeight = 38.sp,
-        letterSpacing = (-0.2).sp,
+        letterSpacing = 0.sp,
     ),
     headlineMedium = GlassTypography.headlineMedium.copy(
         fontSize = 26.sp,
         lineHeight = 35.sp,
-        letterSpacing = (-0.1).sp,
+        letterSpacing = 0.sp,
     ),
     headlineSmall = GlassTypography.headlineSmall.copy(
         fontSize = 21.sp,

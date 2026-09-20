@@ -44,18 +44,18 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.rounded.Chat
 import androidx.compose.material.icons.rounded.AddComment
 import androidx.compose.material.icons.rounded.AutoAwesome
 import androidx.compose.material.icons.rounded.Close
 import androidx.compose.material.icons.rounded.ContentCopy
+import androidx.compose.material.icons.rounded.History
 import androidx.compose.material.icons.rounded.KeyboardArrowDown
-import androidx.compose.material.icons.rounded.KeyboardArrowUp
 import androidx.compose.material.icons.rounded.Refresh
 import androidx.compose.material.icons.rounded.Settings
 import androidx.compose.material.icons.rounded.Tune
@@ -66,7 +66,6 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -281,7 +280,7 @@ fun AssistantScreenContent(
             modifier = Modifier.fillMaxSize(),
             intensity = visuals.glassIntensity,
             motif = visuals.motif,
-            motifDensity = visuals.motifDensity,
+            motifDensity = (visuals.motifDensity * if (state.isBusy) 0.72f else 0.86f),
             luminance = light.displayLuminance,
         )
 
@@ -294,6 +293,7 @@ fun AssistantScreenContent(
             horizontalAlignment = Alignment.CenterHorizontally,
         ) {
             AssistantTopBar(
+                modifier = Modifier.widthIn(max = 560.dp),
                 conversationCount = state.conversationCount,
                 voiceState = state.voiceState,
                 showLight = visuals.useBioTime,
@@ -314,6 +314,7 @@ fun AssistantScreenContent(
             Box(
                 modifier = Modifier
                     .fillMaxWidth()
+                    .widthIn(max = 560.dp)
                     .weight(1f, fill = false),
                 contentAlignment = Alignment.TopCenter,
             ) {
@@ -465,7 +466,8 @@ private fun GreetingHero(modifier: Modifier = Modifier) {
     ) {
         Text(
             text = stringResource(greetingRes),
-            style = MaterialTheme.typography.headlineMedium,
+            style = MaterialTheme.typography.displaySmall,
+            modifier = Modifier.widthIn(max = 420.dp),
             color = MaterialTheme.colorScheme.onBackground,
             textAlign = TextAlign.Center,
         )
@@ -594,7 +596,7 @@ private fun AssistantTopBar(
                 AnimatedVisibility(visible = showLight) {
                     GlassIconButton(
                         icon = Icons.Rounded.WbTwilight,
-                        contentDescription = "Превью света суток",
+                        contentDescription = stringResource(R.string.appearance_preview),
                         onClick = onShowCircadianPreview,
                     )
                 }
@@ -611,7 +613,7 @@ private fun AssistantTopBar(
             )
         }
         GlassIconButton(
-            icon = Icons.AutoMirrored.Rounded.Chat,
+            icon = Icons.Rounded.History,
             contentDescription = stringResource(R.string.nav_history),
             onClick = onNavigateToHistory,
             badge = conversationCount > 0,

@@ -178,14 +178,19 @@ internal class SpeechGate {
     }
 
     companion object {
-        /** Длина кадра в миллисекундах — из общего места, а не числом. */
-        val frameMs: Long get() = VoiceAudio.FRAME_MS
-
-        /** Окно оценки фона: секунда. */
+        /**
+         * Окно оценки фона: секунда.
+         *
+         * Длительность и число кадров считаются, а не вписываются: длина
+         * кадра живёт в [VoiceAudio] вместе с частотой дискретизации, и
+         * дублировать её здесь значило бы однажды получить окно, не равное
+         * секунде, о котором никто не заметил.
+         */
         const val WINDOW_MS = 1_000
 
         /** Сколько кадров помещается в окно. */
-        val WINDOW_FRAMES: Int = (WINDOW_MS / VoiceAudio.FRAME_MS).toInt().coerceAtLeast(1)
+        val WINDOW_FRAMES: Int =
+            (WINDOW_MS / VoiceAudio.FRAME_MS).toInt().coerceAtLeast(1)
 
         /**
          * Сколько кадров нужно, чтобы порог считался готовым.
