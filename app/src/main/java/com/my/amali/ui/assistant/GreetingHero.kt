@@ -1,5 +1,13 @@
 package com.my.amali.ui.assistant
 
+import androidx.compose.animation.AnimatedContent
+import androidx.compose.animation.core.EaseOutCubic
+import androidx.compose.animation.core.tween
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.slideInVertically
+import androidx.compose.animation.slideOutVertically
+import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Spacer
@@ -13,12 +21,12 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.key
-import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.res.stringResource
@@ -33,19 +41,18 @@ import com.my.amali.ui.theme.LocalLightProfile
 import com.my.amali.ui.theme.Spacing
 import com.my.amali.ui.theme.greetingTextPages
 import kotlinx.coroutines.delay
-import kotlin.random.Random
 
 /**
- * Герой главного экрана: фраза приветствия, которая меняется сама.
+ * Герой главного экрана: одна крупная фраза, которая тихо меняется сама.
  *
  * ════════════════════════════════════════════════════════════════════════
  *  ЗАЧЕМ ФРАЗА МЕНЯЕТСЯ
  * ════════════════════════════════════════════════════════════════════════
  *
  * Неподвижный крупный текст на главном экране голосового ассистента читается
- * как «я не работаю». Живой фон, лампа и волна говорят о том же, но они
+ * как «я не работаю». Живой фон и волна говорят о том же, но они
  * вспомогательные, а фраза — самое крупное на экране. Пока она стоит —
- * состояние читается как «жду команду»; когда меняется — как «я здесь».
+ * состояние читается как «жду команду»; когда тихо меняется — как «я здесь».
  *
  * Ротация идёт **внутри фазы суток**: ночью человек должен видеть ночные
  * фразы, а не «Доброе утро» в три часа. Замыкается это на тот же
@@ -53,45 +60,45 @@ import kotlin.random.Random
  * экрана, — текст и освещение не могут разойтись.
  *
  * ════════════════════════════════════════════════════════════════════════
+ *  ПОЧЕМУ ЗДЕСЬ НЕТ ОДОМЕТРА И ШИФРАТОРА
+ * ════════════════════════════════════════════════════════════════════════
+ *
+ * У эффектов, стоявших здесь раньше, обе ноги — в посимвольной геометрии:
+ * каждый знак живёт в своей ячейке фиксированной ширины. Чтобы ячейки не
+ * резали широкие буквы (`Ш`, `Ж`, `W`), запас ширины делали с большим
+ * коэффициентом — и строка растягивалась: между словами появлялись дыры,
+ * а сами буквы стояли свободнее, чем в обычном тексте. Отсюда и ощущение
+ * «сломанного шрифта», при том что шрифт не тронут вовсе.
+ *
+ * Вторая цена — честность рендера: в ячейках текст больше не был текстом.
+ * Посимвольная раскладка ломала перенос строк, кернинг и лигатуры — всё то,
+ * чем «до» и «после» отличаются от ручной вёрстки. Дизайн, который нельзя
+ * набрать обычным `Text`, не может выглядеть набранным хорошо.
+ *
+ * Поэтому смена теперь — одно движение целого текста: старая фраза тихо
+ * уходит вверх, новая мягко приходит снизу. Один ритм, без знаковых
+ * механик. Текст набирается `Text`-ом — и выглядит как набранный.
+ *
+ * ════════════════════════════════════════════════════════════════════════
  *  ТАЙМЕР ИДЁТ ОТ ВХОДА И НЕ СБРАСЫВАЕТСЯ
  * ════════════════════════════════════════════════════════════════════════
  *
  * Первая смена — через [rotationMs] после появления экрана, дальше — снова
  * и снова. Таймер не сбрасывается ни на тап, ни на смену состояния голоса,
- * ни на ответы Амалии.
+ * ни на ответы Амалии: тот, кто пользуется приложением, тапает чаще, чем
+ * раз в 30 секунд, и при сбросе «не увидит смены фразы никогда».
  *
- * Здесь была развилка, и решение не очевидное. Вариант «сбрасывать при
- * любой активности» выглядит заботливым — «не отвлекать, пока занят», —
- * но даёт обратное: тот, кто пользуется приложением, тапает чаще, чем раз
- * в 30 секунд, и **не увидит смены фразы никогда**. Ротация существовала бы
- * только для того, кто открыл экран и ушёл. Непрерывный таймер — единственный
- * вариант, при котором механизм живой для всех.
+ * `LaunchedEffect(slot, tone, rotationMs)` перезапускается только при смене
+ * фазы суток, тона или периода — то есть когда фраза и так обязана смениться
+ * (и счётчик честно начинается с приветствия). Волна обновляет состояние
+ * десятки раз в секунду; зависни эффект на чём-то, что меняется вместе
+ * с кадром, — `delay` не дожил бы до конца ни разу.
  *
- * ════════════════════════════════════════════════════════════════════════
- *  ДВА ЭФФЕКТА СМЕНЫ
- * ════════════════════════════════════════════════════════════════════════
- *
- * Смена идёт сама, без участия человека, — значит, обязана быть замеченной.
- * Но и один приём приедается: сорок показов одного и того же трюка
- * превращают его в обои. Поэтому эффектов два, и они чередуются случайно,
- * без повтора подряд (см. [GreetingEffect.next]):
- *
- *  — [GreetingEffect.DECODER] — фраза выкристаллизовывается из шума:
- *    на месте будущих букв вспыхивают случайные знаки;
- *  — [GreetingEffect.ODOMETER] — каждая буква сидит на своём барабане
- *    и подкручивается на нужную, как цифра в счётчике.
- *
- * Эффекты разной длительности, и это не мелочь: барабану нужно время
- * на оборот, шифратору — нет. Длительность берётся по тому эффекту,
- * который будет разыгран, — поэтому переход всегда успевает закончиться
- * до следующей смены.
- *
- * @param useAnimation false — смена мгновенным затуханием: нужно превью
- *   и режимам, где системные анимации отключены. Тогда эффекты не играют,
- *   но и не ломаются.
- * @param breath фаза дыхания экрана 0..1, приходит снаружи. Один такт на весь
- *   экран: свой период у каждого элемента даёт четыре независимых ритма,
- *   которые глаз читает как шум, а не как покой.
+ * @param breath фаза дыхания экрана 0..1, приходит снаружи. Один такт на
+ *   весь экран: свой период у каждого элемента даёт несколько независимых
+ *   ритмов, которые глаз читает как шум, а не как покой.
+ * @param useAnimation false — смена мгновенной подменой: нужно превью и
+ *   режимам, где системные анимации отключены.
  * @param rotationMs период смены фразы.
  */
 @Composable
@@ -103,14 +110,31 @@ internal fun GreetingHero(
 ) {
     val light = LocalLightProfile.current
     val slot = GreetingSlot.of(light.phase)
+    val tone = GreetingTone.DEFAULT
 
-    val rotation = rememberRotatingGreeting(slot = slot, rotationMs = rotationMs)
+    val catalogue = remember(slot, tone) { GreetingPhrases.forSlot(slot, tone) }
+    val order = remember(catalogue) { rotationOrder(catalogue) }
+    // Каталог пуст только при ошибочной правке [GreetingPhrases]; пустой герой
+    // честнее краша на делении по нулю — экран обязан жить при любой правке.
+    if (order.isEmpty()) return
 
-    // Анимация не нужна — показываем текст как есть. Так превью и режим
-    // с выключенными системными анимациями выглядят честно: ни одного
-    // скрытого эффекта не остаётся «на всякий случай».
-    val effect = if (useAnimation) rotation.effect else null
-    val text = stringResource(rotation.phraseRes)
+    // Счётчик смен под ключом фазы: при смене суток набор другой, и позиция
+    // в старом там бессмысленна. Инкремент меняет выбранную фразу; анимацию
+    // запускает не сам счётчик, а отличие нового текста от старого —
+    // повторяющаяся подряд фраза не даёт пустого движения.
+    var step by remember(slot, tone) { mutableIntStateOf(0) }
+    LaunchedEffect(slot, tone, rotationMs) {
+        step = 0
+        while (true) {
+            delay(rotationMs.toLong())
+            step++
+        }
+    }
+
+    // Порядок набора упорядочен (см. [rotationOrder]): деление по модулю
+    // честно проходит его по кругу, без мешка и без повторов соседей.
+    val phraseRes = order[step % order.size]
+    val text = stringResource(phraseRes)
     val style = MaterialTheme.typography.displayMedium.copy(textAlign = TextAlign.Center)
     val color = MaterialTheme.colorScheme.onBackground
 
@@ -134,7 +158,9 @@ internal fun GreetingHero(
 
     // Одна строка или две — решается замером, а не догадкой. От этого зависит
     // только вертикальный запас: фраза в две строки обязана получить больше
-    // места, иначе её низкие буквы срежет отсечение барабана.
+    // места, иначе её низкие буквы срежет. Обычный `Text` переносит строки
+    // сам — резерв высоты нужен лишь затем, чтобы карточки под героем не
+    // прыгали при смене фразы.
     val pages = remember(text, style, maxLineWidth) {
         val measured = measureLineWidth(text, style, measurer, maxLineWidth)
         val effective = if (measured > 0f) measured else estimatedLineWidth(text, style)
@@ -148,42 +174,44 @@ internal fun GreetingHero(
         horizontalAlignment = Alignment.CenterHorizontally,
     ) {
         // Высота зарезервирована заранее и ровно настолько, насколько нужно:
-        // прошлая версия резервировала две строки всегда, и вокруг односложных
-        // фраз («Вечер», «Я рядом») оставалась мёртвая полоса — тот самый
-        // воздух, из-за которого главный текст выглядел «далеко» от всего
-        // остального. Здесь страница одна, а вторая появляется только тогда,
-        // когда фраза действительно переносится.
+        // вокруг односложных фраз («Вечер», «Я рядом») не остаётся мёртвой
+        // полосы, а двухстрочные не толкают соседние блоки при смене.
         Box(
             modifier = Modifier
                 .widthIn(max = GreetingStageWidth)
                 .heightIn(min = greetingTextPages(fontSize, lineHeight, pages)),
             contentAlignment = Alignment.Center,
         ) {
-            // Ключ — номер смены: он меняется на каждой ротации, даже если
-            // мешок случайно выдал ту же фразу. По тексту эффект бы не
-            // перезапустился, и смена прошла бы без анимации.
-            key(rotation.key) {
-                when (effect) {
-                    null -> Text(
-                        text = text,
-                        style = style,
-                        color = color,
-                        textAlign = TextAlign.Center,
-                        maxLines = GreetingMaxLines,
-                    )
-                    GreetingEffect.DECODER -> GreetingDecoderText(
-                        text = text,
-                        progress = 1f,
-                        color = color,
-                        style = style,
-                    )
-                    GreetingEffect.ODOMETER -> GreetingOdometerText(
-                        text = text,
-                        progress = 1f,
-                        color = color,
-                        style = style,
-                    )
+            // Без анимаций (превью, отключённые системные анимации) смена —
+            // честная мгновенная подмена: эффект не «ломается», а отсутствует.
+            if (useAnimation) {
+                AnimatedContent(
+                    // Ключ — сам текст, а не номер смены: повторяющаяся подряд
+                    // фраза (приветствие держится два такта) не даёт движения,
+                    // потому что «смена» не меняет ничего на экране. Анимация
+                    // срабатывает только там, где текст реально другой.
+                    targetState = text,
+                    // Направление одно и всегда одно: смена фразы — не навигация
+                    // «вперёд/назад», а тихое течение времени. Асимметрия
+                    // таймингов — вход чуть длиннее выхода: новая фраза
+                    // перекрывает угасание старой, и на доле секунды экран
+                    // не остаётся вовсе без текста.
+                    transitionSpec = {
+                        (fadeIn(tween(SwapInMs, easing = EaseOutCubic)) +
+                            slideInVertically(tween(SwapInMs, easing = EaseOutCubic)) { it / 5 })
+                            .togetherWith(
+                                fadeOut(tween(SwapOutMs, easing = EaseOutCubic)) +
+                                    slideOutVertically(tween(SwapOutMs, easing = EaseOutCubic)) { -it / 8 },
+                            )
+                    },
+                    contentAlignment = Alignment.Center,
+                    label = "greetingSwap",
+                    modifier = Modifier.fillMaxWidth(),
+                ) { visible ->
+                    GreetingPhrase(text = visible, style = style, color = color)
                 }
+            } else {
+                GreetingPhrase(text = text, style = style, color = color)
             }
         }
 
@@ -201,12 +229,22 @@ internal fun GreetingHero(
 }
 
 /**
- * Совместимость: множитель заглавных букв в пропорциональном шрифте.
+ * Одна фраза героя: обычный текст, набранный обычным рендером.
  *
- * Заглавная занимает примерно на треть больше ширины, чем строчная того же
- * знака. Число нужно одному месту — оценке переноса фразы на вторую строку.
+ * Единственная точка, где рисуется главный текст экрана — и намеренно
+ * ровно одна: анимации показывают этот же блок целиком, не пересобирая
+ * его посимвольно. Любая будущая смена стиля правится здесь один раз.
  */
-private const val CapsWidthFactor = 1.32f
+@Composable
+private fun GreetingPhrase(text: String, style: TextStyle, color: Color) {
+    Text(
+        text = text,
+        style = style,
+        color = color,
+        textAlign = TextAlign.Center,
+        maxLines = GreetingMaxLines,
+    )
+}
 
 /**
  * Ширина строки фразы в пикселях для её стиля.
@@ -247,94 +285,6 @@ private fun estimatedLineWidth(text: String, style: TextStyle): Float {
     return glyphs * size * 0.58f
 }
 
-
-/**
- * Что показывать прямо сейчас: фраза, номер смены и эффект этой смены.
- *
- * @property phraseRes адрес строки текущей фразы.
- * @property index порядковый номер смены — ключ для анимации.
- * @property key то же число, что [index]; отдельным полем, потому что
- *   читается из разных мест и называется по-разному по смыслу.
- * @property effect эффект, разыгрываемый при переходе к этой фразе.
- */
-internal data class RotatingGreeting(
-    val phraseRes: Int,
-    val index: Int,
-    val key: Int,
-    val effect: GreetingEffect,
-)
-
-/**
- * Помнит, какую фразу показывать, когда менять и чем показывать смену.
- *
- * ════════════════════════════════════════════════════════════════════════
- *  ПОЧЕМУ ТАЙМЕР ЗАПУСКАЕТСЯ ТОЛЬКО ОТ ФАЗЫ
- * ════════════════════════════════════════════════════════════════════════
- *
- * `LaunchedEffect(slot, tone)` перезапускается ровно тогда, когда сменилась
- * фаза суток или тон, — то есть когда фраза и так обязана смениться. Внутри
- * идёт цикл с `delay`.
- *
- * Ключ — только фаза и тон, и это принципиально: волна обновляет состояние
- * десятки раз в секунду, экран перерисовывается постоянно. Зависел бы эффект
- * от чего-то, что меняется вместе с перерисовкой, — `delay` не дожил бы
- * до конца ни разу, и смены фразы не произошло бы вообще.
- *
- * ════════════════════════════════════════════════════════════════════════
- *  ЧТО ПОКАЗЫВАЕТСЯ ПРЯМО СЕЙЧАС — И ПОЧЕМУ ЭТО НЕ СЛУЧАЙНЫЙ МЕШОК
- * ════════════════════════════════════════════════════════════════════════
- *
- * Раньше первой показывалась случайная фраза из набора, а дальше шёл
- * перемешанный мешок. Для утра это означало, что примерно в двух случаях
- * из трёх на экране главного ассистента вместо «Доброе утро» оказывалось
- * «Кофе, потом всё остальное» — и человек, открывший приложение утром,
- * не получал приветствия вообще. Это не разнообразие, а потеря функции:
- * приветствие и есть та функция, ради которой главный текст существует.
- *
- * Поэтому набор упорядочен, а не перемешан. Первая фраза — **само
- * приветствие** («Доброе утро», «Добрый день», «Добрый вечер», «Доброй
- * ночи») и она держится на экране две ротации подряд. Дальше идут фразы
- * характера, и только потом — короткие («Утро», «Вечер»), которые читаются
- * как ритмическая точка в конце круга, а не как «экран сломался».
- *
- * Порядок задаётся здесь, а не в каталоге [GreetingPhrases]: каталог — это
- * набор текстов, а порядок показа — решение экрана.
- */
-@Composable
-private fun rememberRotatingGreeting(slot: GreetingSlot, rotationMs: Int): RotatingGreeting {
-    val tone = GreetingTone.DEFAULT
-    val catalogue = remember(slot, tone) { GreetingPhrases.forSlot(slot, tone) }
-    val order = remember(catalogue) { rotationOrder(catalogue) }
-
-    // Индекс в упорядоченном наборе и счётчик смен живут под одним ключом:
-    // при смене суток набор другой, и позиция в старом там бессмысленна.
-    var step by remember(slot, tone) { mutableStateOf(0) }
-    var effect by remember(slot, tone) { mutableStateOf(GreetingEffect.ODOMETER) }
-    var rotations by remember(slot, tone) { mutableStateOf(0) }
-    val random = remember(slot, tone) { Random(System.nanoTime()) }
-
-    LaunchedEffect(slot, tone) {
-        step = 0
-        rotations = 0
-        while (true) {
-            delay(rotationMs.toLong())
-            step++
-            // Эффект выбирается под данные условия, а не под глобальный
-            // счётчик: GreetingEffect.next запрещает повтор текущего.
-            effect = GreetingEffect.next(previous = effect, random = random)
-            rotations++
-        }
-    }
-
-    val phrase = order[step % order.size]
-    return RotatingGreeting(
-        phraseRes = phrase,
-        index = rotations,
-        key = rotations,
-        effect = effect,
-    )
-}
-
 /**
  * Порядок показа фраз фазы.
  *
@@ -349,8 +299,6 @@ private fun rememberRotatingGreeting(slot: GreetingSlot, rotationMs: Int): Rotat
 private fun rotationOrder(paragraphs: List<Int>): List<Int> {
     if (paragraphs.size < 3) return paragraphs
 
-    // «Длинная» фраза — самая информативная часть набора: идёт после
-    // приветствия, потому что несёт характер, а не функцию.
     val greeting = paragraphs.first()
     val short = paragraphs.last()
     val middle = paragraphs.subList(1, paragraphs.lastIndex)
@@ -399,6 +347,17 @@ private val GreetingUnderlineGap = Spacing.sm
 /** Сколько строк допускается у фразы. Больше двух не влезает ни одна. */
 private const val GreetingMaxLines = 2
 
+/**
+ * Длительность входа новой фразы, миллисекунды.
+ *
+ * 560 мс — дольше «обычных» UI-переходов, и это осознанно: смена раз в
+ * 30 секунд не отклик, а течение. Медленный вход читается как дыхание,
+ * быстрый — как подмену слайда.
+ */
+private const val SwapInMs = 560
+
+/** Длительность ухода старой фразы: короче входа, чтобы не было двойного движения. */
+private const val SwapOutMs = 380
 
 /**
  * Период смены фразы.
