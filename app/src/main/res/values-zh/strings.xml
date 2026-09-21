@@ -350,6 +350,11 @@
     <string name="assistant_hint_thinking">稍等，我在想</string>
     <string name="assistant_hint_speaking">点按可打断</string>
     <string name="assistant_hint_error">再试一次</string>
+
+    <!-- 主按钮的 TalkBack 标签：动作而非状态 -->
+    <string name="assistant_mic_tap_to_start">点按开始聆听</string>
+    <string name="assistant_mic_tap_to_stop">点按停止</string>
+    <string name="assistant_mic_stop">停止聆听</string>
     <string name="history_resume">继续这段对话</string>
     <string name="history_resume_desc">阿玛莉亚会记住这次交谈，并据此回答。</string>
     <string name="settings_wave">波形</string>

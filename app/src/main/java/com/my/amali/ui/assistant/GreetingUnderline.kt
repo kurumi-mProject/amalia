@@ -4,11 +4,11 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material3.MaterialTheme
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.dp
 import com.my.amali.ui.theme.Radius
 import com.my.amali.ui.theme.iconAccent
@@ -33,23 +33,32 @@ import com.my.amali.ui.theme.iconAccent
  */
 @Composable
 internal fun GreetingUnderline(breath: Float, modifier: Modifier = Modifier) {
-    // Диапазон 0.35..1.0 — прежний. Он и есть та незаметность, о которой
-    // речь: в нижней точке черта почти растворяется, в верхней — чуть
-    // ярче фона, но всё ещё не бросается в глаза.
-    val barAlpha = 0.35f + 0.65f * breath
+    // 0.5..1.0: в нижней точке черта не исчезает, потому что исчезающая линия
+    // читается как мигание светодиода индикатора. Тонкая пульсация без
+    // провала в ноль — это дыхание, а не сигнал.
+    val barAlpha = 0.5f + 0.5f * breath
     val accent = iconAccent()
 
     Box(
         modifier = modifier
-            .size(width = 44.dp, height = 2.5.dp)
+            .size(width = UnderlineWidth, height = UnderlineThickness)
             .clip(RoundedCornerShape(Radius.chip))
             .background(
                 Brush.horizontalGradient(
                     listOf(
-                        accent.copy(alpha = 0.95f * barAlpha),
-                        MaterialTheme.colorScheme.secondary.copy(alpha = 0.55f * barAlpha),
+                        Color.Transparent,
+                        accent.copy(alpha = 0.55f * barAlpha),
+                        accent.copy(alpha = 0.9f * barAlpha),
+                        accent.copy(alpha = 0.55f * barAlpha),
+                        Color.Transparent,
                     ),
                 ),
             ),
     )
 }
+
+/** Ширина черты: заметно уже фразы, чтобы читаться маркером, а не подчёркиванием. */
+private val UnderlineWidth = 56.dp
+
+/** Толщина черты: тоньше полутора пикселей на плотных экранах пропадает. */
+private val UnderlineThickness = 2.dp

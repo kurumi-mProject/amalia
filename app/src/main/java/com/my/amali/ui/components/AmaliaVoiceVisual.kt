@@ -35,6 +35,7 @@ import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import com.my.amali.domain.entity.WaveSettings
 import com.my.amali.ui.icons.AmaliaMic
+import kotlinx.coroutines.delay
 import kotlin.math.abs
 import kotlin.math.roundToLong
 
@@ -110,36 +111,36 @@ fun AmaliaVoiceVisual(
 ) {
     val smoothed = rememberSmoothedLevel(level = level, enabled = enabled, settings = settings)
 
+    // Своё дыхание у микрофона — как и у остальных живых элементов экрана.
+    // Раньше оно шло по своему периоду (2.8 с), пока фон, лампа и черта под
+    // фразой дышали по общему такту 10 с: два несовпадающих ритма в одном
+    // кадре читаются как дрожь, а не как покой. Период один на всё.
+    val idle = rememberInfiniteTransition(label = "voiceIdle")
+    val idlePulse by idle.animateFloat(
+        initialValue = 0.955f,
+        targetValue = 1.035f,
+        animationSpec = infiniteRepeatable(
+            animation = tween(durationMillis = IdleBreathMs, easing = LinearEasing),
+            repeatMode = RepeatMode.Reverse,
+        ),
+        label = "voiceIdlePulse",
+    )
+
     Box(
         modifier = modifier.semantics {
             if (contentDescription != null) this.contentDescription = contentDescription
         },
         contentAlignment = Alignment.Center,
     ) {
-        // Дыхание в покое: микрофон живёт, но не отвлекает. Одна анимация на
-        // весь компонент, а не по одной на элемент внутри. Это единственная
-        // бесконечная анимация, которая осталась здесь: она принадлежит
-        // микрофону — элементу покоя, — а не волне, которая обязана молчать
-        // вместе со звуком.
-        val idle = rememberInfiniteTransition(label = "voiceIdle")
-        val idlePulse by idle.animateFloat(
-            initialValue = 0.94f,
-            targetValue = 1.04f,
-            animationSpec = infiniteRepeatable(
-                animation = tween(durationMillis = 2_800, easing = LinearEasing),
-                repeatMode = RepeatMode.Reverse,
-            ),
-            label = "voiceIdlePulse",
-        )
-
         AnimatedContent(
             targetState = enabled,
             transitionSpec = {
-                // Включение: микрофон растворяется, волна приходит снизу —
-                // читается как «начал говорить», а не как перерисовка.
-                (fadeIn(tween(260)) + scaleIn(initialScale = 0.86f, animationSpec = tween(300)))
+                // Оба направления — через масштаб, близкий к единице: в покое
+                // микрофон дышит в пределах ±4%, и переход с 0.86 в 1.0 давал
+                // рывок размера на ровном месте.
+                (fadeIn(tween(220)) + scaleIn(initialScale = 0.94f, animationSpec = tween(260)))
                     .togetherWith(
-                        fadeOut(tween(180)) + scaleOut(targetScale = 0.92f, animationSpec = tween(200)),
+                        fadeOut(tween(160)) + scaleOut(targetScale = 0.94f, animationSpec = tween(200)),
                     )
             },
             label = "voiceVisual",
@@ -164,6 +165,9 @@ fun AmaliaVoiceVisual(
         }
     }
 }
+
+/** Период дыхания микрофона — тот же такт, что у фона и черты под фразой. */
+private const val IdleBreathMs = 10_000
 
 /**
  * Плавно догоняет пришедший уровень громкости и держит строй в тишине.
@@ -220,6 +224,12 @@ private fun rememberSmoothedLevel(
     // Ключ — сам уровень и признак включённости. Пока уровень не менялся,
     // эффект не перезапускается, и анимация успевает доиграть до цели: иначе
     // частые рекомпозиции отрывали бы полосы от значения, к которому они идут.
+    //
+    // Частота кадров анимации ограничена [LevelFrameMs] через `delay` в конце
+    // каждой итерации: смена уровня приходит десятки раз в секунду, и запуск
+    // новой анимации на каждое значение — это дёргание полос сразу после
+    // каждой смены громкости. Здесь между обновлениями проходит ровно один
+    // кадр 60 Гц, и волна идёт ровно.
     LaunchedEffect(target, enabled) {
         if (!enabled) return@LaunchedEffect
         window = (window + target).takeLast(LevelWindow).toFloatArray()
@@ -242,10 +252,14 @@ private fun rememberSmoothedLevel(
             targetValue = stable,
             animationSpec = tween(durationMillis = durationMs.toInt(), easing = LinearEasing),
         )
+        delay(LevelFrameMs)
     }
 
     return animator.value
 }
+
+/** Один кадр 60 Гц между обновлениями уровня. */
+private const val LevelFrameMs = 16L
 
 /** Медиана окна уровней: устойчива к одиночным всплескам, в отличие от среднего. */
 private fun median(values: FloatArray): Float {

@@ -397,6 +397,11 @@
     <string name="assistant_hint_thinking">少々お待ちください、考えています</string>
     <string name="assistant_hint_speaking">タップで中断</string>
     <string name="assistant_hint_error">もう一度お試しください</string>
+
+    <!-- メインボタンのTalkBack用ラベル（状態ではなく動作） -->
+    <string name="assistant_mic_tap_to_start">タップして聞き取りを開始</string>
+    <string name="assistant_mic_tap_to_stop">タップして停止</string>
+    <string name="assistant_mic_stop">聞き取りを停止</string>
     <string name="history_resume">この会話を続ける</string>
     <string name="history_resume_desc">アマリアはこの会話を覚えて、それを踏まえて答えます。</string>
     <string name="settings_wave">波形</string>

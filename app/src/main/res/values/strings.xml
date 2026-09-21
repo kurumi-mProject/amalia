@@ -60,6 +60,11 @@
     <string name="assistant_hint_speaking">Нажми, чтобы перебить</string>
     <string name="assistant_hint_error">Попробуй ещё раз</string>
 
+    <!-- Подписи главной кнопки для TalkBack: не состояние, а действие -->
+    <string name="assistant_mic_tap_to_start">Нажмите, чтобы начать слушать</string>
+    <string name="assistant_mic_tap_to_stop">Нажмите, чтобы остановить</string>
+    <string name="assistant_mic_stop">Остановить слушание</string>
+
     <!-- === Подсказки === -->
     <string name="suggestion_hello">Привет</string>
     <string name="suggestion_how_are_you">Как дела?</string>

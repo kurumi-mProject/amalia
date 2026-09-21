@@ -367,14 +367,22 @@ fun AssistantScreenContent(
             // сейчас нарисован; слова внутри неё раскрываются по тапу или
             // сами при входе. Будь она в углу, она спорила бы с текстом;
             // по центру она читается как «солнце» композиции.
-            Spacer(Modifier.height(Spacing.sm))
+            //
+            // Отступ сверху: 8dp. Лампа — служебная деталь, и она обязана
+            // примыкать к главному тексту, а не висеть отдельным элементом
+            // в пустоте над ним.
+            Spacer(Modifier.height(Spacing.xs))
             CircadianLamp(
                 label = stringResource(light.lightLabel.stringRes),
                 cct = cct,
                 autoExpandOnStart = true,
             )
 
-            Spacer(Modifier.height(Spacing.md))
+            // 28dp до главной фразы: воздух вокруг неё, а не вокруг всего
+            // верха экрана. Раньше здесь стояло 16dp, но выше лежала ещё
+            // одна пружина — и фраза уезжала от лампы на сорок с лишним
+            // пикселей, читаясь как отдельный, ни к чему не привязанный блок.
+            Spacer(Modifier.height(GreetingTopGap))
             // useAnimation = false в превью и при отключённых системных
             // анимациях: там смена фразы мгновенная, и это правильно —
             // показывать переход некуда.
@@ -488,15 +496,20 @@ fun AssistantScreenContent(
 
             // === ГОЛОСОВОЙ БЛОК: слово + волна + подпись ===
             // Ритм этого блока задан намеренно: слово и волна стоят плотно
-            // (2dp) — они один объект, «что происходит» и «куда нажать».
-            // А от карточки диалога блок отделён крупно (20dp), потому что
-            // это уже другая смысловая зона. Раньше везде стояло 4dp, и
-            // именно поэтому всё «слипалось»: глаз не находил границ.
-            Spacer(Modifier.height(if (compact) Spacing.sm else Spacing.lg))
+            // — они один объект, «что происходит» и «куда нажать».
+            // А от карточки диалога блок отделён крупно, потому что это уже
+            // другая смысловая зона. Раньше везде стояло 4dp, и именно
+            // поэтому всё «слипалось»: глаз не находил границ.
+            //
+            // Отступ зависит от того, есть ли над блоком карточка: в покое
+            // между текстом приветствия и волной должна быть воздушная
+            // пауза, а когда идёт разговор — блок и карточка обязаны стоять
+            // рядом, иначе экран распадается на две несвязанные половины.
+            Spacer(Modifier.height(if (compact) Spacing.md else Spacing.xl))
 
             StatusLabel(state = state.voiceState)
 
-            Spacer(Modifier.height(2.dp))
+            Spacer(Modifier.height(Spacing.xs))
 
             // Волна включается только там, где есть звук: слушание (микрофон)
             // и речь (динамик). В покое и в ошибке звука нет вовсе, а в фазе
@@ -513,6 +526,11 @@ fun AssistantScreenContent(
                 settings = settings.wave,
                 color = stateColor(state.voiceState),
                 micSize = if (compact) 28.dp else 32.dp,
+                // Главное действие обязано сообщать, что оно сделает: без
+                // подписи для TalkBack кнопка называется просто «кнопка»,
+                // и человек, который ведёт приложение голосом и вслепую,
+                // не узнаёт, идёт разговор или ещё нет.
+                contentDescription = stringResource(micActionRes(state.voiceState)),
                 modifier = Modifier
                     .clickable(
                         interactionSource = micInteraction,
@@ -531,7 +549,7 @@ fun AssistantScreenContent(
             Text(
                 text = stringResource(voiceHintRes(state.voiceState, state.isBusy)),
                 style = MaterialTheme.typography.labelMedium,
-                color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.72f),
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis,
                 modifier = Modifier.padding(horizontal = Spacing.md),
@@ -596,6 +614,21 @@ private fun voiceHintRes(state: VoiceState, busy: Boolean): Int = when (state) {
     VoiceState.Error -> R.string.assistant_hint_error
 }
 
+/**
+ * Что делает главная кнопка в текущем состоянии — для TalkBack.
+ *
+ * Подпись под волной описывает **состояние**, а эта строка — **действие**.
+ * Разница не формальная: «Слушаю» сообщает, что происходит; «Остановить»
+ * сообщает, что будет, если нажать, — и только второе годится для
+ * `contentDescription` интерактивного элемента.
+ */
+@Composable
+private fun micActionRes(state: VoiceState): Int = when (state) {
+    VoiceState.Listening -> R.string.assistant_mic_stop
+    VoiceState.Speaking, VoiceState.Thinking -> R.string.assistant_mic_tap_to_stop
+    VoiceState.Idle, VoiceState.Error -> R.string.assistant_mic_tap_to_start
+}
+
 // ============================================================
 //  РЕЖИМ ЦИКЛА (для превью CircadianLamp)
 // ============================================================
@@ -624,16 +657,22 @@ private const val LAMP_AUTO_EXPAND = true
  */
 @Composable
 private fun StatusLabel(state: VoiceState, modifier: Modifier = Modifier) {
+    // Цвет меняется синхронно с волной и словом: те же 320 мс, что у волны.
+    // Раньше слово перекрашивалось за 360 мс, а волна ехала к новому цвету
+    // своим путём — две половины одного объекта расходились на полсотни
+    // миллисекунд, и это читалось как небрежность.
     val color by animateColorAsState(
         targetValue = stateColor(state),
-        animationSpec = tween(360),
+        animationSpec = tween(StatusTransitionMs),
         label = "statusColor",
     )
     AnimatedContent(
         targetState = state,
         transitionSpec = {
-            (fadeIn(tween(220)) + slideInVertically(tween(260)) { it / 3 })
-                .togetherWith(fadeOut(tween(140)) + slideOutVertically(tween(180)) { -it / 3 })
+            // Вертикальный слайд остаётся, но коротким: смена состояния —
+            // это не появление нового экрана, а одно слово на месте другого.
+            (fadeIn(tween(200)) + slideInVertically(tween(240)) { it / 4 })
+                .togetherWith(fadeOut(tween(130)) + slideOutVertically(tween(160)) { -it / 4 })
         },
         label = "statusLabel",
         modifier = modifier,
@@ -648,22 +687,57 @@ private fun StatusLabel(state: VoiceState, modifier: Modifier = Modifier) {
     }
 }
 
+/** Длительность перехода цвета — общая со сменой цвета волны. */
+private const val StatusTransitionMs = 320
+
+/**
+ * Воздух между лампой света и главной фразой.
+ *
+ * 28dp — не круглое число из шкалы отступов, и это осознанно: шкала задаёт
+ * расстояния между блоками, а здесь отступ работает оптически. Крупный текст
+ * с отрицательным трекингом при увеличении промежутка читается как элемент,
+ * посаженный в отдельную строку, а не как продолжение предыдущего. При 16dp
+ * лампа прилипала к фразе, при 32dp между ними появлялась пустая полоса.
+ */
+private val GreetingTopGap = 28.dp
+
 /**
  * Цвет слова состояния.
  *
- * В покое — приглушённый «onBackground», а не «onSurfaceVariant». Разница
- * не косметическая: `onSurfaceVariant` — служебный цвет для второстепенного
- * текста, и главный якорь экрана в нём выглядел выключенным. Здесь покой
- * читается спокойным, но живым: это состояние ожидания, а не отказа.
+ * ════════════════════════════════════════════════════════════════════════
+ *  ПОЧЕМУ БОЛЬШЕ НЕТ ПРИГЛУШЕНИЙ И ЧУЖИХ ТОКЕНОВ
+ * ════════════════════════════════════════════════════════════════════════
+ *
+ * Прошлая версия красила покой в `onBackground` с альфой 0.88, а «думаю» и
+ * «говорю» — в `tertiary`, который в этой схеме выводится из третьего тона
+ * палитры. Оба решения давали один и тот же эффект: главный текстовый якорь
+ * экрана менял не только цвет, но и **светлоту** между состояниями, а на
+ * тёмном фоне любое понижение светлоты читается как «элемент выключен».
+ * Отсюда и жалоба: слово то белое, то серое, то сливается с фоном.
+ *
+ * Теперь разделение другое и оно устойчиво:
+ *  — светоносность одна на все состояния (полная альфа, никаких теней
+ *    прозрачности) — слово всегда одинаково яркое;
+ *  — меняется только **тон**: покой — тёплый нейтральный текст, слушание —
+ *    акцент, «думаю»/«говорю» — второй акцент, ошибка — ошибка.
+ *
+ * Ни один из цветов не берётся из палитры напрямую: все они уже прошли
+ * контраст-гард в [com.my.amali.ui.theme.buildScheme], поэтому слово
+ * читается при любом времени суток.
  */
 @Composable
 private fun stateColor(state: VoiceState): Color = when (state) {
-    VoiceState.Idle -> MaterialTheme.colorScheme.onBackground.copy(alpha = 0.88f)
-    VoiceState.Listening -> MaterialTheme.colorScheme.secondary
-    // «Думаю» — третичный акцент, а не серый: фаза активная, и она должна
-    // читаться живой, а не «погасшей».
-    VoiceState.Thinking -> MaterialTheme.colorScheme.tertiary
-    VoiceState.Speaking -> MaterialTheme.colorScheme.tertiary
+    // Покой — основной текст экрана (onBackground), а не второстепенный:
+    // это состояние ожидания, а не отказа.
+    VoiceState.Idle -> MaterialTheme.colorScheme.onBackground
+    // Слушание — акцент схемы. Он же красит волну, поэтому слово и волна
+    // в этом состоянии одного цвета: это один объект «я слушаю».
+    VoiceState.Listening -> MaterialTheme.colorScheme.primary
+    // «Думаю» и «говорю» — вторичный акцент: фаза активная, но другого
+    // характера, чем слушание. Разные состояния обязаны отличаться тоном,
+    // а не яркостью.
+    VoiceState.Thinking -> MaterialTheme.colorScheme.secondary
+    VoiceState.Speaking -> MaterialTheme.colorScheme.secondary
     VoiceState.Error -> MaterialTheme.colorScheme.error
 }
 

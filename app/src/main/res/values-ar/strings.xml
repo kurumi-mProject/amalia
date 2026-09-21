@@ -350,6 +350,11 @@
     <string name="assistant_hint_thinking">لحظة، أفكّر</string>
     <string name="assistant_hint_speaking">اضغط للمقاطعة</string>
     <string name="assistant_hint_error">حاول مرة أخرى</string>
+
+    <!-- تسميات الزر الرئيسي لقارئ الشاشة: فعل لا حالة -->
+    <string name="assistant_mic_tap_to_start">اضغط لبدء الاستماع</string>
+    <string name="assistant_mic_tap_to_stop">اضغط للإيقاف</string>
+    <string name="assistant_mic_stop">إيقاف الاستماع</string>
     <string name="history_resume">متابعة هذه المحادثة</string>
     <string name="history_resume_desc">ستتذكّر أماليا هذا الحديث وستجيب على أساسه.</string>
     <string name="settings_wave">الموجة</string>

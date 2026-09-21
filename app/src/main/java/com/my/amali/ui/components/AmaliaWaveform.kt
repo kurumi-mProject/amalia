@@ -3,8 +3,14 @@ package com.my.amali.ui.components
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.width
+import androidx.compose.animation.core.Animatable
+import androidx.compose.animation.core.LinearEasing
+import androidx.compose.animation.core.tween
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.geometry.Offset
@@ -26,6 +32,7 @@ import com.my.amali.domain.entity.WaveSettings.Companion.GAP_MAX
 import com.my.amali.domain.entity.WaveSettings.Companion.GAP_MIN
 import com.my.amali.domain.entity.WaveSettings.Companion.SMOOTHING_MAX
 import com.my.amali.domain.entity.WaveSettings.Companion.SMOOTHING_MIN
+import kotlinx.coroutines.delay
 import kotlin.math.abs
 import kotlin.math.pow
 import kotlin.math.roundToInt
@@ -135,6 +142,30 @@ fun AmaliaWaveform(
 
     val brush = remember(color) { SolidColor(color) }
 
+    // ── Анимация уровня вместо прямой подстановки ──────────────────────
+    //
+    // Громкость приходит пачками: VAD отдаёт её по кадрам записи, плеер — по
+    // аудио-чанкам, и промежутки между值 разной длины. Прямая подстановка
+    // [level] в отрисовку означала: полоса прыгает ровно тогда, когда пришёл
+    // чанк, то есть рывками. Здесь значение идёт к цели сглаженной кривой в
+    // темпе 60 Гц — так волна выглядит как реакция на голос, а не как
+    // отклик на сетевой пакет.
+    val animatedLevel = remember { Animatable(0f) }
+    val target by rememberUpdatedState(level.coerceIn(0f, 1f))
+    LaunchedEffect(Unit) {
+        while (true) {
+            animatedLevel.animateTo(
+                targetValue = target,
+                animationSpec = tween(
+                    durationMillis = WaveFrameMs,
+                    easing = LinearEasing,
+                ),
+            )
+            delay(WaveFrameMs.toLong())
+        }
+    }
+    val shown = animatedLevel.value
+
     // Толщина обводки нужна в пикселях, но переводить dp в пиксели можно
     // только внутри DrawScope. Поэтому перевод делается здесь, через
     // плотность из композиции: тот же результат, но без обращения к
@@ -153,7 +184,7 @@ fun AmaliaWaveform(
             .semantics { contentDescription = "" },
     ) {
         drawWaveform(
-            level = level.coerceIn(0f, 1f),
+            level = shown,
             settings = settings,
             indices = indices,
             brush = brush,
@@ -164,6 +195,15 @@ fun AmaliaWaveform(
         )
     }
 }
+
+/**
+ * Кадр волны.
+ *
+ * 16 мс — ровно 60 Гц. Волна идёт с этой частотой независимо от того, как
+ * часто приходят данные о громкости: у VAD и у плеера свои частоты, и общая
+ * у них только эта.
+ */
+private const val WaveFrameMs = 16
 
 /**
  * Раскладывает уровень громкости по полосам и рисует их.

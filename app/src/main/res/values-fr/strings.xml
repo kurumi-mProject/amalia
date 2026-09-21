@@ -350,6 +350,11 @@
     <string name="assistant_hint_thinking">Un instant, je réfléchis</string>
     <string name="assistant_hint_speaking">Touche pour interrompre</string>
     <string name="assistant_hint_error">Réessaie</string>
+
+    <!-- Libellés du bouton principal pour TalkBack : action, pas état -->
+    <string name="assistant_mic_tap_to_start">Touchez pour écouter</string>
+    <string name="assistant_mic_tap_to_stop">Touchez pour arrêter</string>
+    <string name="assistant_mic_stop">Arrêter l’écoute</string>
     <string name="history_resume">Poursuivre cette conversation</string>
     <string name="history_resume_desc">Amalia s’en souviendra et répondra dans ce contexte.</string>
     <string name="settings_wave">Forme d’onde</string>

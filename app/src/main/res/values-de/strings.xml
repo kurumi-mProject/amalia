@@ -350,6 +350,11 @@
     <string name="assistant_hint_thinking">Einen Moment, ich denke nach</string>
     <string name="assistant_hint_speaking">Tippen zum Unterbrechen</string>
     <string name="assistant_hint_error">Versuch es noch einmal</string>
+
+    <!-- Beschriftungen der Haupttaste für TalkBack: Aktion, nicht Zustand -->
+    <string name="assistant_mic_tap_to_start">Tippen, um zuzuhören</string>
+    <string name="assistant_mic_tap_to_stop">Tippen, um zu stoppen</string>
+    <string name="assistant_mic_stop">Zuhören beenden</string>
     <string name="history_resume">Dieses Gespräch fortsetzen</string>
     <string name="history_resume_desc">Amalia erinnert sich daran und antwortet im Kontext.</string>
     <string name="settings_wave">Wellenform</string>

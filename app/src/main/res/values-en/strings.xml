@@ -397,6 +397,11 @@
     <string name="assistant_hint_thinking">One moment, thinking</string>
     <string name="assistant_hint_speaking">Tap to interrupt</string>
     <string name="assistant_hint_error">Try again</string>
+
+    <!-- Main button labels for TalkBack: action, not state -->
+    <string name="assistant_mic_tap_to_start">Tap to start listening</string>
+    <string name="assistant_mic_tap_to_stop">Tap to stop</string>
+    <string name="assistant_mic_stop">Stop listening</string>
     <string name="history_resume">Continue this conversation</string>
     <string name="history_resume_desc">Amalia will remember this talk and answer with it in mind.</string>
     <string name="settings_wave">Waveform</string>

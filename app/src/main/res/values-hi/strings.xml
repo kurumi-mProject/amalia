@@ -350,6 +350,11 @@
     <string name="assistant_hint_thinking">एक पल, सोच रही हूँ</string>
     <string name="assistant_hint_speaking">रोकने के लिए टैप करें</string>
     <string name="assistant_hint_error">फिर से कोशिश करें</string>
+
+    <!-- TalkBack के लिए मुख्य बटन के लेबल: स्थिति नहीं, क्रिया -->
+    <string name="assistant_mic_tap_to_start">सुनना शुरू करने के लिए टैप करें</string>
+    <string name="assistant_mic_tap_to_stop">रोकने के लिए टैप करें</string>
+    <string name="assistant_mic_stop">सुनना बंद करें</string>
     <string name="history_resume">यह बातचीत जारी रखें</string>
     <string name="history_resume_desc">अमालिया इसे याद रखेगी और इसके अनुसार जवाब देगी।</string>
     <string name="settings_wave">वेवफ़ॉर्म</string>

@@ -5,6 +5,7 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.material3.MaterialTheme
@@ -18,12 +19,19 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalConfiguration
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.text.TextMeasurer
+import androidx.compose.ui.text.TextStyle
+import androidx.compose.ui.text.rememberTextMeasurer
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.unit.Constraints
 import androidx.compose.ui.unit.dp
 import com.my.amali.R
 import com.my.amali.ui.theme.LocalLightProfile
 import com.my.amali.ui.theme.Spacing
+import com.my.amali.ui.theme.greetingTextPages
 import kotlinx.coroutines.delay
 import kotlin.random.Random
 
@@ -106,16 +114,54 @@ internal fun GreetingHero(
     val style = MaterialTheme.typography.displayMedium.copy(textAlign = TextAlign.Center)
     val color = MaterialTheme.colorScheme.onBackground
 
+    // Оптическая геометрия берётся у шрифта, а не назначается «на глаз»:
+    // интерлиньяж — из displayMedium, запас — из той же функции, что
+    // защищает низкие буквы от отсечения. Одна формула на все случаи, чтобы
+    // блок не мог разъехаться при правке типографики.
+    val density = LocalDensity.current
+    val fontSize = with(density) { style.fontSize.toPx() }
+    val lineHeight = with(density) { style.lineHeight.toPx() }
+    val measurer = rememberTextMeasurer()
+
+    // Ширина, в которую обязана уложиться строка: экран минус боковые отступы,
+    // но не больше [GreetingStageWidth]. Считается из конфигурации, а не из
+    // фактических размеров блока: ширина блока зависит от этой же величины,
+    // и брать её из результата — замкнутый круг.
+    val screenWidth = LocalConfiguration.current.screenWidthDp.dp
+    val maxLineWidth = with(density) {
+        minOf(screenWidth - Spacing.screen * 2, GreetingStageWidth).toPx().coerceAtLeast(1f)
+    }
+
+    // Одна строка или две — решается замером, а не догадкой. От этого зависит
+    // только вертикальный запас: фраза в две строки обязана получить больше
+    // места, иначе её низкие буквы срежет отсечение барабана.
+    val pages = remember(text, style, maxLineWidth) {
+        val measured = measureLineWidth(text, style, measurer, maxLineWidth)
+        val effective = if (measured > 0f) measured else estimatedLineWidth(text, style)
+        if (effective <= maxLineWidth) 1 else GreetingMaxLines
+    }
+
     Column(
         modifier = modifier
             .fillMaxWidth()
             .padding(horizontal = Spacing.screen),
         horizontalAlignment = Alignment.CenterHorizontally,
     ) {
-        // Ключ — номер смены: он меняется на каждой ротации, даже если мешок
-        // случайно выдал ту же фразу. По тексту эффект бы не перезапустился,
-        // и смена прошла бы без анимации.
-        Box(modifier = Modifier.widthIn(max = MaxGreetingWidth)) {
+        // Высота зарезервирована заранее и ровно настолько, насколько нужно:
+        // прошлая версия резервировала две строки всегда, и вокруг односложных
+        // фраз («Вечер», «Я рядом») оставалась мёртвая полоса — тот самый
+        // воздух, из-за которого главный текст выглядел «далеко» от всего
+        // остального. Здесь страница одна, а вторая появляется только тогда,
+        // когда фраза действительно переносится.
+        Box(
+            modifier = Modifier
+                .widthIn(max = GreetingStageWidth)
+                .heightIn(min = greetingTextPages(fontSize, lineHeight, pages)),
+            contentAlignment = Alignment.Center,
+        ) {
+            // Ключ — номер смены: он меняется на каждой ротации, даже если
+            // мешок случайно выдал ту же фразу. По тексту эффект бы не
+            // перезапустился, и смена прошла бы без анимации.
             key(rotation.key) {
                 when (effect) {
                     null -> Text(
@@ -145,13 +191,60 @@ internal fun GreetingHero(
         Text(
             text = stringResource(R.string.greeting_prompt),
             style = MaterialTheme.typography.bodyMedium,
-            color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.82f),
+            color = MaterialTheme.colorScheme.onBackground.copy(alpha = SubtitleAlpha),
             textAlign = TextAlign.Center,
         )
 
-        Spacer(Modifier.height(Spacing.md))
+        Spacer(Modifier.height(GreetingUnderlineGap))
         GreetingUnderline(breath = breath)
     }
+}
+
+/**
+ * Совместимость: множитель заглавных букв в пропорциональном шрифте.
+ *
+ * Заглавная занимает примерно на треть больше ширины, чем строчная того же
+ * знака. Число нужно одному месту — оценке переноса фразы на вторую строку.
+ */
+private const val CapsWidthFactor = 1.32f
+
+/**
+ * Ширина строки фразы в пикселях для её стиля.
+ *
+ * Считается через [TextMeasurer], а не «на глазок»: оценка длины строки нужна
+ * каждый раз при смене фразы, и ошибиться в ней — значит либо зря зарезервировать
+ * вторую строку, либо пустить текст под отсечение по вертикали.
+ */
+private fun measureLineWidth(
+    text: String,
+    style: TextStyle,
+    measurer: TextMeasurer,
+    maxWidthPx: Float,
+): Float {
+    // Измеритель обязан получить те же условия, что и настоящий текст:
+    // иначе замер вернёт ширину, которой на экране не будет, и решение
+    // «одна строка или две» окажется неверным.
+    val constraints = Constraints(maxWidth = maxWidthPx.toInt().coerceAtLeast(1))
+    return measurer.measure(
+        text = text,
+        style = style,
+        maxLines = 1,
+        softWrap = false,
+        constraints = constraints,
+    ).size.width.toFloat()
+}
+
+/**
+ * Оценка ширины строки, если замера под рукой нет.
+ *
+ * Используется только как запасной путь (в превью, где измеритель текста
+ * недоступен). 0.58 от кегля на знак — консервативная середина для
+ * пропорционального шрифта: строчная в среднем 0.5, заглавная 0.66.
+ */
+private fun estimatedLineWidth(text: String, style: TextStyle): Float {
+    val glyphs = text.length.toFloat()
+    val size = style.fontSize.value
+    return glyphs * size * 0.58f
 }
 
 
@@ -188,50 +281,44 @@ internal data class RotatingGreeting(
  * до конца ни разу, и смены фразы не произошло бы вообще.
  *
  * ════════════════════════════════════════════════════════════════════════
- *  МЕШОК, А НЕ ИНДЕКС ПО КРУГУ
+ *  ЧТО ПОКАЗЫВАЕТСЯ ПРЯМО СЕЙЧАС — И ПОЧЕМУ ЭТО НЕ СЛУЧАЙНЫЙ МЕШОК
  * ════════════════════════════════════════════════════════════════════════
  *
- * Фразы выдаются из **перемешанного мешка**: берём первую, выбрасываем её,
- * берём следующую. Мешок опустел — перемешиваем заново.
+ * Раньше первой показывалась случайная фраза из набора, а дальше шёл
+ * перемешанный мешок. Для утра это означало, что примерно в двух случаях
+ * из трёх на экране главного ассистента вместо «Доброе утро» оказывалось
+ * «Кофе, потом всё остальное» — и человек, открывший приложение утром,
+ * не получал приветствия вообще. Это не разнообразие, а потеря функции:
+ * приветствие и есть та функция, ради которой главный текст существует.
  *
- * Так решаются три вещи сразу:
+ * Поэтому набор упорядочен, а не перемешан. Первая фраза — **само
+ * приветствие** («Доброе утро», «Добрый день», «Добрый вечер», «Доброй
+ * ночи») и она держится на экране две ротации подряд. Дальше идут фразы
+ * характера, и только потом — короткие («Утро», «Вечер»), которые читаются
+ * как ритмическая точка в конце круга, а не как «экран сломался».
  *
- *  1. **Одна фраза не выпадет дважды подряд** — она уже вынута. Простой
- *     выбор случайной давал бы повтор в трети случаев, и это выглядело бы
- *     как «сломалось, не сменилось».
- *  2. **Весь набор прокрутится прежде, чем что-то повторится.** Случайный
- *     выбор может три раза подряд достать одну и ту же — для пользователя
- *     это не случайность, а баг.
- *  3. **Порядок не повторяется от круга к кругу** — перемешивание каждый раз
- *     новое. Ротация по индексу выдала бы тот же порядок, и цикл был бы виден
- *     уже на втором круге.
+ * Порядок задаётся здесь, а не в каталоге [GreetingPhrases]: каталог — это
+ * набор текстов, а порядок показа — решение экрана.
  */
 @Composable
 private fun rememberRotatingGreeting(slot: GreetingSlot, rotationMs: Int): RotatingGreeting {
     val tone = GreetingTone.DEFAULT
-    val pool = remember(slot, tone) { GreetingPhrases.forSlot(slot, tone) }
+    val catalogue = remember(slot, tone) { GreetingPhrases.forSlot(slot, tone) }
+    val order = remember(catalogue) { rotationOrder(catalogue) }
 
-    // Мешок, текущая фраза и счётчик смен живут под одним ключом: при смене
-    // суток набор другой, и остатки старого мешка там бессмысленны.
-    var bag by remember(slot, tone) { mutableStateOf(emptyList<Int>()) }
-    var current by remember(slot, tone) { mutableStateOf(pool.first()) }
+    // Индекс в упорядоченном наборе и счётчик смен живут под одним ключом:
+    // при смене суток набор другой, и позиция в старом там бессмысленна.
+    var step by remember(slot, tone) { mutableStateOf(0) }
     var effect by remember(slot, tone) { mutableStateOf(GreetingEffect.ODOMETER) }
     var rotations by remember(slot, tone) { mutableStateOf(0) }
     val random = remember(slot, tone) { Random(System.nanoTime()) }
 
     LaunchedEffect(slot, tone) {
-        val fresh = pool.shuffled(random)
-        // Первая фраза тоже случайная, а не первая из списка: иначе каждый
-        // запуск приложения показывал бы одну и ту же строку, и живым это
-        // перестало бы казаться на второй день.
-        current = fresh.first()
-        bag = fresh.drop(1)
-
+        step = 0
+        rotations = 0
         while (true) {
             delay(rotationMs.toLong())
-            if (bag.isEmpty()) bag = pool.shuffled(random)
-            current = bag.first()
-            bag = bag.drop(1)
+            step++
             // Эффект выбирается под данные условия, а не под глобальный
             // счётчик: GreetingEffect.next запрещает повтор текущего.
             effect = GreetingEffect.next(previous = effect, random = random)
@@ -239,16 +326,75 @@ private fun rememberRotatingGreeting(slot: GreetingSlot, rotationMs: Int): Rotat
         }
     }
 
+    val phrase = order[step % order.size]
     return RotatingGreeting(
-        phraseRes = current,
+        phraseRes = phrase,
         index = rotations,
         key = rotations,
         effect = effect,
     )
 }
 
-/** Максимальная ширина фразы: на широких экранах строка не растягивается. */
-private val MaxGreetingWidth = 440.dp
+/**
+ * Порядок показа фраз фазы.
+ *
+ * Первая — всегда приветствие: оно обязано быть первым, что человек видит,
+ * открыв приложение. Дальше идут фразы характера, последней — самая короткая.
+ * Такая последовательность читается как «поздоровалась → сказала что-то
+ * своё → коротко выдохнула», а не как случайный набор строк.
+ *
+ * Если в наборе одна фраза (так бывает при правке каталога), порядок
+ * вырождается в неё саму — повтор здесь честнее, чем подстановка чужой фазы.
+ */
+private fun rotationOrder(paragraphs: List<Int>): List<Int> {
+    if (paragraphs.size < 3) return paragraphs
+
+    // «Длинная» фраза — самая информативная часть набора: идёт после
+    // приветствия, потому что несёт характер, а не функцию.
+    val greeting = paragraphs.first()
+    val short = paragraphs.last()
+    val middle = paragraphs.subList(1, paragraphs.lastIndex)
+
+    return buildList {
+        // Приветствие держится два такта подряд: 30 секунд — это ровно тот
+        // интервал, за который человек успевает отвлечься и снова взглянуть
+        // на экран, и увидеть во второй раз чужое «Пусть всё затихнет» вместо
+        // «Доброй ночи» было бы потерей, а не сменой.
+        add(greeting)
+        add(greeting)
+        addAll(middle)
+        add(short)
+    }
+}
+
+/**
+ * Ширина, на которой стоит герой главного экрана.
+ *
+ * 400dp: предел, при котором фраза приветствия читается как одна строка на
+ * любом телефоне из поддерживаемых, и при этом текст не растягивается на
+ * планшете в полосу. Значение экспортировано и используется ещё волной — она
+ * обязана быть ровно того же размера, иначе две центральные колонны экрана
+ * разъезжаются на пару пикселей, и это видно.
+ */
+internal val GreetingStageWidth = 400.dp
+
+/**
+ * Приглушение подписи под фразой.
+ *
+ * 0.62 — вторичный текст, который обязан читаться, но не спорить с главной
+ * фразой. Прошлые 0.82 делали подпись почти такой же яркой, как заголовок
+ * вторичной строки, и это давало ту самую «серую серость»: читая экран,
+ * глаз не находил, что здесь главное.
+ */
+private const val SubtitleAlpha = 0.62f
+
+/**
+ * Зазор между подписью и чертой под фразой.
+ *
+ * Меньше, чем [Spacing.md], потому что подпись и черта — один смысловой
+ * элемент («приглашение и его подчёркивание»), а не два независимых блока.
+ */
+private val GreetingUnderlineGap = Spacing.sm
 
 /** Сколько строк допускается у фразы. Больше двух не влезает ни одна. */
 private const val GreetingMaxLines = 2

@@ -2,7 +2,6 @@ package com.my.amali.ui.assistant
 
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.widthIn
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -14,9 +13,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.TextStyle
-import androidx.compose.ui.text.rememberTextMeasurer
 import androidx.compose.ui.text.style.TextAlign
-import androidx.compose.ui.unit.dp
 import kotlinx.coroutines.delay
 import kotlin.random.Random
 
@@ -90,9 +87,6 @@ internal fun GreetingDecoderText(
 ) {
     if (text.isEmpty()) return
 
-    val measurer = rememberTextMeasurer()
-    val slotWidth = remember(text, style) { decoderSlotWidth(text, style, measurer) }
-
     // Сколько знаков уже встало на место. Держится в состоянии, а не
     // считается из прогресса: показ идёт шагами, и номер шага — это ровно
     // то, что меняется.
@@ -121,90 +115,103 @@ internal fun GreetingDecoderText(
         settled = text.length
     }
 
+    // Шум показывается только в позициях, которые уже начали расшифровываться
+    // и ещё не встали. Хвост строки в это время остаётся **настоящим текстом**
+    // — не шумным и не мигающим.
+    //
+    // Это исправление хуже всего выглядевшей вещи в предыдущей версии: раньше
+    // готовая половина строки стояла рядом с кипящей половиной, и текст прыгал
+    // не только знаками, но и шириной — случайный `#` шире буквы, а слово
+    // «выглядело разъехавшимся». Здесь первым появляется весь текст целиком
+    // (он и должен быть виден — человеку читать фразу), а расшифровываются
+    // поверх только первые позиции: короткая вспышка в начале строки, за
+    // которой строка уже стоит на месте.
+    val scrambledUntil = (settled + NoiseSpread).coerceAtMost(text.length)
+
     Box(
         modifier = modifier.fillMaxWidth(),
         contentAlignment = Alignment.Center,
     ) {
         Text(
-            text = decodeFrame(text = text, settled = settled, frame = frame, random = random),
+            text = text,
             style = style,
             color = color,
             textAlign = TextAlign.Center,
-            // Переносы не нужны: строка строится под ширину, которую занимает
-            // на экране, и разбиение по строкам сделало бы слоты бессмысленными.
             softWrap = false,
-            maxLines = 1,
-            modifier = Modifier.widthIn(slotWidth),
+            maxLines = GreetingDecoderLines,
+        )
+        // Слой шума лежит ровно над теми же координатами и в том же центре,
+        // что и настоящий текст: сдвинуться он не может физически, потому что
+        // ширина обоих слоёв — ширина одной и той же строки.
+        Text(
+            text = decodeFrame(
+                text = text,
+                settled = settled,
+                until = scrambledUntil,
+                frame = frame,
+                random = random,
+            ),
+            style = style,
+            color = color,
+            textAlign = TextAlign.Center,
+            softWrap = false,
+            maxLines = GreetingDecoderLines,
         )
     }
 }
 
 /**
- * Одно состояние расшифровки: знаки до [settled] — настоящие, остальные шумные.
+ * Одно состояние расшифровки.
  *
- * Здесь и заложена защита от дёргания ширины. Каждый шумный знак берётся
- * **на месте** своего настоящего знака, поэтому число позиций всегда одно
- * и то же, а разница ширин компенсируется центрованием внутри слота.
- *
- * С вероятностью около половины в шумной позиции остаётся её собственная
- * буква. Это не мелочь: так в потоке виден контур будущего слова ещё до его
- * появления, и глаз успевает подготовиться к чтению. Без этого расшифровка
- * выглядит как случайный мусор, который в конце зачем-то превратился в текст.
+ * Позиции до [settled] — настоящие, от [settled] до [until] — шумные,
+ * дальше — снова настоящие. Ширина строки при этом не меняется: число знаков
+ * в строке одинаково во всех состояниях, а знаки шума берутся из набора
+ * той же ширины, что и буквы (см. [GlyphAlphabet]).
  */
-private fun decodeFrame(text: String, settled: Int, frame: Int, random: Random): String {
+private fun decodeFrame(
+    text: String,
+    settled: Int,
+    until: Int,
+    frame: Int,
+    random: Random,
+): String {
     if (settled >= text.length) return text
     val builder = StringBuilder(text.length)
     text.forEachIndexed { index, real ->
         builder.append(
             when {
                 index < settled -> real
+                index >= until -> real
                 real == ' ' -> real
                 // Псевдослучайность из трёх чисел: позиция, кадр шума и сама
                 // анимация. Устойчиво к перерисовке — в отличие от живого
                 // генератора, который на каждом кадре дал бы новый знак
                 // в каждой позиции и превратил бы чтение в мельтешение.
-                Random(frame * 8191 + index * 131 + random.nextInt(64)).nextInt(100) < 45 -> real
-                else -> GlyphAlphabet[Random(frame * 31 + index).nextInt(GlyphAlphabet.length)]
+                Random(frame * 8191 + index * 131 + random.nextInt(64)).nextInt(100) < 30 -> real
+                else -> GlyphAlphabet[Random(frame * 31 + index + random.nextInt(13)).nextInt(GlyphAlphabet.length)]
             },
         )
     }
     return builder.toString()
 }
 
-/**
- * Ширина одного слота в dp.
- *
- * Считается как максимум из двух величин: ширины самого широкого настоящего
- * знака и средней ширины знака из набора подмены. Максимум, а не средняя:
- * средняя оставила бы широкий настоящий знак (`Ш`, `Ж`, `W`) без места,
- * и он обрезался бы. Взятая по строке целиком, а не по каждому знаку, —
- * чтобы слоты были одинаковыми и строка читалась как ровный текст.
- */
-private fun decoderSlotWidth(
-    text: String,
-    style: TextStyle,
-    measurer: androidx.compose.ui.text.TextMeasurer,
-): androidx.compose.ui.unit.Dp {
-    var widest = 1f
-    text.forEach { ch ->
-        val w = measurer.measure(ch.toString(), style).size.width.toFloat()
-        if (w > widest) widest = w
-    }
-    // Запас на средний шумный знак: в наборе есть широкие (#, @, %).
-    return (widest * NoiseWidthFactor).dp
-}
+/** Сколько знаков горит шумом за уже вставшими. */
+private const val NoiseSpread = 4
 
-/** Во сколько раз слот шире самого широкого настоящего знака. */
-private const val NoiseWidthFactor = 1.22f
+/** Строк не больше двух — как и у остальных эффектов приветствия. */
+private const val GreetingDecoderLines = 2
 
 /**
  * Набор знаков для подмены.
  *
- * Заглавные буквы, цифры и знаки. Без `I`, `O`, `l`, `o`, `0`, `1` —
- * неразличимые в шрифте пары, из-за которых шум местами читался бы как
+ * Строчные латинские буквы, цифры и несколько знаков — **той же ширины**,
+ * что и буквы кириллицы. Это главное требование к набору: широкий `#` или `@`
+ * раздвинул бы строку в момент вспышки и вернул бы то самое дрожание ширины,
+ * от которого эффект и защищён. Выкинуты `I`, `O`, `l`, `o`, `0`, `1` —
+ * неразличимые в шрифте пары, из-за которых шум местами читался бы как уже
  * готовый текст.
  */
-private const val GlyphAlphabet = "ABCDEFGHJKMNPQRSTUVWXYZ23456789#@%$&*+="
+private const val GlyphAlphabet = "abcdeghkmnpqrstuvwxyz23456789#+="
 
 /**
  * Шаг расшифровки.
