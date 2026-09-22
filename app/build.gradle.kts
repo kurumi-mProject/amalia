@@ -64,28 +64,6 @@ android {
         // серверам бессмысленно, а хранить неиспользуемое поле — лишнее.
     }
 
-    buildTypes {
-        debug {
-            isMinifyEnabled = false
-            applicationIdSuffix = ".debug"
-            versionNameSuffix = "-debug"
-        }
-        release {
-            // Подпись обязана стоять ДО первой сборки релиза: не подписанный
-            // APK нельзя ни установить рядом с будущим магазинным, ни
-            // обновить им установленный. Ключ — app/release.keystore,
-            // значения — из signingSecret (env CI / local.properties /
-            // gradle.properties).
-            signingConfig = signingConfigs.getByName("release")
-            isMinifyEnabled = true
-            isShrinkResources = true
-            proguardFiles(
-                getDefaultProguardFile("proguard-android-optimize.txt"),
-                "proguard-rules.pro",
-            )
-        }
-    }
-
     signingConfigs {
         create("release") {
             storeFile = file("release.keystore")
@@ -93,6 +71,23 @@ android {
             keyAlias = signingSecret("AMALIA_KEY_ALIAS")
             keyPassword = signingSecret("AMALIA_KEY_PASSWORD")
                 .ifEmpty { signingSecret("AMALIA_KEYSTORE_PASSWORD") }
+        }
+    }
+
+    buildTypes {
+        debug {
+            isMinifyEnabled = false
+            applicationIdSuffix = ".debug"
+            versionNameSuffix = "-debug"
+        }
+        release {
+            signingConfig = signingConfigs.getByName("release")
+            isMinifyEnabled = true
+            isShrinkResources = true
+            proguardFiles(
+                getDefaultProguardFile("proguard-android-optimize.txt"),
+                "proguard-rules.pro",
+            )
         }
     }
 
