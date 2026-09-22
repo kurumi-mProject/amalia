@@ -931,7 +931,12 @@ class AssistantViewModel(
      */
     private fun maybeCompress() {
         if (messagesSinceSummary >= SUMMARY_EVERY) {
-            refreshSummary()
+            // refreshSummary — suspend: запускается в собственную корутину,
+            // а не «висит» на вызывающем. Оба вызывающих (персистентность
+            // реплики и init-восстановление сессии) сами корутины не ждут —
+            // пересказ обязан идти в фоне и не задерживать ни ответ, ни старт.
+            // Двойной запуск гасится флагом summaryInProgress.
+            viewModelScope.launch { refreshSummary() }
         }
     }
 
