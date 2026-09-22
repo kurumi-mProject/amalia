@@ -9,9 +9,11 @@ import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.core.EaseOutCubic
 import androidx.compose.animation.core.LinearEasing
 import androidx.compose.animation.core.RepeatMode
 import androidx.compose.animation.core.Spring
+import androidx.compose.animation.core.animateDpAsState
 import androidx.compose.animation.core.animateFloat
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.infiniteRepeatable
@@ -389,11 +391,33 @@ fun AssistantScreenContent(
                 useAnimation = LocalInspectionMode.current.not() && animationsEnabled,
             )
 
-            if (welcome) {
-                Spacer(Modifier.weight(1f))
-            } else {
-                Spacer(Modifier.height(Spacing.md))
-            }
+            // ══════════════════════════════════════════════════════════════
+            //  ПРУЖИНА МЕЖДУ ГЕРОЕМ И ДИАЛОГОМ — АНИМИРОВАННАЯ
+            // ══════════════════════════════════════════════════════════════
+            //
+            // Раньше здесь стояла мгновенная подмена: в покое — пружина на
+            // весь свободный экран, в разговоре — фикс 16dp. Один тап по
+            // микрофону заставлял карточку, чипы и волну ПРЫГАТЬ на сотню
+            // пикселей за один кадр — именно это читалось как «резкость»
+            // и ломало ощущение оргономики.
+            //
+            // Теперь вес пружины анимируется: чипсы успевают уйти, карточка
+            // приходит снизу вместе с волной — всё поднимается одним
+            // движением, как будто разговор «поднимается к глазам».
+            // Обратный переход (новый разговор) тем же движением опускает
+            // экран обратно в покой.
+            val idleWeight by animateFloatAsState(
+                targetValue = if (welcome) 1f else 0f,
+                animationSpec = tween(durationMillis = 420, easing = EaseOutCubic),
+                label = "welcomeSpring",
+            )
+            val dialogGap by animateDpAsState(
+                targetValue = if (welcome) 0.dp else Spacing.md,
+                animationSpec = tween(durationMillis = 420, easing = EaseOutCubic),
+                label = "dialogGap",
+            )
+            Spacer(Modifier.height(dialogGap))
+            Spacer(Modifier.weight(idleWeight, fill = false))
 
             // === ДОПОЛНИТЕЛЬНОЕ: карточки диалога под героем ===
             // В покое здесь стоят только чипы «что сказать». С началом

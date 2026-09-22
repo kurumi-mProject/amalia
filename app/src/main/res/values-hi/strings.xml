@@ -21,6 +21,9 @@
     <string name="onboarding_next">आगे</string>
     <string name="onboarding_back">पीछे</string>
     <string name="onboarding_finish">हो गया</string>
+    <string name="onboarding_finish_title">सब तैयार है</string>
+    <string name="onboarding_finish_desc">पहली बातचीत में माइक्रोफ़ोन की अनुमति माँगूँगा — बाकी सब तैयार है। बस बोलिए।</string>
+    <string name="onboarding_theme_circadian">इंटरफ़ेस का प्रकाश दिन के समय के साथ बदलता है — भोर की बर्फ़ से एम्बर रात तक।</string>
 
     <string name="guide_mic_title">माइक बटन</string>
     <string name="guide_mic_desc">मुझसे बात करने के लिए दबाकर रखें</string>
@@ -344,6 +347,8 @@
     <string name="settings_custom_need_model">मॉडल लिखें — इसके बिना अनुरोध नहीं जाएगा</string>
 
     <string name="settings_profile_custom_hint">नीचे URL, मॉडल और कुंजी भरें — फिर चालू करें</string>
+    <string name="settings_profile_on">चयनित</string>
+    <string name="settings_profile_off">अचयनित</string>
     <string name="settings_custom_activate">यह प्रोफ़ाइल चालू करें</string>
     <string name="settings_custom_active">अभी उपयोग में है</string>
     <string name="assistant_hint_listening">बोलिए, मैं सुन रही हूँ</string>

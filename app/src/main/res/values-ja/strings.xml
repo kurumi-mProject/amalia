@@ -21,6 +21,9 @@
     <string name="onboarding_next">次へ</string>
     <string name="onboarding_back">戻る</string>
     <string name="onboarding_finish">完了</string>
+    <string name="onboarding_finish_title">準備完了</string>
+    <string name="onboarding_finish_desc">最初の会話でマイクの許可を求めます。あとは話しかけるだけ。</string>
+    <string name="onboarding_theme_circadian">インターフェースの光は時間帯とともに移ろいます — 夜明けの氷から琥珀の夜まで。</string>
 
     <string name="guide_mic_title">マイクボタン</string>
     <string name="guide_mic_desc">押し続けて私に話しかけて</string>
@@ -391,6 +394,8 @@
     <string name="settings_custom_need_model">モデルを指定してください — ないとリクエストが通りません</string>
 
     <string name="settings_profile_custom_hint">下の欄にURL・モデル・キーを入れて有効にしてください</string>
+    <string name="settings_profile_on">選択中</string>
+    <string name="settings_profile_off">未選択</string>
     <string name="settings_custom_activate">このプロフィールを有効にする</string>
     <string name="settings_custom_active">現在使用中</string>
     <string name="assistant_hint_listening">話してください、聞いています</string>

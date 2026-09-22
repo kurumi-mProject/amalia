@@ -1,14 +1,19 @@
 package com.my.amali.ui.settings
 
 import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.core.Spring
+import androidx.compose.animation.core.animateColorAsState
+import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.spring
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.expandVertically
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.shrinkVertically
 import androidx.compose.foundation.background
-import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.interaction.MutableInteractionSource
+import androidx.compose.foundation.interaction.collectIsPressedAsState
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -46,12 +51,15 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.scale
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.role
 import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.semantics.stateDescription
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
@@ -278,18 +286,29 @@ private fun AiProfileCard(
         // этого зазора первый вариант прилипал к описанию.
         Spacer(Modifier.height(Spacing.md))
 
-        ProfileOption(
+        // ══════════════════════════════════════════════════════════════════
+        //  ОДИН контейнер выбора вместо двух отдельных рамок
+        // ══════════════════════════════════════════════════════════════════
+        //
+        // Раньше варианты были двумя самостоятельными коробками с рамками
+        // через 8–12dp: на экране это читалось как «две херни слиплись» —
+        // две соседние рамки спорили друг с другом за то, кто из них блок.
+        //
+        // Теперь это один выбор из двух: строки без собственных рамок,
+        // разделённые GlassDivider, как любые настройки в группе. Выбор
+        // показан радиокружком, мягкой заливкой строки и галочкой —
+        // тремя независимыми признаками, чтобы состояние читалось не
+        // только цветом. Слипаться здесь больше нечему: рамка одна,
+        // и она принадлежит карточке.
+        ProfileOptionRow(
             icon = Icons.Rounded.Bolt,
             title = stringResource(R.string.settings_profile_groq),
             subtitle = stringResource(R.string.settings_profile_groq_desc),
             selected = profile == AiProfile.GROQ,
-            enabled = true,
             onClick = { onSelect(AiProfile.GROQ) },
         )
-        // 12dp между вариантами: у каждого своя рамка, и на 8dp рамки
-        // читались как один слитый блок — «варианты слиплись».
-        Spacer(Modifier.height(Spacing.sm))
-        ProfileOption(
+        GlassDivider()
+        ProfileOptionRow(
             icon = Icons.Rounded.Dns,
             title = stringResource(
                 if (customReady) {
@@ -310,94 +329,112 @@ private fun AiProfileCard(
             // намерение настроить, и оно лишь подсвечивает поля ниже.
             // Раньше он был заблокирован до заполнения полей, а поля были
             // скрыты до выбора — профиль нельзя было включить никогда.
-            enabled = true,
-            highlighted = !customReady,
             onClick = { onSelect(AiProfile.CUSTOM) },
         )
     }
 }
 
 /**
- * Один вариант профиля: иконка, название, описание и видимая отметка выбора.
+ * Одна строка-вариант «мозга» — радиосписок внутри карточки.
  *
- * Выбор показан рамкой И галочкой, а не только цветом: цвет как единственный
- * носитель состояния не читается ни на солнце, ни при дальтонизме.
+ * Выбор показан радиокружком с галочкой (как в селекторе моделей ниже по
+ * экрану), мягкой акцентной заливкой и весом шрифта. Три признака вместо
+ * одного: цвет — самый слабый носитель состояния, и полагаться только на
+ * него нельзя ни при дальтонизме, ни на солнце.
  *
- * Недоступный вариант (свой эндпоинт без адреса и модели) остаётся на экране,
- * но приглушён и не нажимается: человек должен видеть, что такая возможность
- * есть и чего ей не хватает, а не догадываться о ней после настройки.
+ * Переходы мягкие: заливка и галочка анимируются — мгновенная смена
+ * состояния читалась бы как перерисовка, а не как выбор.
  */
 @Composable
-private fun ProfileOption(
+private fun ProfileOptionRow(
     icon: ImageVector,
     title: String,
     subtitle: String,
     selected: Boolean,
-    enabled: Boolean,
     onClick: () -> Unit,
-    /**
-     * Вариант доступен, но ещё не готов к работе: подсвечиваем рамкой
-     * и подсказкой, куда смотреть. Так человек сразу понимает, что делать,
-     * вместо того чтобы гадать про серый пункт.
-     */
-    highlighted: Boolean = false,
 ) {
-    val alpha = if (enabled) 1f else 0.45f
-    val border = when {
-        selected -> MaterialTheme.colorScheme.primary
-        highlighted -> MaterialTheme.colorScheme.primary.copy(alpha = 0.45f)
-        else -> MaterialTheme.colorScheme.onSurface.copy(alpha = 0.10f)
-    }
-    val background = if (selected) {
-        MaterialTheme.colorScheme.primary.copy(alpha = 0.10f)
-    } else {
-        Color.Transparent
-    }
+    val interaction = remember { MutableInteractionSource() }
+    val pressed by interaction.collectIsPressedAsState()
+    val scale by animateFloatAsState(
+        targetValue = if (pressed) 0.985f else 1f,
+        animationSpec = spring(stiffness = Spring.StiffnessMediumLow),
+        label = "profileRowPress",
+    )
+    val accent = MaterialTheme.colorScheme.primary
+    val background by animateColorAsState(
+        targetValue = if (selected) accent.copy(alpha = 0.10f) else Color.Transparent,
+        animationSpec = tween(220),
+        label = "profileRowBackground",
+    )
+    val checkScale by animateFloatAsState(
+        targetValue = if (selected) 1f else 0f,
+        animationSpec = spring(dampingRatio = Spring.DampingRatioMediumBouncy),
+        label = "profileRowCheck",
+    )
+    val stateLabel = stringResource(
+        if (selected) R.string.settings_profile_on else R.string.settings_profile_off,
+    )
 
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .clip(RoundedCornerShape(Radius.md))
-            .background(background)
-            .border(1.dp, border, RoundedCornerShape(Radius.md))
-            .clickable(enabled = enabled, onClick = onClick)
-            // 16dp вместо 12dp: строка с рамкой требует внутреннего воздуха,
-            // иначе заголовок упирается в контур и вариант читается сжатым.
-            // Минимальная высота 56dp — тач-зона выше системного минимума.
             .heightIn(min = 56.dp)
-            .padding(Spacing.md)
-            .semantics { role = Role.RadioButton },
+            .scale(scale)
+            .clip(RoundedCornerShape(Radius.sm))
+            .background(background)
+            .clickable(
+                interactionSource = interaction,
+                indication = null,
+                onClick = onClick,
+            )
+            // 16dp вместо 12dp: строка требует внутреннего воздуха, иначе
+            // заголовок упирается в край и вариант читается сжатым.
+            .padding(horizontal = Spacing.sm, vertical = Spacing.sm)
+            .semantics {
+                role = Role.RadioButton
+                stateDescription = stateLabel
+                contentDescription = "$title. $subtitle"
+            },
         verticalAlignment = Alignment.CenterVertically,
     ) {
+        // Радиокружок — тот же паттерн, что у селектора моделей: один
+        // язык выбора на весь экран, а не две разные механики рядом.
+        Box(
+            modifier = Modifier
+                .size(22.dp)
+                .clip(CircleShape)
+                .background(if (selected) accent else accent.copy(alpha = 0.14f)),
+            contentAlignment = Alignment.Center,
+        ) {
+            Icon(
+                imageVector = Icons.Rounded.Check,
+                contentDescription = null,
+                tint = MaterialTheme.colorScheme.onPrimary,
+                modifier = Modifier
+                    .size(14.dp)
+                    .scale(checkScale),
+            )
+        }
+        Spacer(Modifier.width(Spacing.sm))
         Icon(
             imageVector = icon,
             contentDescription = null,
-            tint = when {
-                selected -> MaterialTheme.colorScheme.primary
-                else -> MaterialTheme.colorScheme.onSurfaceVariant
-            }.copy(alpha = alpha),
+            tint = if (selected) accent else MaterialTheme.colorScheme.onSurfaceVariant,
             modifier = Modifier.size(20.dp),
         )
-        Spacer(Modifier.width(Spacing.sm))
+        Spacer(Modifier.width(Spacing.xs))
         Column(Modifier.weight(1f)) {
             Text(
                 text = title,
-                style = MaterialTheme.typography.titleSmall,
-                color = MaterialTheme.colorScheme.onSurface.copy(alpha = alpha),
+                style = MaterialTheme.typography.bodyLarge,
+                color = MaterialTheme.colorScheme.onSurface,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
             )
             Text(
                 text = subtitle,
                 style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = alpha),
-            )
-        }
-        if (selected) {
-            Spacer(Modifier.width(Spacing.xs))
-            Icon(
-                imageVector = Icons.Rounded.Check,
-                contentDescription = null,
-                tint = MaterialTheme.colorScheme.primary,
-                modifier = Modifier.size(18.dp),
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
         }
     }

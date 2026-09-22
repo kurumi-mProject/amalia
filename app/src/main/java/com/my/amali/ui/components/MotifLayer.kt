@@ -1,5 +1,8 @@
 package com.my.amali.ui.components
 
+import androidx.compose.animation.core.LinearEasing
+import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.runtime.Composable
@@ -66,9 +69,27 @@ fun MotifLayer(
 
     val shape = remember(resolved) { MotifShape.of(resolved) }
     val pixelsPerDp = LocalDensity.current.density
-    val particles = remember(resolved, density) {
-        buildParticles(resolved, spec, density)
-    }
+    // Полный набор частиц строится ОДИН раз на мотив, с фиксированным семенем.
+    //
+    // Раньше набор пересобирался от density, а seed зависел от их числа:
+    // смена густоты (например, «занят → свободен» на главном экране)
+    // пересыпала ВСЕ частицы на новые позиции — мотив «телепортировался»
+    // одним кадром. Теперь позиция каждой частицы неизменна, а густота
+    // управляет только тем, СКОЛЬКО из них видно, — и это число анимируется.
+    val particles = remember(resolved) { buildParticles(resolved, spec) }
+
+    // Видимое число частиц: доля density от базового счёта мотива, со
+    // стертыми хвостами округления. Плавное значение нужно для хвоста:
+    // последняя (дробная) частица входит через собственную альфу, поэтому
+    // смена густоты читается как постепенное проявление, а не подмена кадра.
+    val targetCount = (spec.count * density.coerceIn(0f, 1f))
+        .roundToInt()
+        .coerceIn(if (spec.count > 0) 1 else 0, MAX_PARTICLES)
+    val visibleCount by animateFloatAsState(
+        targetValue = targetCount.toFloat(),
+        animationSpec = tween(durationMillis = COUNT_FADE_MS, easing = LinearEasing),
+        label = "motifVisibleCount",
+    )
 
     var phase by remember { mutableFloatStateOf(0f) }
     LaunchedEffect(resolved) {
@@ -96,8 +117,19 @@ fun MotifLayer(
         val span = h + 2f * MARGIN_PX
         val t = phase
 
-        particles.forEach { p ->
+        // Видимое число: целая часть рисуется полностью, дробный хвост —
+        // через альфу. Сглаживание счёта — то, что делает смену густоты
+        // «дыханием», а не пересыпанием частиц.
+        val full = visibleCount.toInt()
+        val fraction = visibleCount - full
+
+        particles.forEachIndexed { index, p ->
+            if (index > full) return@forEachIndexed
             val color = mix(mainColor, altColor, p.tint)
+            // Хвостовая частица входит с прозрачностью, а не с нуля размера:
+            // появление «из ниоткуда» на ровном месте читается как глитч.
+            val presence = if (index == full) fraction else 1f
+            if (presence <= 0f) return@forEachIndexed
 
             // ══════════════════════════════════════════════════════════════
             //  РАЗМЕР — здесь была причина «сакуры не видно»
@@ -120,10 +152,9 @@ fun MotifLayer(
             // нужный видимый радиус.
             val radius = p.size * pixelsPerDp * p.depth * PATH_HALF_EXTENT
 
-            // Альфа. Нижняя граница поднята: лепесток обязан читаться даже
-            // на светлом фоне. Было 0.4 + 0.6 * depth при базе 0.62 -> в
-            // сумме давало 0.25..0.62 с учётом прозрачности палитры.
-            val alpha = (if (palette.isDark) 0.78f else 0.88f) * (0.62f + 0.38f * p.depth)
+            // presence — вход/выход хвостовой частицы при смене густоты.
+            val alpha = (if (palette.isDark) 0.78f else 0.88f) *
+                (0.62f + 0.38f * p.depth) * presence
 
             if (spec.falling) {
                 val y = ((p.y * span + t * p.fallSpeed * span * p.depth) % span) - MARGIN_PX
@@ -217,17 +248,17 @@ fun MotifSwatch(
 /**
  * Набор частиц мотива.
  *
- * Случайность — с фиксированным семенем: при любой пересборке композиции
- * «дождь» остаётся тем же, а не перескакивает на новые позиции.
+ * Всегда [MAX_PARTICLES] штук с фиксированным семенем: «дождь» остаётся тем
+ * же при любой пересборке композиции И при любой густоте — смена плотности
+ * управляет только видимым числом частиц (см. [MotifLayer]), поэтому частицы
+ * никогда не пересыпают на новые позиции.
  */
 private fun buildParticles(
     motif: AmaliaMotif,
     spec: MotifBehavior,
-    density: Float,
 ): List<MotifParticle> {
-    val count = (spec.count * density.coerceIn(0f, 1f)).roundToInt().coerceIn(3, MAX_PARTICLES)
-    val random = Random(motif.ordinal * 7919 + count)
-    return List(count) { index ->
+    val random = Random(motif.ordinal * 7919)
+    return List(MAX_PARTICLES) { index ->
         MotifParticle(
             x = random.nextFloat(),
             y = random.nextFloat(),
@@ -552,6 +583,14 @@ private data class MotifParticle(
 private val TAU = (2 * PI).toFloat()
 private const val FRAME_BUDGET_MS = 33L
 private const val MAX_PARTICLES = 40
+
+/**
+ * Длительность плавной смены видимого числа частиц.
+ *
+ * 700 мс — достаточно долго, чтобы хвостовая частица вошла мягко, и
+ * достаточно коротко, чтобы смена густоты не выглядела «догоняющей».
+ */
+private const val COUNT_FADE_MS = 700
 
 /**
  * Базовая скорость падения — доля высоты экрана в секунду.

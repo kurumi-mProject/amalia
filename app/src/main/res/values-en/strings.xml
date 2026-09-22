@@ -21,6 +21,9 @@
     <string name="onboarding_next">Next</string>
     <string name="onboarding_back">Back</string>
     <string name="onboarding_finish">Done</string>
+    <string name="onboarding_finish_title">All set</string>
+    <string name="onboarding_finish_desc">I\'ll ask for the mic on our first talk — everything else is ready. Just speak.</string>
+    <string name="onboarding_theme_circadian">Interface light follows the time of day — from dawn ice to amber night.</string>
 
     <string name="guide_mic_title">Microphone button</string>
     <string name="guide_mic_desc">Tap and hold to talk to me</string>
@@ -391,6 +394,8 @@
     <string name="settings_custom_need_model">Set a model — the request won\'t go through without it</string>
 
     <string name="settings_profile_custom_hint">Enter the URL, model and key in the block below, then enable it</string>
+    <string name="settings_profile_on">Selected</string>
+    <string name="settings_profile_off">Not selected</string>
     <string name="settings_custom_activate">Enable this profile</string>
     <string name="settings_custom_active">Currently in use</string>
     <string name="assistant_hint_listening">Speak, I\'m listening</string>

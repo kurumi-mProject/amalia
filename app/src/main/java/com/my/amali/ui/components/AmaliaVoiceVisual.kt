@@ -106,21 +106,6 @@ fun AmaliaVoiceVisual(
 ) {
     val smoothed = rememberSmoothedLevel(level = level, enabled = enabled, settings = settings)
 
-    // Своё дыхание у микрофона — как и у остальных живых элементов экрана.
-    // Раньше оно шло по своему периоду (2.8 с), пока фон, лампа и черта под
-    // фразой дышали по общему такту 10 с: два несовпадающих ритма в одном
-    // кадре читаются как дрожь, а не как покой. Период один на всё.
-    val idle = rememberInfiniteTransition(label = "voiceIdle")
-    val idlePulse by idle.animateFloat(
-        initialValue = 0.955f,
-        targetValue = 1.035f,
-        animationSpec = infiniteRepeatable(
-            animation = tween(durationMillis = IdleBreathMs, easing = LinearEasing),
-            repeatMode = RepeatMode.Reverse,
-        ),
-        label = "voiceIdlePulse",
-    )
-
     Box(
         modifier = modifier.semantics {
             if (contentDescription != null) this.contentDescription = contentDescription
@@ -153,6 +138,20 @@ fun AmaliaVoiceVisual(
                     isActive = true,
                 )
             } else {
+                // Дыхание живёт только в покое: пока идёт звук, пульс
+                // микрофона никто не видит, а бесконечная анимация,
+                // которую никто не смотрит, — это кадры, снятые с волны.
+                // Композируется только здесь — и умирает вместе с веткой.
+                val idle = rememberInfiniteTransition(label = "voiceIdle")
+                val idlePulse by idle.animateFloat(
+                    initialValue = 0.955f,
+                    targetValue = 1.035f,
+                    animationSpec = infiniteRepeatable(
+                        animation = tween(durationMillis = IdleBreathMs, easing = LinearEasing),
+                        repeatMode = RepeatMode.Reverse,
+                    ),
+                    label = "voiceIdlePulse",
+                )
                 Icon(
                     imageVector = AmaliaMic,
                     contentDescription = null,

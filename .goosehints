@@ -1,86 +1,56 @@
-# Mykutyassistant Android Project
+# Mykutyassistant — проект Амалии (голосовой AI-ассистент, Android)
 
-This is an Android Kotlin project. Read all source files below before making any changes.
+Kotlin + Jetpack Compose + Material 3. Single activity, NavHost, ServiceLocator вместо DI-фреймворков.
 
-## Source files
+## Как работать с кодом
 
-/root/Mykutyassistant/app/src/main/java/com/my/amali/AmaliaApp.kt
-/root/Mykutyassistant/app/src/main/java/com/my/amali/MainActivity.kt
-/root/Mykutyassistant/app/src/main/java/com/my/amali/core/accessibility/AmaliaAccessibilityService.kt
-/root/Mykutyassistant/app/src/main/java/com/my/amali/core/control/AccessibilityController.kt
-/root/Mykutyassistant/app/src/main/java/com/my/amali/core/control/AppCommandBus.kt
-/root/Mykutyassistant/app/src/main/java/com/my/amali/core/control/AppScreen.kt
-/root/Mykutyassistant/app/src/main/java/com/my/amali/core/di/ServiceLocator.kt
-/root/Mykutyassistant/app/src/main/java/com/my/amali/core/navigation/AmaliaNavHost.kt
-/root/Mykutyassistant/app/src/main/java/com/my/amali/core/navigation/BottomNavBar.kt
-/root/Mykutyassistant/app/src/main/java/com/my/amali/core/navigation/Destinations.kt
-/root/Mykutyassistant/app/src/main/java/com/my/amali/data/ai/AIEngineInterfaces.kt
-/root/Mykutyassistant/app/src/main/java/com/my/amali/data/ai/AIOrchestrator.kt
-/root/Mykutyassistant/app/src/main/java/com/my/amali/data/ai/AiResponse.kt
-/root/Mykutyassistant/app/src/main/java/com/my/amali/data/ai/AudioPlayer.kt
-/root/Mykutyassistant/app/src/main/java/com/my/amali/data/ai/DeepgramSTT.kt
-/root/Mykutyassistant/app/src/main/java/com/my/amali/data/ai/FishAudioTTS.kt
-/root/Mykutyassistant/app/src/main/java/com/my/amali/data/ai/functions/AmaliaTools.kt
-/root/Mykutyassistant/app/src/main/java/com/my/amali/data/ai/GroqLLM.kt
-/root/Mykutyassistant/app/src/main/java/com/my/amali/data/ai/MockLLM.kt
-/root/Mykutyassistant/app/src/main/java/com/my/amali/data/ai/MockSTT.kt
-/root/Mykutyassistant/app/src/main/java/com/my/amali/data/ai/MockTTS.kt
-/root/Mykutyassistant/app/src/main/java/com/my/amali/data/ai/Tool.kt
-/root/Mykutyassistant/app/src/main/java/com/my/amali/data/ai/ToolRegistry.kt
-/root/Mykutyassistant/app/src/main/java/com/my/amali/data/model/ChatMessage.kt
-/root/Mykutyassistant/app/src/main/java/com/my/amali/data/model/Conversation.kt
-/root/Mykutyassistant/app/src/main/java/com/my/amali/data/model/DeviceCommand.kt
-/root/Mykutyassistant/app/src/main/java/com/my/amali/data/model/DeviceStatus.kt
-/root/Mykutyassistant/app/src/main/java/com/my/amali/data/repository/ConversationRepository.kt
-/root/Mykutyassistant/app/src/main/java/com/my/amali/data/repository/SettingsRepository.kt
-/root/Mykutyassistant/app/src/main/java/com/my/amali/domain/entity/AppLanguage.kt
-/root/Mykutyassistant/app/src/main/java/com/my/amali/domain/entity/Settings.kt
-/root/Mykutyassistant/app/src/main/java/com/my/amali/domain/entity/VoiceState.kt
-/root/Mykutyassistant/app/src/main/java/com/my/amali/system/DeviceCommandExecutor.kt
-/root/Mykutyassistant/app/src/main/java/com/my/amali/system/SystemControllerHub.kt
-/root/Mykutyassistant/app/src/main/java/com/my/amali/system/SystemIntentExecutor.kt
-/root/Mykutyassistant/app/src/main/java/com/my/amali/ui/assistant/AssistantScreen.kt
-/root/Mykutyassistant/app/src/main/java/com/my/amali/ui/assistant/AssistantViewModel.kt
-/root/Mykutyassistant/app/src/main/java/com/my/amali/ui/components/AmaliaButton.kt
-/root/Mykutyassistant/app/src/main/java/com/my/amali/ui/components/AmaliaScaffold.kt
-/root/Mykutyassistant/app/src/main/java/com/my/amali/ui/components/GlassCard.kt
-/root/Mykutyassistant/app/src/main/java/com/my/amali/ui/components/GlassDialog.kt
-/root/Mykutyassistant/app/src/main/java/com/my/amali/ui/components/GlassSlider.kt
-/root/Mykutyassistant/app/src/main/java/com/my/amali/ui/components/GradientBackground.kt
-/root/Mykutyassistant/app/src/main/java/com/my/amali/ui/components/GuideOverlay.kt
-/root/Mykutyassistant/app/src/main/java/com/my/amali/ui/components/MicButton.kt
-/root/Mykutyassistant/app/src/main/java/com/my/amali/ui/components/MotifLayer.kt
-/root/Mykutyassistant/app/src/main/java/com/my/amali/ui/components/PermissionCard.kt
-/root/Mykutyassistant/app/src/main/java/com/my/amali/ui/components/SettingsRow.kt
-/root/Mykutyassistant/app/src/main/java/com/my/amali/ui/components/StateViews.kt
-/root/Mykutyassistant/app/src/main/java/com/my/amali/ui/components/VoiceWave.kt
-/root/Mykutyassistant/app/src/main/java/com/my/amali/ui/history/ConversationDetailScreen.kt
-/root/Mykutyassistant/app/src/main/java/com/my/amali/ui/history/ConversationDetailViewModel.kt
-/root/Mykutyassistant/app/src/main/java/com/my/amali/ui/history/ConversationListScreen.kt
-/root/Mykutyassistant/app/src/main/java/com/my/amali/ui/history/ConversationListViewModel.kt
-/root/Mykutyassistant/app/src/main/java/com/my/amali/ui/history/HistoryFormat.kt
-/root/Mykutyassistant/app/src/main/java/com/my/amali/ui/onboarding/GuideStep.kt
-/root/Mykutyassistant/app/src/main/java/com/my/amali/ui/onboarding/OnboardingScreen.kt
-/root/Mykutyassistant/app/src/main/java/com/my/amali/ui/onboarding/OnboardingViewModel.kt
-/root/Mykutyassistant/app/src/main/java/com/my/amali/ui/permissions/AmaliaPermission.kt
-/root/Mykutyassistant/app/src/main/java/com/my/amali/ui/permissions/PermissionsScreen.kt
-/root/Mykutyassistant/app/src/main/java/com/my/amali/ui/settings/AboutSettings.kt
-/root/Mykutyassistant/app/src/main/java/com/my/amali/ui/settings/AppearanceSettings.kt
-/root/Mykutyassistant/app/src/main/java/com/my/amali/ui/settings/DeviceControlSettings.kt
-/root/Mykutyassistant/app/src/main/java/com/my/amali/ui/settings/LanguageSettings.kt
-/root/Mykutyassistant/app/src/main/java/com/my/amali/ui/settings/NotificationSettings.kt
-/root/Mykutyassistant/app/src/main/java/com/my/amali/ui/settings/PrivacySettings.kt
-/root/Mykutyassistant/app/src/main/java/com/my/amali/ui/settings/SettingsScreen.kt
-/root/Mykutyassistant/app/src/main/java/com/my/amali/ui/settings/SettingsViewModel.kt
-/root/Mykutyassistant/app/src/main/java/com/my/amali/ui/settings/VoiceSettings.kt
-/root/Mykutyassistant/app/src/main/java/com/my/amali/ui/theme/CircadianEngine.kt
-/root/Mykutyassistant/app/src/main/java/com/my/amali/ui/theme/Color.kt
-/root/Mykutyassistant/app/src/main/java/com/my/amali/ui/theme/Glass.kt
-/root/Mykutyassistant/app/src/main/java/com/my/amali/ui/theme/Motifs.kt
-/root/Mykutyassistant/app/src/main/java/com/my/amali/ui/theme/Shapes.kt
-/root/Mykutyassistant/app/src/main/java/com/my/amali/ui/theme/Theme.kt
-/root/Mykutyassistant/app/src/main/java/com/my/amali/ui/theme/Type.kt
-/root/Mykutyassistant/app/src/main/AndroidManifest.xml
-/root/Mykutyassistant/app/build.gradle.kts
-/root/Mykutyassistant/build.gradle.kts
-/root/Mykutyassistant/settings.gradle.kts
+1. СНАЧАЛА ЧИТАЙ, ПОТОМ ПИШИ. Не изменяй код, который не прочитал; не переноси паттерны из памяти — смотри, как сделано здесь.
+2. Перед изменением компонента найди все места его использования и пойми контракт.
+3. Одно изменение — один смысловой блок. Найденную попутную проблему фиксируй отдельным изменением, а не «по пути».
+4. Корневая причина, а не симптом: никаких `catch {}` без обработки, никаких `!!` как «фикса».
+5. ЗАПРЕЩЕНО собирать APK на этой машине (gradle build / assembleDebug / assembleRelease). Сборка — на машине разработчика или в GitHub Actions.
+6. Не добавляй библиотеки без необходимости. Всё нужное уже в стека.
+
+## Архитектура и стоп-список
+
+- DI — только `core/di/ServiceLocator.kt`. Никаких Hilt/Koin.
+- Фон — только `GradientBackground` (аурора + глубина + виньетка + блик одним Canvas на 10 Гц; мотив — `MotifLayer` на 30 Гц). Не создавай свои фоны.
+- Поверхности — только `GlassCard` / `GlassGroup` / `glassSurface` / `GlassDialog`. Никаких `Card {}` из Material.
+- Экран — оболочка `AmaliaScreen` (фон + большая типографика + insets + `onBack`). Никаких Scaffold/AppBar.
+- Цвета — только токены `colorScheme` и палитры темы. Запрещено `Color(0xFF…)` и `Color.Green/Red` напрямую.
+- Текст — только токены `typography`. Запрещено `fontSize = X.sp`.
+- Состояние в UI — `collectAsStateWithLifecycle()`, не `collectAsState()`.
+- Списки — `LazyColumn` c `key` (и `contentType` при разнотипных элементах); `Column` для коротких фиксированных наборов.
+- Дорогие вычисления — в `remember(keys)`; визуальные трансформации — в `graphicsLayer`/draw-фазу.
+- Анимации бесконечные — только там, где они Что-то Значат (живой фон, орб, волна). Не оставляй бесконечные аниматоры в невидимых ветках.
+
+## Экраны
+
+- **AssistantScreen** — герой: фраза приветствия (ротация по фазе суток) + CircadianLamp + голосовой визуал (микрофон ⇄ волна). Карточки фаз (Welcome/Listening/Thinking/Reply/Error) меняются через AnimatedContent; пружина между героем и диалогом анимируется весом — никакой мгновенной подмены лейаута. Плотность мотива меняется плавно: `MotifLayer` строит частицы один раз (фиксированный seed) и анимирует видимое число.
+- **История** — группировка Сегодня/Вчера/Неделя/Раньше, поиск с подсветкой, два разных empty-состояния.
+- **Настройки** — сводка сверху, группы `SectionTitle` + `GlassGroup` + `GlassDivider`, строки `SettingsRow`/`SettingsActionRow`. Выбор из вариантов — радиосписок внутри одной карточки/группы (не отдельные рамки-коробки, которые слипаются).
+- **Онбординг** — 5 слайдов, один герой на слайд, стаггер-вход (герой → заголовок → описание), параллакс пейджера, живая волна, логотип из `drawable-nodpi/amalia_logo.png`, лента циркадного света на слайде тем.
+
+## Голос (конвейер)
+
+Groq: LLM (`GroqLLM`) + Whisper STT (`GroqWhisperStt` через `GroqSttClient`, VAD — `SpeechGate`), TTS — Fish Audio (`FishAudioTTS`), воспроизведение — `AudioPlayer`. Ключ один на слух и мозг; пустое поле = ключ из сборки. Модели — `ModelCatalog` (+ «своя модель» и кастомный эндпоинт). Уровень громкости в UI — один поток (`audioLevel`), волна не должна знать источник.
+
+## Ресурсы и иконки
+
+- Лончер-иконка строится скриптом `python3 tools/BuildLauncherIcons.py <арт.png>`: foreground = арт, вписанный содержимым в safe-круг 66dp канвы 108dp; background = `@color/ic_launcher_background` (чёрный); legacy webp — чёрный скруглённый квадрат с артом; `amalia_logo.png` — для онбординга. НЕ класть арт в background-слой — маска лончера режет края.
+- Строки: `values/` — русский (default), переводы — во всех девяти локалях (`values-en`, `values-ja`, `values-de`, `values-es`, `values-fr`, `values-zh`, `values-hi`, `values-ar`). Новый ключ добавляется СРАЗУ во все; тексты в коде запрещены.
+- Кастомные иконки — `ui/icons/AmaliaIcons.kt` (аудит геометрии — `tools/AuditIcons.py`).
+
+## UX-принципы (коротко)
+
+- Метафора: стекло, свет, воздух. Один главный элемент на экран; фон виден сквозь стекло всегда.
+- Тема живёт по времени суток (CircadianEngine): палитра, акценты, тени и текст выводятся из одной палитры (`buildScheme`), контраст гарантируется `ensureContrast` (7:1 тело текста).
+- Максимум 3 уровня типографики на экране. Состояние читается одним словом/движением, не подписями.
+- Каждое состояние экрана существует: loading (skeleton, не спиннер), empty (иконка + текст + действие), error (человеческий текст + retry + выход), denied/permission.
+- Доступность: тач-зоны ≥48dp, `contentDescription` у всех интерактивных, состояние — не только цветом, `Role` в семантике.
+- Анимации 100–420 мс, spring-scale нажатий (0.92–0.985), indication = null там, где отклик даёт сам элемент. Каждая анимация объясняет изменение.
+- Элегантность важнее плотности: когда сомневаешься — убери элемент, а не добавь.
+
+## Точки входа
+
+- `AmaliaApp`, `MainActivity` (язык через `attachBaseContext`, splash, тема, локали), `AmaliaNavHost` (маршруты `Destinations`), `BottomNavBar` — плавающая стеклянная панель поверх контента.

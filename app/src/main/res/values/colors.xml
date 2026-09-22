@@ -7,4 +7,9 @@
     <color name="amalia_surface">#101017</color>
     <color name="amalia_accent">#6E63F2</color>
     <color name="amalia_accent_soft">#9A90FF</color>
+
+    <!-- Фон адаптивной иконки: совпадает с фоном арта. Содержимое
+         (foreground) вписано в safe-круг, поэтому на любой маске
+         лончера виден весь арт, а не его обрезанные края. -->
+    <color name="ic_launcher_background">#000000</color>
 </resources>

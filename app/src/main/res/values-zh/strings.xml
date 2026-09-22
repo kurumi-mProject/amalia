@@ -21,6 +21,9 @@
     <string name="onboarding_next">下一步</string>
     <string name="onboarding_back">返回</string>
     <string name="onboarding_finish">完成</string>
+    <string name="onboarding_finish_title">一切就绪</string>
+    <string name="onboarding_finish_desc">第一次对话时我会请求麦克风权限，其余都已就绪。开口就好。</string>
+    <string name="onboarding_theme_circadian">界面光线随时间流动 — 从黎明的冰蓝到琥珀色的夜。</string>
 
     <string name="guide_mic_title">麦克风按钮</string>
     <string name="guide_mic_desc">按住即可与我对话</string>
@@ -344,6 +347,8 @@
     <string name="settings_custom_need_model">请填写模型——没有它请求不会通过</string>
 
     <string name="settings_profile_custom_hint">在下方填写地址、模型和密钥，然后启用</string>
+    <string name="settings_profile_on">已选择</string>
+    <string name="settings_profile_off">未选择</string>
     <string name="settings_custom_activate">启用此配置</string>
     <string name="settings_custom_active">当前正在使用</string>
     <string name="assistant_hint_listening">说吧，我在听</string>

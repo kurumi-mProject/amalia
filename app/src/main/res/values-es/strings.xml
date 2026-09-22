@@ -21,6 +21,9 @@
     <string name="onboarding_next">Siguiente</string>
     <string name="onboarding_back">Atrás</string>
     <string name="onboarding_finish">Listo</string>
+    <string name="onboarding_finish_title">Todo listo</string>
+    <string name="onboarding_finish_desc">Pediré el micrófono en la primera conversación; lo demás ya está listo. Solo habla.</string>
+    <string name="onboarding_theme_circadian">La luz sigue la hora del día — del hielo del alba a la noche ámbar.</string>
 
     <string name="guide_mic_title">Botón del micrófono</string>
     <string name="guide_mic_desc">Mantén pulsado para hablar conmigo</string>
@@ -344,6 +347,8 @@
     <string name="settings_custom_need_model">Indica el modelo — sin él la petición no pasa</string>
 
     <string name="settings_profile_custom_hint">Escribe la URL, el modelo y la clave abajo, luego actívalo</string>
+    <string name="settings_profile_on">Seleccionado</string>
+    <string name="settings_profile_off">No seleccionado</string>
     <string name="settings_custom_activate">Activar este perfil</string>
     <string name="settings_custom_active">En uso ahora</string>
     <string name="assistant_hint_listening">Habla, te escucho</string>

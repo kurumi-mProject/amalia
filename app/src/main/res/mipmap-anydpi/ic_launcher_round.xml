@@ -1,6 +1,10 @@
 <?xml version="1.0" encoding="utf-8"?>
+<!-- Слой background — чистый чёрный: фон арта чёрный, поэтому содержимое
+     foreground (арт, вписанный в safe-круг 66dp) сливается с фоном без
+     видимых краёв. Раньше весь арт лежал в background на весь канвас,
+     и маска лончера срезала его края. -->
 <adaptive-icon xmlns:android="http://schemas.android.com/apk/res/android">
-    <background android:drawable="@drawable/ic_launcher_background" />
+    <background android:drawable="@color/ic_launcher_background" />
     <foreground android:drawable="@drawable/ic_launcher_foreground" />
     <monochrome android:drawable="@drawable/ic_launcher_monochrome" />
 </adaptive-icon>

@@ -21,6 +21,9 @@
     <string name="onboarding_next">التالي</string>
     <string name="onboarding_back">رجوع</string>
     <string name="onboarding_finish">تم</string>
+    <string name="onboarding_finish_title">كل شيء جاهز</string>
+    <string name="onboarding_finish_desc">سأطلب إذن الميكروفون عند أول محادثة — كل شيء آخر جاهز. تحدّث فقط.</string>
+    <string name="onboarding_theme_circadian">ضوء الواجهة يتبع وقت اليوم — من جليد الفجر إلى ليلة العنبر.</string>
 
     <string name="guide_mic_title">زر الميكروفون</string>
     <string name="guide_mic_desc">اضغط باستمرار للتحدث معي</string>
@@ -344,6 +347,8 @@
     <string name="settings_custom_need_model">اكتب اسم النموذج — بدونه لن يمر الطلب</string>
 
     <string name="settings_profile_custom_hint">اكتب العنوان والنموذج والمفتاح أدناه ثم فعّله</string>
+    <string name="settings_profile_on">محدد</string>
+    <string name="settings_profile_off">غير محدد</string>
     <string name="settings_custom_activate">تفعيل هذا الملف</string>
     <string name="settings_custom_active">قيد الاستخدام الآن</string>
     <string name="assistant_hint_listening">تحدّث، أنا أسمعك</string>

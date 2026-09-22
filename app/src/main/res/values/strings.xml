@@ -13,6 +13,8 @@
     <string name="onboarding_welcome_title">Привет, я Амалия</string>
     <string name="onboarding_welcome_desc">Твой голосовой ассистент. Слушаю, думаю, отвечаю — и управляю устройством.</string>
     <string name="onboarding_finish_title">Всё готово</string>
+    <string name="onboarding_finish_desc">Микрофон попросим при первом разговоре — остальное уже настроено. Дальше просто говори.</string>
+    <string name="onboarding_theme_circadian">Свет интерфейса едет за временем суток — от рассветного льда до янтарной ночи.</string>
     <string name="onboarding_voice_title">Голос — главный интерфейс</string>
     <string name="onboarding_voice_desc">Нажми кнопку и говори. Я распознаю речь, подумаю и отвечу голосом.</string>
     <string name="onboarding_control_title">Управление устройством</string>
@@ -425,6 +427,8 @@
     <string name="settings_custom_need_model">Укажи модель — без неё запрос не пройдёт</string>
 
     <string name="settings_profile_custom_hint">Введи адрес, модель и ключ в блоке ниже — и включи</string>
+    <string name="settings_profile_on">Выбран</string>
+    <string name="settings_profile_off">Не выбран</string>
     <string name="settings_custom_activate">Включить этот профиль</string>
     <string name="settings_custom_active">Используется сейчас</string>
     <string name="settings_wave">Волна</string>
