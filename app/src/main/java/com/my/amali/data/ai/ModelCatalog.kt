@@ -174,7 +174,6 @@ object ModelCatalog {
             id = "drama-3-preview",
             title = "Drama 3 (preview)",
             note = "Живая интонация и эмоции, ~1 с до первого звука",
-            recommended = true,
         ),
         ModelOption(
             id = "s2.1-pro",
@@ -189,7 +188,8 @@ object ModelCatalog {
         ModelOption(
             id = "s2.1-pro-free",
             title = "S2.1 Pro (free)",
-            note = "Бесплатный тариф: встаёт в общую очередь, есть паузы",
+            note = "Основная: бесплатный тариф, встаёт в общую очередь, есть паузы",
+            recommended = true,
         ),
         ModelOption(
             id = "speech-1.6",
