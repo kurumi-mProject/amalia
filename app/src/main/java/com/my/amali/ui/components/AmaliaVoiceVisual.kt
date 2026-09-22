@@ -229,16 +229,18 @@ private fun rememberSmoothedLevel(
         }
         var lastFrame = withFrameNanos { it }
         while (true) {
-            withFrameNanos { now ->
-                val delta = ((now - lastFrame).coerceAtLeast(1L)) / 1_000_000_000f
-                lastFrame = now
-                val stable = median(window)
-                val current = animator.value
-                val rising = stable >= current
-                val step = smoothingForFrame(smoothing, delta, rising)
-                val next = current + (stable - current) * step
-                if (next != current) animator.snapTo(next)
-            }
+            // withFrameNanos даёт только метку времени: его колбэк — НЕ
+            // suspend-контекст, и звать snapTo внутри него нельзя. Поэтому
+            // кадр сначала «считывается», потом — снаружи колбэка — шаг.
+            val now = withFrameNanos { it }
+            val delta = ((now - lastFrame).coerceAtLeast(1L)) / 1_000_000_000f
+            lastFrame = now
+            val stable = median(window)
+            val current = animator.value
+            val rising = stable >= current
+            val step = smoothingForFrame(smoothing, delta, rising)
+            val next = current + (stable - current) * step
+            if (next != current) animator.snapTo(next)
         }
     }
 
