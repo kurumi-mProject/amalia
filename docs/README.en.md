@@ -169,28 +169,7 @@ app/src/main/java/com/my/amali/
         └── Type.kt                   — typography
 ```
 
-### State Machine
 
-```
-                        ┌──────────────────────────────────────────────────┐
-                        │          cancelConversation() / stop button      │
-                        │                                                  │
-                        ▼                                                  │
-                     [ IDLE ] ◀─────────────── audio ends ─────────────┐  │
-                        │                                               │  │
-               tap mic button                                           │  │
-               (isBusy=false)                                           │  │
-                        │                                               │  │
-                        ▼                                               │  │
-                  [ LISTENING ] ── 600ms silence ──▶ [ THINKING ] ──▶ [ SPEAKING ]
-                        │                                │                 │
-               tap mic button                    LLM responds           playJob
-               (isBusy=true)                     TTS starts             finishes
-                        │                                                  │
-                        └────────── cancelConversation() ──────────────────┘
-
-  ERROR ──▶ IDLE  (auto-cleared after 3s)
-```
 
 ---
 
