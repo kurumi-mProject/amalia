@@ -3,6 +3,7 @@ package com.my.amali.data.ai
 import com.my.amali.data.model.ChatMessage
 import com.my.amali.data.model.MessageRole
 import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.CoroutineExceptionHandler
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
@@ -104,8 +105,24 @@ class AIOrchestrator(
      * SupervisorJob гарантирует, что падение одного прогона не утащит
      * соседний, а сам скоуп гасится только явно — из cancelSpeech,
      * то есть по воле пользователя, а не по воле предыдущего цикла.
+     *
+     * CoroutineExceptionHandler — последний рубеж: звук не имеет права
+     * ронять процесс ни при каком сбое (ответ текстом уже на экране).
+     * Без него гонка «канал закрыт хостом ↔ посылка из ttsScope» вылетала
+     * как необработанная ClosedSendChannelException и убивала приложение
+     * (крэши из лога 18.09, DefaultDispatcher-worker).
      */
-    private val ttsScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
+    private val ttsScope = CoroutineScope(
+        SupervisorJob() +
+            Dispatchers.IO +
+            CoroutineExceptionHandler { _, throwable ->
+                AmaliaLog.e(
+                    AmaliaLog.tagWith("ORC"),
+                    "ttsScope: uncaught — ${throwable.javaClass.simpleName}: ${throwable.message}",
+                    throwable,
+                )
+            },
+    )
 
     /**
      * Активная задача озвучки (для отмены и диагностики).
@@ -211,7 +228,7 @@ class AIOrchestrator(
 
         send(AiResponse.Level(0f))
         send(AiResponse.Transcript(transcript))
-        runPipeline(transcript, history, options) { event -> send(event) }
+        runPipeline(transcript, history, options) { event -> emitOrDrop(event) }
         // Та же причина, что и в processTextCommand: канал не должен
         // закрываться, пока синтез ещё льёт байты.
         awaitSpeech()
@@ -232,7 +249,7 @@ class AIOrchestrator(
             return@channelFlow
         }
         send(AiResponse.Transcript(command))
-        runPipeline(command, history, options) { event -> send(event) }
+        runPipeline(command, history, options) { event -> emitOrDrop(event) }
         // Ждём озвучку ПОСЛЕ того, как текст отдан.
         //
         // Без этого поток закрывался сразу после LLM-фазы, и канал в
@@ -577,6 +594,35 @@ class AIOrchestrator(
             ?: ERROR_UNKNOWN
         lastError = message
         emit(AiResponse.Error(message))
+    }
+
+    /**
+     * Отдача события в канал хоста, которая не роняет процесс на закрытом
+     * канале.
+     *
+     * Зачем: озвучка живёт в [ttsScope] и переживает корутину разговора.
+     * Когда хост гасит разговор (новый вопрос, «Стоп», смена сессии),
+     * канал событий закрывается, а ttsScope в этот момент может быть
+     * ровно между проверкой и посылкой — send бросает
+     * [kotlinx.coroutines.channels.ClosedSendChannelException]. Это не
+     * сбой конвейера, а признак, что событие никому больше не нужно:
+     * гасим его логом и живём. Отмена при этом проходит как отмена.
+     *
+     * Через эту функцию идёт ТОЛЬКО поток из [runPipeline] (включая
+     * озвучку): прямые send в теле channelFlow защищены жизненным циклом
+     * самой корутины канала, а озвучка — нет.
+     */
+    private suspend fun FlowCollector<AiResponse>.emitOrDrop(event: AiResponse) {
+        try {
+            send(event)
+        } catch (e: CancellationException) {
+            throw e
+        } catch (e: kotlinx.coroutines.channels.ClosedSendChannelException) {
+            AmaliaLog.w(
+                AmaliaLog.tagWith("ORC"),
+                "channel closed by host — dropped ${event::class.simpleName}",
+            )
+        }
     }
 
     /**

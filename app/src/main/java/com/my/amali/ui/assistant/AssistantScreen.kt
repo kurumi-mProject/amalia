@@ -417,7 +417,12 @@ fun AssistantScreenContent(
                 label = "dialogGap",
             )
             Spacer(Modifier.height(dialogGap))
-            Spacer(Modifier.weight(idleWeight, fill = false))
+            // Вес обязан быть больше нуля — weight(0f) кидает
+            // IllegalArgumentException и убивал процесс при КАЖДОМ входе в
+            // разговор (5 крэшей в логе от 22.09). Пол-промилле — суб-пиксель:
+            // пустой Spacer всё равно измеряется в ноль, а переход
+            // «покой → разговор» не падает и не мигает на завершении анимации.
+            Spacer(Modifier.weight(idleWeight.coerceAtLeast(0.001f), fill = false))
 
             // === ДОПОЛНИТЕЛЬНОЕ: карточки диалога под героем ===
             // В покое здесь стоят только чипы «что сказать». С началом
