@@ -181,10 +181,11 @@
     <string name="history_older">もっと前</string>
 
     <string name="about_version">バージョン</string>
-    <string name="about_description">アマリアはデバイスコントロール、2つの心地よいテーマ、多言語対応の音声アシスタントです。</string>
+    <string name="about_description">声を聞き、考え、声で答える音声アシスタント。Wi-Fi・音量・明るさを操作。アカウントも広告も不要。</string>
     <string name="about_developer">開発者</string>
     <string name="about_developer_name">アマリアチーム</string>
-    <string name="about_contact">連絡先</string>
+    <string name="about_contact_email">support@mirabel.tech</string>
+    <string name="about_terms_license">アプリのライセンス</string>
     <string name="about_licenses">ライセンス</string>
     <string name="about_privacy_policy">プライバシーポリシー</string>
     <string name="about_terms">利用規約</string>
@@ -353,9 +354,6 @@
     <string name="greeting_prompt">何をしましょう？</string>
     <string name="settings_api_title">APIとモデル</string>
     <string name="settings_api_desc">自分のキーとモデル選択</string>
-    <string name="settings_api_status_title">アマリアのプロバイダー</string>
-    <string name="settings_api_status_value">自分のキー：3件中%1$d件</string>
-    <string name="settings_api_status_hint">空欄ならビルドのキーを使用。自分のキーは自分のクォータを消費します。</string>
     <string name="settings_api_llm">テキスト · Groq</string>
     <string name="settings_api_stt">聞き取り · Groq Whisper</string>
     <string name="settings_stt_title">音声認識</string>

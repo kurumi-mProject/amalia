@@ -15,6 +15,20 @@ val localProps = Properties().apply {
 fun secret(name: String): String =
     System.getenv(name) ?: localProps.getProperty(name) ?: ""
 
+/**
+ * Значение для подписи релиза.
+ *
+ * Порядок источников — как у [secret] (переменные окружения CI, затем
+ * local.properties локальной машины), плюс gradle.properties: там лежат
+ * те же значения, закоммиченные вместе с проектом, чтобы сборка релиза
+ * поднималась из чистого checkout — на CI и у нового разработчика.
+ */
+fun signingSecret(name: String): String =
+    System.getenv(name)
+        ?: localProps.getProperty(name)
+        ?: providers.gradleProperty(name).orNull
+        ?: ""
+
 android {
     namespace = "com.my.amali"
     compileSdk = 37
@@ -23,7 +37,7 @@ android {
         applicationId = "com.my.amali"
         minSdk = 26
         targetSdk = 36
-        versionCode = 2
+        versionCode = 1
         versionName = "1.0.0"
 
         // Перечислять языковые ресурсы отдельным полем больше не нужно:
@@ -57,12 +71,28 @@ android {
             versionNameSuffix = "-debug"
         }
         release {
+            // Подпись обязана стоять ДО первой сборки релиза: не подписанный
+            // APK нельзя ни установить рядом с будущим магазинным, ни
+            // обновить им установленный. Ключ — app/release.keystore,
+            // значения — из signingSecret (env CI / local.properties /
+            // gradle.properties).
+            signingConfig = signingConfigs.getByName("release")
             isMinifyEnabled = true
             isShrinkResources = true
             proguardFiles(
                 getDefaultProguardFile("proguard-android-optimize.txt"),
                 "proguard-rules.pro",
             )
+        }
+    }
+
+    signingConfigs {
+        create("release") {
+            storeFile = file("release.keystore")
+            storePassword = signingSecret("AMALIA_KEYSTORE_PASSWORD")
+            keyAlias = signingSecret("AMALIA_KEY_ALIAS")
+            keyPassword = signingSecret("AMALIA_KEY_PASSWORD")
+                .ifEmpty { signingSecret("AMALIA_KEYSTORE_PASSWORD") }
         }
     }
 

@@ -37,7 +37,6 @@ import androidx.compose.material.icons.rounded.Dns
 import androidx.compose.material.icons.rounded.GraphicEq
 import androidx.compose.material.icons.rounded.Memory
 import androidx.compose.material.icons.rounded.RecordVoiceOver
-import androidx.compose.material.icons.rounded.RestartAlt
 import androidx.compose.material3.Button
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Slider
@@ -131,8 +130,6 @@ fun ApiKeysSettings(
                 .verticalScroll(rememberScrollState())
                 .padding(padding),
         ) {
-            ApiStatusCard(api = api, configured = settings.api.configuredProviders)
-
             // ── Профиль Амалии ────────────────────────────────────────────
             //
             // Стоит первым, до ключей: это самый важный выбор на экране, и
@@ -730,64 +727,6 @@ private fun PlainField(
     }
 }
 
-
-@Composable
-private fun ApiStatusCard(api: UserApiSettings, configured: Int) {
-    val title = stringResource(R.string.settings_api_status_title)
-    // Провайдеров теперь три: ключ Groq закрывает сразу текст и слух,
-    // поэтому «полностью настроено» — это три заполненных пункта, а не
-    // четыре, как было при отдельном аккаунте распознавания.
-    val ready = configured >= UserApiSettings.PROVIDER_COUNT
-
-    GlassCard(cornerRadius = Radius.lg, elevated = true) {
-        Row(verticalAlignment = Alignment.CenterVertically) {
-            Box(
-                modifier = Modifier
-                    .size(40.dp)
-                    .clip(CircleShape)
-                    .background(
-                        if (ready) {
-                            MaterialTheme.colorScheme.secondary.copy(alpha = 0.16f)
-                        } else {
-                            MaterialTheme.colorScheme.primary.copy(alpha = 0.14f)
-                        },
-                    ),
-                contentAlignment = Alignment.Center,
-            ) {
-                Icon(
-                    imageVector = if (ready) Icons.Rounded.Check else Icons.Rounded.RestartAlt,
-                    contentDescription = null,
-                    tint = if (ready) {
-                        MaterialTheme.colorScheme.secondary
-                    } else {
-                        MaterialTheme.colorScheme.primary
-                    },
-                    modifier = Modifier.size(22.dp),
-                )
-            }
-            Spacer(Modifier.width(Spacing.sm))
-            Column(Modifier.weight(1f)) {
-                Text(
-                    text = title,
-                    style = MaterialTheme.typography.titleMedium,
-                    color = MaterialTheme.colorScheme.onSurface,
-                )
-                Spacer(Modifier.height(2.dp))
-                Text(
-                    text = stringResource(R.string.settings_api_status_value, configured),
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                )
-            }
-        }
-        Spacer(Modifier.height(Spacing.xs))
-        Text(
-            text = stringResource(R.string.settings_api_status_hint),
-            style = MaterialTheme.typography.labelSmall,
-            color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.8f),
-        )
-    }
-}
 
 /**
  * Блок одного провайдера: ключ и модель в одной стеклянной группе.

@@ -181,10 +181,11 @@
     <string name="history_older">Antes</string>
 
     <string name="about_version">Versión</string>
-    <string name="about_description">Amalia es un asistente de voz con control del dispositivo, dos temas relajantes y soporte multi-idioma.</string>
+    <string name="about_description">Una asistente de voz que escucha, piensa y responde con voz. Controla el Wi-Fi, el sonido y el brillo. Sin cuenta ni anuncios.</string>
     <string name="about_developer">Desarrollador</string>
     <string name="about_developer_name">Equipo Amalia</string>
-    <string name="about_contact">Contacto</string>
+    <string name="about_contact_email">support@mirabel.tech</string>
+    <string name="about_terms_license">Licencia de la app</string>
     <string name="about_licenses">Licencias</string>
     <string name="about_privacy_policy">Política de privacidad</string>
     <string name="about_terms">Términos de uso</string>
@@ -306,9 +307,6 @@
     <string name="greeting_prompt">¿Qué hacemos?</string>
     <string name="settings_api_title">API y modelos</string>
     <string name="settings_api_desc">Tus claves y elección de modelo</string>
-    <string name="settings_api_status_title">Proveedores de Amalia</string>
-    <string name="settings_api_status_value">Claves propias: %1$d de 3</string>
-    <string name="settings_api_status_hint">Un campo vacío usa la clave de la build. Tu clave gasta tu cuota, no la compartida.</string>
     <string name="settings_api_llm">Texto · Groq</string>
     <string name="settings_api_stt">Escucha · Groq Whisper</string>
     <string name="settings_stt_title">Reconocimiento de voz</string>

@@ -135,8 +135,8 @@ fun AboutSettings(
                 SettingsActionRow(
                     icon = Icons.Rounded.MailOutline,
                     title = stringResource(R.string.about_developer_name),
-                    subtitle = stringResource(R.string.about_contact),
-                    onClick = { openUri(context, "mailto:amalia.assistant@proton.me") },
+                    subtitle = stringResource(R.string.about_contact_email),
+                    onClick = { openUri(context, "mailto:support@mirabel.tech") },
                 )
             }
 
@@ -147,21 +147,21 @@ fun AboutSettings(
                     icon = Icons.Rounded.Shield,
                     title = stringResource(R.string.about_privacy_policy),
                     subtitle = stringResource(R.string.settings_privacy_desc),
-                    onClick = { openUri(context, "https://amalia.app/privacy") },
+                    onClick = { openUri(context, "https://mirabel.tech/privacy") },
                 )
                 GlassDivider()
                 SettingsActionRow(
                     icon = Icons.Rounded.Description,
                     title = stringResource(R.string.about_terms),
-                    subtitle = stringResource(R.string.about_terms),
-                    onClick = { openUri(context, "https://amalia.app/terms") },
+                    subtitle = stringResource(R.string.about_terms_license),
+                    onClick = { openUri(context, "https://mirabel.tech/terms") },
                 )
                 GlassDivider()
                 SettingsActionRow(
                     icon = Icons.Rounded.Gavel,
                     title = stringResource(R.string.about_licenses),
                     subtitle = "Jetpack Compose · Material 3 · Kotlin",
-                    onClick = { openUri(context, "https://amalia.app/licenses") },
+                    onClick = { openUri(context, "https://mirabel.tech/licenses") },
                 )
             }
 

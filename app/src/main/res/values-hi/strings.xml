@@ -181,10 +181,11 @@
     <string name="history_older">पहले</string>
 
     <string name="about_version">संस्करण</string>
-    <string name="about_description">अमालिया एक वॉइस असिस्टेंट है — डिवाइस नियंत्रण, दो आरामदायक थीम और बहुभाषी समर्थन के साथ।</string>
+    <string name="about_description">आवाज़ सहायक: सुनता है, सोचता है और आवाज़ में जवाब देता है। Wi-Fi, ध्वनि और चमक नियंत्रित करता है। कोई खाता या विज्ञापन नहीं।</string>
     <string name="about_developer">डेवलपर</string>
     <string name="about_developer_name">अमालिया टीम</string>
-    <string name="about_contact">संपर्क</string>
+    <string name="about_contact_email">support@mirabel.tech</string>
+    <string name="about_terms_license">ऐप लाइसेंस</string>
     <string name="about_licenses">लाइसेंस</string>
     <string name="about_privacy_policy">प्राइवेसी नीति</string>
     <string name="about_terms">उपयोग की शर्तें</string>
@@ -306,9 +307,6 @@
     <string name="greeting_prompt">क्या करें?</string>
     <string name="settings_api_title">API और मॉडल</string>
     <string name="settings_api_desc">अपनी कुंजियाँ और मॉडल चुनाव</string>
-    <string name="settings_api_status_title">अमालिया प्रदाता</string>
-    <string name="settings_api_status_value">अपनी कुंजियाँ: 3 में से %1$d</string>
-    <string name="settings_api_status_hint">खाली फ़ील्ड बिल्ड कुंजी लेती है। अपनी कुंजी आपकी कोटा खर्च करती है।</string>
     <string name="settings_api_llm">टेक्स्ट · Groq</string>
     <string name="settings_api_stt">सुनना · Groq Whisper</string>
     <string name="settings_stt_title">भाषण पहचान</string>

@@ -181,10 +181,11 @@
     <string name="history_older">أقدم</string>
 
     <string name="about_version">الإصدار</string>
-    <string name="about_description">أماليا مساعدة صوتية مع تحكم في الجهاز وسِمتين مريحتين ودعم متعدد اللغات.</string>
+    <string name="about_description">مساعد صوتي يسمع ويفكر ويجيب بصوته. يتحكم في الواي فاي والصوت والسطوع. بلا حساب ولا إعلانات.</string>
     <string name="about_developer">المطوّر</string>
     <string name="about_developer_name">فريق أماليا</string>
-    <string name="about_contact">التواصل</string>
+    <string name="about_contact_email">support@mirabel.tech</string>
+    <string name="about_terms_license">ترخيص التطبيق</string>
     <string name="about_licenses">التراخيص</string>
     <string name="about_privacy_policy">سياسة الخصوصية</string>
     <string name="about_terms">شروط الاستخدام</string>
@@ -306,9 +307,6 @@
     <string name="greeting_prompt">ماذا سنفعل؟</string>
     <string name="settings_api_title">API والنماذج</string>
     <string name="settings_api_desc">مفاتيحك واختيار النموذج</string>
-    <string name="settings_api_status_title">مزوّدو أماليا</string>
-    <string name="settings_api_status_value">المفاتيح الخاصة: %1$d من 3</string>
-    <string name="settings_api_status_hint">الحقل الفارغ يستخدم مفتاح البناء. مفتاحك يستهلك حصتك أنت.</string>
     <string name="settings_api_llm">النص · Groq</string>
     <string name="settings_api_stt">السمع · Groq Whisper</string>
     <string name="settings_stt_title">التعرف على الكلام</string>

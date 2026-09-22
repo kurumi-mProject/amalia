@@ -209,10 +209,11 @@
 
     <!-- === О приложении === -->
     <string name="about_version">Версия</string>
-    <string name="about_description">Амалия — автономный голосовой ассистент для Android. Создан на Kotlin, Jetpack Compose и Material Design 3.</string>
+    <string name="about_description">Голосовой ассистент: слушает, думает и отвечает голосом. Управляет Wi-Fi, звуком и яркостью. Без аккаунта, рекламы и лишних разрешений.</string>
     <string name="about_developer">Разработчик</string>
     <string name="about_developer_name">Команда Амалии</string>
-    <string name="about_contact">Связаться</string>
+    <string name="about_contact_email">support@mirabel.tech</string>
+    <string name="about_terms_license">Лицензия приложения</string>
     <string name="about_licenses">Лицензии</string>
     <string name="about_privacy_policy">Политика конфиденциальности</string>
     <string name="about_terms">Условия использования</string>
@@ -385,9 +386,6 @@
     <string name="greeting_prompt">Чем займёмся?</string>
     <string name="settings_api_title">API и модели</string>
     <string name="settings_api_desc">Свои ключи и выбор моделей</string>
-    <string name="settings_api_status_title">Провайдеры Амалии</string>
-    <string name="settings_api_status_value">Своих ключей: %1$d из 3</string>
-    <string name="settings_api_status_hint">Пустое поле — берётся ключ из сборки. Свой ключ расходует твою квоту, а не общую.</string>
     <string name="settings_api_llm">Текст · Groq</string>
     <string name="settings_api_stt">Слух · Groq Whisper</string>
     <string name="settings_stt_title">Настройки распознавания речи</string>

@@ -181,10 +181,11 @@
     <string name="history_older">更早</string>
 
     <string name="about_version">版本</string>
-    <string name="about_description">阿玛莉亚是一款语音助手，支持设备控制、两款舒适主题和多语言。</string>
+    <string name="about_description">语音助手：聆听、思考、用声音回答。可控制 Wi-Fi、音量和亮度。无账号、无广告。</string>
     <string name="about_developer">开发者</string>
     <string name="about_developer_name">阿玛莉亚团队</string>
-    <string name="about_contact">联系方式</string>
+    <string name="about_contact_email">support@mirabel.tech</string>
+    <string name="about_terms_license">应用许可</string>
     <string name="about_licenses">许可证</string>
     <string name="about_privacy_policy">隐私政策</string>
     <string name="about_terms">使用条款</string>
@@ -306,9 +307,6 @@
     <string name="greeting_prompt">想做点什么？</string>
     <string name="settings_api_title">API 与模型</string>
     <string name="settings_api_desc">自己的密钥与模型选择</string>
-    <string name="settings_api_status_title">Amalia 服务商</string>
-    <string name="settings_api_status_value">自有密钥：3 个中的 %1$d 个</string>
-    <string name="settings_api_status_hint">留空则使用构建密钥。自己的密钥消耗你自己的额度。</string>
     <string name="settings_api_llm">文本 · Groq</string>
     <string name="settings_api_stt">听觉 · Groq Whisper</string>
     <string name="settings_stt_title">语音识别</string>

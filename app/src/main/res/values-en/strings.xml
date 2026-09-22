@@ -181,10 +181,11 @@
     <string name="history_older">Earlier</string>
 
     <string name="about_version">Version</string>
-    <string name="about_description">Amalia is a voice assistant with device control, two relaxing themes and multi-language support.</string>
+    <string name="about_description">A voice assistant that listens, thinks and answers with its voice. Controls Wi-Fi, sound and brightness. No account, no ads, no extra permissions.</string>
     <string name="about_developer">Developer</string>
     <string name="about_developer_name">Amalia Team</string>
-    <string name="about_contact">Contact</string>
+    <string name="about_contact_email">support@mirabel.tech</string>
+    <string name="about_terms_license">App license</string>
     <string name="about_licenses">Licenses</string>
     <string name="about_privacy_policy">Privacy policy</string>
     <string name="about_terms">Terms of use</string>
@@ -353,9 +354,6 @@
     <string name="greeting_prompt">What shall we do?</string>
     <string name="settings_api_title">API &amp; models</string>
     <string name="settings_api_desc">Your own keys and model choice</string>
-    <string name="settings_api_status_title">Amalia providers</string>
-    <string name="settings_api_status_value">Own keys: %1$d of 3</string>
-    <string name="settings_api_status_hint">Empty field uses the build key. Your own key spends your quota, not the shared one.</string>
     <string name="settings_api_llm">Text · Groq</string>
     <string name="settings_api_stt">Hearing · Groq Whisper</string>
     <string name="settings_stt_title">Speech recognition</string>

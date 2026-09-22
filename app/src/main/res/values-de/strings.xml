@@ -181,10 +181,11 @@
     <string name="history_older">Früher</string>
 
     <string name="about_version">Version</string>
-    <string name="about_description">Amalia ist eine Sprachassistentin mit Gerätesteuerung, zwei entspannenden Themes und mehrsprachiger Unterstützung.</string>
+    <string name="about_description">Eine Sprachassistentin, die zuhört, denkt und mit Stimme antwortet. Steuert WLAN, Ton und Helligkeit. Kein Konto, keine Werbung.</string>
     <string name="about_developer">Entwickler</string>
     <string name="about_developer_name">Amalia-Team</string>
-    <string name="about_contact">Kontakt</string>
+    <string name="about_contact_email">support@mirabel.tech</string>
+    <string name="about_terms_license">App-Lizenz</string>
     <string name="about_licenses">Lizenzen</string>
     <string name="about_privacy_policy">Datenschutzrichtlinie</string>
     <string name="about_terms">Nutzungsbedingungen</string>
@@ -306,9 +307,6 @@
     <string name="greeting_prompt">Was machen wir?</string>
     <string name="settings_api_title">API &amp; Modelle</string>
     <string name="settings_api_desc">Eigene Schlüssel und Modellwahl</string>
-    <string name="settings_api_status_title">Amalia-Anbieter</string>
-    <string name="settings_api_status_value">Eigene Schlüssel: %1$d von 3</string>
-    <string name="settings_api_status_hint">Leeres Feld nutzt den Build-Schlüssel. Eigener Schlüssel verbraucht dein Kontingent.</string>
     <string name="settings_api_llm">Text · Groq</string>
     <string name="settings_api_stt">Hören · Groq Whisper</string>
     <string name="settings_stt_title">Spracherkennung</string>

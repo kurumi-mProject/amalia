@@ -35,3 +35,35 @@ jobs:
           name: amalia-debug
           path: app/build/outputs/apk/debug/app-debug.apk
           if-no-files-found: error
+
+  release:
+    name: Assemble release APK
+    runs-on: ubuntu-latest
+    # Ручной запуск или тег версии (v1.0.0 и т.п.). На каждый пуш релиз
+    # не собираем: подписанный APK — артефакт для магазина, а не для проверки.
+    if: github.event_name == 'workflow_dispatch' || startsWith(github.ref, 'refs/tags/v')
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up JDK 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+
+      - name: Make gradlew executable
+        run: chmod +x gradlew
+
+      - name: Build release APK
+        env:
+          GROQ_API_KEY:       ${{ secrets.GROQ_API_KEY }}
+          FISH_AUDIO_API_KEY: ${{ secrets.FISH_AUDIO_API_KEY }}
+        run: ./gradlew assembleRelease --no-daemon --stacktrace
+
+      - name: Upload signed APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: amalia-release
+          path: app/build/outputs/apk/release/app-release.apk
+          if-no-files-found: error
