@@ -257,10 +257,24 @@ class AssistantViewModel(
                 sessionConversationId = existing.id
                 sessionMessages += existing.messages.takeLast(SESSION_TRIM)
                 conversationSummary = existing.contextSummary
-                summarizedCount = existing.summarizedCount
-                // После перезапуска считаем, что «новых» сообщений нет: иначе
-                // первая же реплика запустила бы пересказ уже сжатого диалога.
-                messagesSinceSummary = 0
+                // Граница сжатия хранится в координатах ПОЛНОГО разговора,
+                // а в буфер сессии попадает только его хвост. Раньше границу
+                // брали как есть: на длинном разговоре она указывала мимо —
+                // первые сжатые реплики уже выброшены из буфера, и пересказ
+                // после перезапуска начинался с чужой позиции, теряя кусок
+                // диалога. Пересчитываем границу в координаты буфера.
+                val dropped = existing.messages.size - sessionMessages.size
+                summarizedCount = (existing.summarizedCount - dropped).coerceAtLeast(0)
+                // Счётчик новых реплик при восстановлении — фактический
+                // несжатый хвост буфера, а не ноль. Обнуление счётчика было
+                // второй половиной бага «сжатие не работает после перезахода»:
+                // уже накопленный несжатый хвост мог ждать пересказа вечно,
+                // пока не наберётся ещё SUMMARY_EVERY новых реплик. Теперь
+                // сжатие само догоняет отставание при старте — независимо
+                // от того, что случилось до перезапуска: смена языка,
+                // пересоздание активити, обновление приложения.
+                messagesSinceSummary = (sessionMessages.size - summarizedCount).coerceAtLeast(0)
+                maybeCompress()
             }
             _uiState.update {
                 it.copy(
@@ -485,8 +499,13 @@ class AssistantViewModel(
             sessionMessages += conversation.messages.takeLast(SESSION_TRIM)
             sessionConversationId = conversation.id
             conversationSummary = conversation.contextSummary
-            summarizedCount = conversation.summarizedCount
-            messagesSinceSummary = 0
+            // Граница сжатия пересчитывается в координаты буфера — тот же
+            // пересчёт, что и при восстановлении последнего разговора при
+            // старте: продолжение из истории подчиняется тем же правилам,
+            // что и продолжение после перезапуска.
+            val dropped = conversation.messages.size - sessionMessages.size
+            summarizedCount = (conversation.summarizedCount - dropped).coerceAtLeast(0)
+            messagesSinceSummary = (sessionMessages.size - summarizedCount).coerceAtLeast(0)
 
             // На экране — последняя пара «вопрос → ответ», остальное доступно
             // в истории: вываливать весь разговор в карточку нельзя.
@@ -888,14 +907,36 @@ class AssistantViewModel(
         }
 
         // Пересказ запускается только когда набралось SUMMARY_EVERY **новых**
-        // реплик с момента прошлого пересказа — а не когда «в списке стало
-        // много сообщений». Именно эта разница убирает вечный цикл: индексы
-        // плывут при обрезке буфера, а счётчик новых сообщений — нет.
+        // реплик с момента прошлого пересказа. Условие — «новые реплики»,
+        // а не «в списке стало много сообщений»: индексы плывут при обрезке
+        // буфера, а счётчик новых сообщений — нет. Смена языка и перезаход
+        // на сжатие не влияют: они не создают новых реплик и не трогают
+        // DataStore, где живёт граница сжатия.
+        maybeCompress()
+    }
+
+    /**
+     * Единственная точка решения «пора сжимать».
+     *
+     * Вызвана может быть из двух мест: после дописанной пары реплик и при
+     * восстановлении сессии после перезапуска. Условие одно и то же —
+     * накопилось SUMMARY_EVERY **новых** реплик с прошлого пересказа, —
+     * поэтому сжатие догоняет отставание независимо от того, когда оно
+     * случилось: посреди разговора, при перезаходе, после смены языка
+     * (пересоздание активити не трогает ни DataStore, ни счётчик — он
+     * живёт в ViewModel, пересоздаваемой только с процессом).
+     *
+     * Вызов неблокирующий: refreshSummary сама защищена флагом
+     * [summaryInProgress], так что двойной запуск невозможен.
+     */
+    private fun maybeCompress() {
         if (messagesSinceSummary >= SUMMARY_EVERY) {
             refreshSummary()
         }
     }
 
+    /**
+     * Обновляет резюме диалога.
     /**
      * Обновляет резюме диалога.
      *

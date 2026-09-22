@@ -24,6 +24,7 @@ import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.rounded.KeyboardArrowRight
@@ -61,6 +62,9 @@ import com.my.amali.ui.theme.glassSurface
  * тонкой линией — так список читается как единая панель, а не как
  * набор «плиток». Каждая строка ≥ 56dp, что превышает минимум 48dp.
  */
+
+/** Потолок ширины значения справа строки: длинные подписи режутся многоточием. */
+private val ValueMaxWidth = 120.dp
 
 /** Заголовок группы настроек. */
 @Composable
@@ -214,10 +218,18 @@ fun SettingsActionRow(
             horizontalArrangement = Arrangement.spacedBy(Spacing.xxs),
         ) {
             if (value != null) {
+                // Значение справа живёт в жёстком потолке ширины и режется
+                // многоточием: длинные подписи («Биофильная релаксация»,
+                // «Всегда сохранять») не должны отталкивать заголовок строки
+                // и ломать сетку списка. Полный текст остаётся в
+                // contentDescription — TalkBack прочитает его целиком.
                 Text(
                     text = value,
                     style = MaterialTheme.typography.labelLarge,
                     color = MaterialTheme.colorScheme.primary,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                    modifier = Modifier.widthIn(max = ValueMaxWidth),
                 )
             }
             Icon(

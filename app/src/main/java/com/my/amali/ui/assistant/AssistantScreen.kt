@@ -9,7 +9,6 @@ import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.AnimatedVisibility
-import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.core.LinearEasing
 import androidx.compose.animation.core.RepeatMode
 import androidx.compose.animation.core.Spring
@@ -82,7 +81,6 @@ import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.role
 import androidx.compose.ui.semantics.semantics
-import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
@@ -494,22 +492,24 @@ fun AssistantScreenContent(
                 }
             }
 
-            // === ГОЛОСОВОЙ БЛОК: слово + волна + подпись ===
-            // Ритм этого блока задан намеренно: слово и волна стоят плотно
-            // — они один объект, «что происходит» и «куда нажать».
-            // А от карточки диалога блок отделён крупно, потому что это уже
-            // другая смысловая зона. Раньше везде стояло 4dp, и именно
-            // поэтому всё «слипалось»: глаз не находил границ.
+            // === ГОЛОСОВОЙ БЛОК: только волна ===
+            //
+            // Подписей больше нет — ни слова состояния сверху, ни подсказки
+            // снизу. Причина простая: обе дублировали то, что экран и так
+            // говорит. «Слушаю» видно по живой волне и по карточке
+            // транскрипта; «Нажми и говори» — по самому микрофону, главному
+            // и единственному действию экрана. Две строки текста вокруг
+            // волны превращали голосовой интерфейс в форму с ярлыками.
+            //
+            // Побочный выигрыш прямой: освобождённые строки отдали высоту
+            // карточке ответа — длинный ответ Амалии теперь прокручивается
+            // там, где раньше стояли надписи.
             //
             // Отступ зависит от того, есть ли над блоком карточка: в покое
             // между текстом приветствия и волной должна быть воздушная
             // пауза, а когда идёт разговор — блок и карточка обязаны стоять
             // рядом, иначе экран распадается на две несвязанные половины.
             Spacer(Modifier.height(if (compact) Spacing.md else Spacing.xl))
-
-            StatusLabel(state = state.voiceState)
-
-            Spacer(Modifier.height(Spacing.xs))
 
             // Волна включается только там, где есть звук: слушание (микрофон)
             // и речь (динамик). В покое и в ошибке звука нет вовсе, а в фазе
@@ -540,26 +540,10 @@ fun AssistantScreenContent(
                     .size(if (compact) 132.dp else 156.dp),
             )
 
-            Spacer(Modifier.height(Spacing.sm))
-
-            // Подпись — под волной: главное действие обязано стоять
-            // максимально близко к нижнему краю, в зоне большого пальца.
-            // Текст меняется по состоянию, потому что «Нажми и говори»
-            // в момент, когда ассистент уже слушает, — просто неправда.
-            Text(
-                text = stringResource(voiceHintRes(state.voiceState, state.isBusy)),
-                style = MaterialTheme.typography.labelMedium,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis,
-                modifier = Modifier.padding(horizontal = Spacing.md),
-            )
-
-            // Запас под плавающую нижнюю навигацию: 64dp панель + 12dp её
-            // паддинг + воздух. Меньше 88dp нельзя — панель наедет на
-            // подпись; больше — главное действие уедет из зоны большого
-            // пальца. Волна сама по себе даёт воздух, поэтому здесь
-            // хватает нижней границы запаса.
+            // Запас под плавающую нижнюю навигацию: волна — последнее, что
+            // видит глаз, и прижимать её к краю нельзя. Подписей вокруг
+            // волны больше нет: «Слушаю» читается по самой волне,
+            // «Нажми и говори» — по иконке микрофона внутри.
             Spacer(Modifier.height(BottomBarReserve))
         }
     }
@@ -582,36 +566,6 @@ private enum class DialogPhase {
             else -> Welcome
         }
     }
-}
-
-/** Подпись состояния на языке интерфейса (а не хардкод из enum). */
-@Composable
-private fun voiceStateLabel(state: VoiceState): String = stringResource(
-    when (state) {
-        VoiceState.Idle -> R.string.assistant_ready
-        VoiceState.Listening -> R.string.assistant_listening
-        VoiceState.Thinking -> R.string.assistant_thinking
-        VoiceState.Speaking -> R.string.assistant_speaking
-        VoiceState.Error -> R.string.assistant_error
-    },
-)
-
-/**
- * Подсказка под волной — что именно делать прямо сейчас.
- *
- * Раньше здесь стояли всего две строки: «Нажми и говори» либо
- * «остановить». Из-за этого в фазе «думаю» экран предлагал «остановить»
- * (то есть обещал действие, которого не ждут), а в фазе «слушаю» —
- * «Нажми и говори», хотя человек уже говорит. Подсказка обязана
- * описывать текущий шаг, а не исходное состояние.
- */
-@Composable
-private fun voiceHintRes(state: VoiceState, busy: Boolean): Int = when (state) {
-    VoiceState.Idle -> R.string.assistant_welcome_hint
-    VoiceState.Listening -> R.string.assistant_hint_listening
-    VoiceState.Thinking -> R.string.assistant_hint_thinking
-    VoiceState.Speaking -> R.string.assistant_hint_speaking
-    VoiceState.Error -> R.string.assistant_hint_error
 }
 
 /**
@@ -649,48 +603,6 @@ private const val LAMP_AUTO_EXPAND = true
 // ============================================================
 
 /**
- * Слово состояния — главный текстовый якорь голосового блока.
- *
- * Стоит вплотную над волной, поэтому «что происходит» и «куда нажать»
- * читаются одним взглядом. Смена слова — вертикальный слайд: движение
- * совпадает с направлением разговора (вниз — слушание, вверх — ответ).
- */
-@Composable
-private fun StatusLabel(state: VoiceState, modifier: Modifier = Modifier) {
-    // Цвет меняется синхронно с волной и словом: те же 320 мс, что у волны.
-    // Раньше слово перекрашивалось за 360 мс, а волна ехала к новому цвету
-    // своим путём — две половины одного объекта расходились на полсотни
-    // миллисекунд, и это читалось как небрежность.
-    val color by animateColorAsState(
-        targetValue = stateColor(state),
-        animationSpec = tween(StatusTransitionMs),
-        label = "statusColor",
-    )
-    AnimatedContent(
-        targetState = state,
-        transitionSpec = {
-            // Вертикальный слайд остаётся, но коротким: смена состояния —
-            // это не появление нового экрана, а одно слово на месте другого.
-            (fadeIn(tween(200)) + slideInVertically(tween(240)) { it / 4 })
-                .togetherWith(fadeOut(tween(130)) + slideOutVertically(tween(160)) { -it / 4 })
-        },
-        label = "statusLabel",
-        modifier = modifier,
-    ) { target ->
-        Text(
-            text = voiceStateLabel(target),
-            style = MaterialTheme.typography.titleMedium,
-            color = color,
-            textAlign = TextAlign.Center,
-            maxLines = 1,
-        )
-    }
-}
-
-/** Длительность перехода цвета — общая со сменой цвета волны. */
-private const val StatusTransitionMs = 320
-
-/**
  * Воздух между лампой света и главной фразой.
  *
  * 28dp — не круглое число из шкалы отступов, и это осознанно: шкала задаёт
@@ -702,27 +614,20 @@ private const val StatusTransitionMs = 320
 private val GreetingTopGap = 28.dp
 
 /**
- * Цвет слова состояния.
+ * Цвет волны по состоянию голоса.
  *
- * ════════════════════════════════════════════════════════════════════════
- *  ПОЧЕМУ БОЛЬШЕ НЕТ ПРИГЛУШЕНИЙ И ЧУЖИХ ТОКЕНОВ
- * ════════════════════════════════════════════════════════════════════════
+ * Раньше этот цвет носили и волна, и слово состояния. Слово ушло —
+ * подпись дублировала то, что волна говорит сама, — и цвет остался
+ * только там, где ему место: в полосах индикатора звука.
  *
- * Прошлая версия красила покой в `onBackground` с альфой 0.88, а «думаю» и
- * «говорю» — в `tertiary`, который в этой схеме выводится из третьего тона
- * палитры. Оба решения давали один и тот же эффект: главный текстовый якорь
- * экрана менял не только цвет, но и **светлоту** между состояниями, а на
- * тёмном фоне любое понижение светлоты читается как «элемент выключен».
- * Отсюда и жалоба: слово то белое, то серое, то сливается с фоном.
- *
- * Теперь разделение другое и оно устойчиво:
- *  — светоносность одна на все состояния (полная альфа, никаких теней
- *    прозрачности) — слово всегда одинаково яркое;
- *  — меняется только **тон**: покой — тёплый нейтральный текст, слушание —
+ * Разделение состояний устойчивое:
+ *  — светоносность одна на все состояния (полная альфа) — волна всегда
+ *    одинаково яркая, «выключенной» она не читается никогда;
+ *  — меняется только **тон**: покой — нейтральный текст, слушание —
  *    акцент, «думаю»/«говорю» — второй акцент, ошибка — ошибка.
  *
  * Ни один из цветов не берётся из палитры напрямую: все они уже прошли
- * контраст-гард в [com.my.amali.ui.theme.buildScheme], поэтому слово
+ * контраст-гард в [com.my.amali.ui.theme.buildScheme], поэтому волна
  * читается при любом времени суток.
  */
 @Composable
@@ -1372,8 +1277,15 @@ private fun welcomeSuggestions(): List<String> = listOf(
 /** Сколько строк работающих инструментов показывать до счётчика «+N». */
 private const val VISIBLE_TOOL_ROWS = 3
 
-/** Потолок высоты текста ответа: дальше — внутренний скролл, а не рост карточки. */
-private val ReplyMaxHeight = 180.dp
+/**
+ * Потолок высоты текста ответа: дальше — внутренний скролл, а не рост карточки.
+ *
+ * Поднят с 180dp до 240dp после того, как со главного экрана ушли слово
+ * состояния и подсказка: освободившиеся строки отдали карточке высоту,
+ * и потолок обязан был вырасти вместе с ней — иначе длинный ответ
+ * Амалии начинал прокручиваться в щели, которая только что была текстом.
+ */
+private val ReplyMaxHeight = 240.dp
 
 /**
  * Отступ под плавающую нижнюю навигацию.

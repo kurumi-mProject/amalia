@@ -125,9 +125,13 @@ class GroqWhisperStt(private val context: Context) : SpeechToTextEngine {
                     val chunk = if (read == frame.size) frame else frame.copyOf(read)
 
                     val level = VoiceAudio.level(chunk)
-                    // Уровень отправляем всегда: волна должна дышать и в
-                    // тишине тоже — иначе кажется, что ассистент не слушает.
-                    trySend(SttEvent.Level(level))
+                    // Уровень отправляем всегда — но волна получает
+                    // отрисовочную шкалу ([displayLevel]), а не сырой RMS:
+                    // делитель «громкая речь вплотную» оставлял полосы
+                    // почти неподвижными при обычном разговоре с расстояния.
+                    // Решение о речи ([SpeechGate]) принимает исходный
+                    // уровень — усиление касается только картинки.
+                    trySend(SttEvent.Level(VoiceAudio.displayLevel(chunk)))
 
                     // Решение о речи принимается по уровню и измеренному
                     // порогу: одна строка, один источник правды.

@@ -5,8 +5,8 @@ import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.scaleIn
 import androidx.compose.animation.scaleOut
-import androidx.compose.animation.slideInHorizontally
-import androidx.compose.animation.slideOutHorizontally
+import androidx.compose.animation.slideInVertically
+import androidx.compose.animation.slideOutVertically
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
@@ -40,7 +40,6 @@ import com.my.amali.ui.settings.LanguageSettings
 import com.my.amali.ui.settings.NotificationSettings
 import com.my.amali.ui.settings.PrivacySettings
 import com.my.amali.ui.settings.SettingsScreen
-import com.my.amali.ui.settings.VoiceSettings
 
 /**
  * Корневой NavHost Амалии.
@@ -85,17 +84,25 @@ fun AmaliaNavHost(
                 Destinations.Assistant.route
             },
             modifier = Modifier.fillMaxSize(),
+            // ── Один мягкий ритм на все переходы ─────────────────────────
+            //
+            // Экраны приложения не «прилетают» и не «уезжают за край»:
+            // вход — короткое проявление с едва заметным подъёмом, выход —
+            // чуть более быстрое затухание. Асимметрия длительностей
+            // (вход дольше выхода) означает, что новый экран не ждёт
+            // старый: перекрытие короткое, движение читается как один
+            // жест, а не как обмен местами двух слайдов.
             enterTransition = {
-                fadeIn(tween(240)) + slideInHorizontally(tween(280)) { it / 14 }
+                fadeIn(tween(260)) + slideInVertically(tween(300)) { it / 24 }
             },
             exitTransition = {
-                fadeOut(tween(160)) + scaleOut(tween(200), targetScale = 0.99f)
+                fadeOut(tween(150)) + scaleOut(tween(180), targetScale = 0.99f)
             },
             popEnterTransition = {
-                fadeIn(tween(220)) + scaleIn(tween(240), initialScale = 0.995f)
+                fadeIn(tween(240)) + scaleIn(tween(260), initialScale = 0.99f)
             },
             popExitTransition = {
-                fadeOut(tween(150)) + slideOutHorizontally(tween(220)) { it / 14 }
+                fadeOut(tween(140)) + slideOutVertically(tween(200)) { -it / 24 }
             },
         ) {
             composable(Destinations.Onboarding.route) {
@@ -146,7 +153,6 @@ fun AmaliaNavHost(
                     onOpenApiKeys = { navController.navigate("${Destinations.Settings.route}/api") },
                     onOpenAppearance = { navController.navigate("${Destinations.Settings.route}/appearance") },
                     onOpenLanguage = { navController.navigate("${Destinations.Settings.route}/language") },
-                    onOpenVoice = { navController.navigate("${Destinations.Settings.route}/voice") },
                     onOpenWave = { navController.navigate("${Destinations.Settings.route}/wave") },
                     onOpenDevice = { navController.navigate("${Destinations.Settings.route}/device") },
                     onOpenPrivacy = { navController.navigate("${Destinations.Settings.route}/privacy") },
@@ -192,9 +198,6 @@ fun AmaliaNavHost(
             }
             composable("${Destinations.Settings.route}/language") {
                 LanguageSettings(onBack = { navController.popBackStack() })
-            }
-            composable("${Destinations.Settings.route}/voice") {
-                VoiceSettings(onBack = { navController.popBackStack() })
             }
             composable("${Destinations.Settings.route}/wave") {
                 WaveSettingsScreen(onBack = { navController.popBackStack() })

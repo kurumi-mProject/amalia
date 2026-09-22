@@ -61,7 +61,6 @@ import com.my.amali.ui.components.GlassDivider
 import com.my.amali.ui.components.MotifLayer
 import com.my.amali.ui.components.MotifSwatch
 import com.my.amali.ui.components.GlassGroup
-import com.my.amali.ui.components.GlassSlider
 import com.my.amali.ui.components.SectionTitle
 import com.my.amali.ui.components.SettingsToggleRow
 import com.my.amali.ui.theme.AmaliaMotif
@@ -242,18 +241,11 @@ fun AppearanceSettings(
                 )
             }
 
-            SectionTitle(stringResource(R.string.appearance_glass_intensity))
-
-            GlassSlider(
-                label = stringResource(R.string.appearance_glass_intensity),
-                description = stringResource(R.string.appearance_glass_blur),
-                valueText = "${(settings.glassIntensity * 100).toInt()}%",
-                value = settings.glassIntensity,
-                onValueChange = { vm.setGlassIntensity(it) },
-            )
-
-            Spacer(Modifier.height(96.dp))
-        }
+            // Ползунок «интенсивность стекла» убран: пользователь не обязан
+            // тюнить силуэт фона — это работа дизайн-системы. Само значение
+            // в настройках осталось (его читает [AmaliaVisuals]) и берётся
+            // из сохранённого; просто рычага для случайной поломки больше нет.
+            Spacer(Modifier.height(64.dp))        }
     }
 }
 
@@ -261,7 +253,14 @@ fun AppearanceSettings(
  * Превью-карточка темы: живой градиент палитры, три точки-акцента
  * (имитация волны) и подпись. Выбранная карточка получает акцентный
  * контур, свечение и галочку.
+ *
+ * Высота зоны подписи фиксирована ([LabelZone]): «Биофильная релаксация»
+ * занимает две строки, «Liquid Glass» — одну. Без фиксированной высоты
+ * длинная подпись продавливала свой столбец вниз, и пара карточек
+ * стояла криво — правая ниже левой на целую строку.
  */
+private val LabelZone = 44.dp
+
 @Composable
 private fun ThemeCard(
     palette: GradientPalette,
@@ -344,8 +343,11 @@ private fun ThemeCard(
             style = MaterialTheme.typography.labelLarge,
             color = MaterialTheme.colorScheme.onSurface,
             textAlign = TextAlign.Center,
+            maxLines = 2,
+            overflow = TextOverflow.Ellipsis,
             modifier = Modifier
                 .fillMaxWidth()
+                .height(LabelZone)
                 .padding(vertical = Spacing.sm, horizontal = Spacing.xs),
         )
     }

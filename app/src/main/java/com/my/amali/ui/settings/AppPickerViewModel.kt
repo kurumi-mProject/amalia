@@ -107,37 +107,13 @@ class AppPickerViewModel(
     private val queryFlow = MutableStateFlow("")
 
     init {
-        // Сканируем установленные приложения один раз.
+        // Сканируем установленные приложения один раз при создании экрана.
+        // Скан занимает 100–400 мс и идёт в IO: список приложений на телефоне
+        // меняется между заходами (установил/удалил), поэтому экран обязан
+        // перечитывать PackageManager при каждом появлении — иначе свежее
+        // приложение не найдётся до перезапуска процесса.
         viewModelScope.launch {
-            val apps = withContext(Dispatchers.IO) {
-                runCatching { registry.installedApps(includeSystem = true) }
-                    .getOrDefault(emptyList())
-            }
-            // Отдельно вычисляем, какие из отмеченных приложений установлены,
-            // но не имеют экрана запуска: их не видно в `apps`, однако это не
-            // значит, что приложение удалено.
-            val pinnedNow = runCatching { repository.pinnedApps.first() }
-                .getOrDefault(emptyList())
-            val noLauncher = withContext(Dispatchers.IO) {
-                pinnedNow.mapNotNull { pinned ->
-                    val status = runCatching { registry.statusOf(pinned.packageName) }
-                        .getOrDefault(PinnedAppStatus.MISSING)
-                    pinned.packageName.takeIf { status == PinnedAppStatus.NO_LAUNCHER }
-                }.toSet()
-            }
-
-            _state.update { current ->
-                current.copy(
-                    apps = apps,
-                    isLoading = false,
-                    missingPackages = noLauncher,
-                    visibleApps = filterAndSort(
-                        apps = apps,
-                        query = current.query,
-                        pinned = current.pinned,
-                    ),
-                )
-            }
+            rescan()
         }
 
         // Подписка на избранное и синонимы: экран обязан обновляться сразу,
@@ -168,11 +144,61 @@ class AppPickerViewModel(
 
     // ── Публичное API ────────────────────────────────────────────────────
 
+    /**
+     * Пересканирует установленные приложения и статус избранного.
+     *
+     * Вызывается при каждом появлении экрана: телефон между заходами
+     * меняется — приложение установили, удалили, отключили. Список,
+     * снятый один раз при создании ViewModel, устаревает молча, и человек
+     * не находит то, что только что скачал. Дешевле пересканировать
+     * (100–400 мс в IO) с показом скелетона, чем врать списком.
+     *
+     * Повторный вызов во время идущего скана безопасен: результат пишется
+     * в состояние атомарно, последний завершившийся побеждает.
+     */
+    suspend fun rescan() {
+        val apps = withContext(Dispatchers.IO) {
+            runCatching { registry.installedApps(includeSystem = true) }
+                .getOrDefault(emptyList())
+        }
+        // Отдельно вычисляем, какие из отмеченных приложений установлены,
+        // но не имеют экрана запуска: их не видно в `apps`, однако это не
+        // значит, что приложение удалено.
+        val pinnedNow = runCatching { repository.pinnedApps.first() }
+            .getOrDefault(emptyList())
+        val noLauncher = withContext(Dispatchers.IO) {
+            pinnedNow.mapNotNull { pinned ->
+                val status = runCatching { registry.statusOf(pinned.packageName) }
+                    .getOrDefault(PinnedAppStatus.MISSING)
+                pinned.packageName.takeIf { status == PinnedAppStatus.NO_LAUNCHER }
+            }.toSet()
+        }
+
+        _state.update { current ->
+            current.copy(
+                apps = apps,
+                isLoading = false,
+                missingPackages = noLauncher,
+                visibleApps = filterAndSort(
+                    apps = apps,
+                    query = current.query,
+                    pinned = pinnedNow,
+                ),
+            )
+        }
+    }
+
+    /**
+     * Снимает флаг загрузки без перескана — не используется экраном
+     * (каждый вход ресканит), оставлен для превью и тестов.
+     */
+    fun markReady() {
+        _state.update { it.copy(isLoading = false) }
+    }
     /** Обновляет поисковый запрос. */
     fun setQuery(value: String) {
         queryFlow.value = value
     }
-
     /** Переключает отметку приложения. */
     fun togglePin(app: InstalledApp) {
         viewModelScope.launch {

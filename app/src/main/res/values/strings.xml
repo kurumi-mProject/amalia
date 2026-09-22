@@ -442,6 +442,7 @@
     <string name="settings_wave_radius">Скругление концов</string>
     <string name="settings_wave_radius_desc">Больше половины ширины — и полоса становится капсулой</string>
     <string name="settings_wave_section_react">Реакция</string>
+    <string name="settings_wave_section_talk">Разговор</string>
     <string name="settings_wave_sensitivity">Чувствительность</string>
     <string name="settings_wave_sensitivity_desc">Поднимите, если микрофон тихий и полосы почти не двигаются</string>
     <string name="settings_wave_smoothing">Сглаживание</string>

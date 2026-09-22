@@ -235,6 +235,26 @@ fun WaveSettingsScreen(
                 onCheckedChange = { value -> vm.setWave(wave.copy(filled = value)) },
             )
 
+            // ── Разговор ─────────────────────────────────────────────────
+            //
+            // Переехало сюда из упразднённого каталога «Голос и речь»:
+            // это поведение разговора, а не голоса, и по смыслу оно живёт
+            // рядом с волной — всем, что видно во время диалога.
+            SectionTitle(stringResource(R.string.settings_wave_section_talk))
+            SettingsToggleRow(
+                title = stringResource(R.string.voice_auto_listen),
+                subtitle = stringResource(R.string.voice_auto_listen_desc),
+                checked = settings.autoListen,
+                onCheckedChange = { value -> vm.setAutoListen(value) },
+            )
+
+            SettingsToggleRow(
+                title = stringResource(R.string.voice_wake_word),
+                subtitle = stringResource(R.string.voice_wake_word_desc),
+                checked = settings.wakeWordEnabled,
+                onCheckedChange = { value -> vm.setWakeWordEnabled(value) },
+            )
+
             Spacer(Modifier.height(Spacing.xs))
 
             SecondaryButton(

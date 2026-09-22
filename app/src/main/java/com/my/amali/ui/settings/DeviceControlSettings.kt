@@ -45,7 +45,7 @@ import com.my.amali.system.ControlResult
 import com.my.amali.ui.theme.Radius
 import com.my.amali.ui.theme.Spacing
 import kotlinx.coroutines.launch
-
+import kotlin.math.roundToInt
 /**
  * Экран «Управление устройством».
  *
@@ -195,16 +195,29 @@ fun DeviceControlSettings(
             // ── Яркость ────────────────────────────────────────────────
             SectionTitle(stringResource(R.string.device_brightness))
 
+            // Ползунок пишет яркость в систему **во время движения**, а не по
+            // отпуску: так себя ведёт системная шторка, и любое другое поведение
+            // читается как «ползунок придумал своё, а экран живёт своей жизнью».
+            // Полный снимок состояния (hub.refresh) — один раз, по завершении
+            // жеста: на каждое движение пальца он слишком тяжёлый.
             GlassSlider(
                 label = stringResource(R.string.device_brightness),
                 valueText = "${(status.brightnessFraction * 100).toInt()}%",
                 value = status.brightnessFraction,
                 onValueChange = { fraction ->
-                    status = status.withBrightness((fraction * 255).toInt())
+                    val level = (fraction * 255).roundToInt()
+                    status = status.withBrightness(level)
+                    scope.launch { hub.applyBrightnessLive(level) }
                 },
                 onValueChangeFinished = {
                     scope.launch {
-                        notice = hub.setBrightness(status.brightnessLevel).userNotice()
+                        // Единственный refresh на жест: значение уже в системе,
+                        // живая запись его туда положила. Замечание оставляем
+                        // только для внештатных путей — у живой записи
+                        // (`applyBrightnessLive`) своего отчёта нет.
+                        if (!hub.canWriteBrightness()) {
+                            notice = hub.setBrightness(status.brightnessLevel).userNotice()
+                        }
                         status = hub.refresh()
                     }
                 },

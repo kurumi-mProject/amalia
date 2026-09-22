@@ -638,6 +638,12 @@ class SystemControllerHub(private val context: Context) {
      * системном экране). Без него — открываем этот экран и говорим об этом
      * прямо, а не молча возвращаем `false`.
      *
+     * Второе, что здесь происходит: если в системе включена адаптивная
+     * яркость, ручная запись значения игнорируется ОС — пользователь тянет
+     * ползунок (или просит Амалию), а экран не реагирует. Как и системный
+     * ползунок яркости, мы переключаем режим на ручной перед записью: иначе
+     * команда «поставь яркость 30%» выглядит выполненной, но не работает.
+     *
      * @param level яркость 0..255 (системная шкала).
      */
     suspend fun setBrightness(level: Int): ControlResult = withContext(Dispatchers.Default) {
@@ -650,25 +656,60 @@ class SystemControllerHub(private val context: Context) {
                     "дай доступ, и я смогу менять яркость сама.",
             )
         }
+        val autoWasOn = isAutoBrightnessOn()
+        ensureManualBrightness()
         val written = runCatching {
             SystemSettings.System.putInt(
                 context.contentResolver,
                 SystemSettings.System.SCREEN_BRIGHTNESS,
-                level.coerceIn(0, 255),
+                level.coerceIn(BRIGHTNESS_MIN, BRIGHTNESS_MAX),
             )
         }.getOrDefault(false)
-        // Важная тонкость: если в системе включена авто-яркость, ручная запись
-        // игнорируется. Возвращаем фактическое значение, а не «успех».
         refresh()
         ControlResult.Applied(
             level = ControlAccess.DIRECT,
             state = written,
-            hint = if (isAutoBrightnessOn()) {
-                "Записала, но в системе включена авто-яркость — она может перебить значение."
-            } else {
-                null
+            hint = when {
+                autoWasOn -> "Выключила авто-яркость и поставила твоё значение."
+                else -> null
             },
         )
+    }
+
+    /**
+     * Быстрая запись яркости без полного снимка состояния — для живого
+     * перетаскивания ползунка.
+     *
+     * Полный [refresh] читает с десяток системных сервисов; делать это на
+     * каждое движение пальца значит грузить CPU в такт дрожанию руки.
+     * Здесь только запись значения (и перевод авто-режима в ручной), а
+     * снимок состояния вызывающий обновит один раз — по завершении жеста.
+     *
+     * @return true, если значение записано; false — нет права WRITE_SETTINGS.
+     */
+    suspend fun applyBrightnessLive(level: Int): Boolean = withContext(Dispatchers.Default) {
+        if (!canWriteBrightness()) return@withContext false
+        ensureManualBrightness()
+        runCatching {
+            SystemSettings.System.putInt(
+                context.contentResolver,
+                SystemSettings.System.SCREEN_BRIGHTNESS,
+                level.coerceIn(BRIGHTNESS_MIN, BRIGHTNESS_MAX),
+            )
+        }.getOrDefault(false)
+    }
+
+    /** Переводит яркость в ручной режим, если система держит адаптивную. */
+    private fun ensureManualBrightness() {
+        if (isAutoBrightnessOn()) {
+            runCatching {
+                SystemSettings.System.putInt(
+                    context.contentResolver,
+                    SystemSettings.System.SCREEN_BRIGHTNESS_MODE,
+                    SystemSettings.System.SCREEN_BRIGHTNESS_MODE_MANUAL,
+                )
+            }
+        }
     }
 
     /** Включена ли адаптивная яркость — иначе ручная установка будет перезаписана. */
@@ -984,6 +1025,18 @@ class SystemControllerHub(private val context: Context) {
 
     private companion object {
         const val DEFAULT_BRIGHTNESS = 128
+
+        /**
+         * Нижняя граница записи яркости.
+         *
+         * Ноль разрешён системным API, но практический смысл имеет только
+         * «экран погас»: подсветка на большинстве панелей отключается
+         * ниже ~5/255, и пользователь, потянув ползунок в самый низ,
+         * получает чёрный экран, из которого не видно, куда тянуть назад.
+         * Системный ползунок яркости держит такой же практический минимум.
+         */
+        const val BRIGHTNESS_MIN = 5
+        const val BRIGHTNESS_MAX = 255
         const val DEFAULT_VOLUME_MAX = 15
         const val BLUETOOTH_STATE_POLLS = 6
         const val BLUETOOTH_STATE_POLL_MS = 250L

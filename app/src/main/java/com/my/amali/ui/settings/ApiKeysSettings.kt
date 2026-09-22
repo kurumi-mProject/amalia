@@ -62,6 +62,7 @@ import com.my.amali.ui.components.AmaliaScreen
 import com.my.amali.ui.components.GlassCard
 import com.my.amali.ui.components.GlassDivider
 import com.my.amali.ui.components.GlassGroup
+import com.my.amali.ui.components.GlassSlider
 import com.my.amali.ui.components.ModelSelector
 import com.my.amali.ui.components.SectionTitle
 import androidx.compose.material3.TextField
@@ -202,6 +203,29 @@ fun ApiKeysSettings(
                     VoiceIdField(
                         value = api.fishVoiceId,
                         onValueChange = { vm.setFishVoiceId(it) },
+                    )
+
+                    // Скорость и тон синтеза — свойства того же голоса.
+                    // Раньше они жили на отдельном экране «Голос и речь»:
+                    // два ползунка не заслуживали собственного каталога,
+                    // а искать их приходилось по памяти.
+                    Spacer(Modifier.height(Spacing.md))
+                    GlassDivider()
+                    Spacer(Modifier.height(Spacing.sm))
+                    GlassSlider(
+                        label = stringResource(R.string.voice_speech_rate),
+                        valueText = "×%.1f".format(settings.speechRate),
+                        value = settings.speechRate,
+                        valueRange = 0.5f..2f,
+                        onValueChange = { vm.setSpeechRate(it) },
+                    )
+                    Spacer(Modifier.height(Spacing.sm))
+                    GlassSlider(
+                        label = stringResource(R.string.voice_speech_pitch),
+                        valueText = "×%.1f".format(settings.speechPitch),
+                        value = settings.speechPitch,
+                        valueRange = 0.5f..2f,
+                        onValueChange = { vm.setSpeechPitch(it) },
                     )
                 }
             }

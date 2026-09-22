@@ -139,12 +139,17 @@ fun AppPickerSettings(
 
     val listState = rememberLazyListState()
 
+    // Каждое появление экрана — свежий скан PackageManager: список
+    // приложений на телефоне меняется между заходами (установил, удалил),
+    // и экран обязан показывать фактическое состояние, а не снимок
+    // прошлого раза. Пока идёт скан, показываются скелетоны (isLoading).
+    LaunchedEffect(Unit) { vm.rescan() }
+
     // При смене поискового запроса возвращаемся к началу списка: иначе
     // результаты появляются «где-то в середине» и выглядят как пустой экран.
     LaunchedEffect(state.query) {
         listState.scrollToItem(0)
     }
-
     var aliasTarget by remember { mutableStateOf<InstalledApp?>(null) }
 
     AmaliaScreen(
