@@ -8,6 +8,7 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.channels.ProducerScope
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.FlowCollector
@@ -608,11 +609,16 @@ class AIOrchestrator(
      * сбой конвейера, а признак, что событие никому больше не нужно:
      * гасим его логом и живём. Отмена при этом проходит как отмена.
      *
+     * Приёмник — [ProducerScope], то есть приёмник channelFlow-блока: у
+     * него есть `send` (у FlowCollector его нет, из-за чего первая версия
+     * этой функции не собралась), а неявный приёмник блока попадает в
+     * лямбду `{ event -> emitOrDrop(event) }` лексически.
+     *
      * Через эту функцию идёт ТОЛЬКО поток из [runPipeline] (включая
      * озвучку): прямые send в теле channelFlow защищены жизненным циклом
      * самой корутины канала, а озвучка — нет.
      */
-    private suspend fun FlowCollector<AiResponse>.emitOrDrop(event: AiResponse) {
+    private suspend fun ProducerScope<AiResponse>.emitOrDrop(event: AiResponse) {
         try {
             send(event)
         } catch (e: CancellationException) {
