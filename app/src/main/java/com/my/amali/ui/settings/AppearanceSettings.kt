@@ -58,6 +58,7 @@ import com.my.amali.R
 import com.my.amali.ui.components.AmaliaScreen
 import com.my.amali.ui.components.GlassCard
 import com.my.amali.ui.components.GlassDivider
+import com.my.amali.ui.components.GlassSlider
 import com.my.amali.ui.components.MotifLayer
 import com.my.amali.ui.components.MotifSwatch
 import com.my.amali.ui.components.GlassGroup
