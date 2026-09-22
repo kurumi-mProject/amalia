@@ -24,6 +24,8 @@
     <string name="onboarding_finish_title">सब तैयार है</string>
     <string name="onboarding_finish_desc">पहली बातचीत में माइक्रोफ़ोन की अनुमति माँगूँगा — बाकी सब तैयार है। बस बोलिए।</string>
     <string name="onboarding_theme_circadian">इंटरफ़ेस का प्रकाश दिन के समय के साथ बदलता है — भोर की बर्फ़ से एम्बर रात तक।</string>
+    <string name="onboarding_light_title">जीवंत प्रकाश</string>
+    <string name="onboarding_voice_privacy">माइक्रोफ़ोन केवल दबाने पर चालू होता है</string>
 
     <string name="guide_mic_title">माइक बटन</string>
     <string name="guide_mic_desc">मुझसे बात करने के लिए दबाकर रखें</string>

@@ -24,6 +24,8 @@
     <string name="onboarding_finish_title">Tout est prêt</string>
     <string name="onboarding_finish_desc">Je demanderai le micro à la première conversation — tout est prêt. Parle simplement.</string>
     <string name="onboarding_theme_circadian">La lumière suit l\'heure du jour — de la glace de l\'aube à la nuit ambrée.</string>
+    <string name="onboarding_light_title">Lumière vivante</string>
+    <string name="onboarding_voice_privacy">Le micro ne s\'active qu\'au toucher</string>
 
     <string name="guide_mic_title">Bouton micro</string>
     <string name="guide_mic_desc">Appuie et maintiens pour me parler</string>

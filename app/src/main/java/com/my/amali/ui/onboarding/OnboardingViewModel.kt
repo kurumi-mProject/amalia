@@ -23,7 +23,7 @@ import kotlinx.coroutines.launch
  */
 data class OnboardingState(
     val currentPage: Int = 0,
-    val pageCount: Int = 5,
+    val pageCount: Int = 4,
     val isFinished: Boolean = false,
     val showGuide: Boolean = false,
 )

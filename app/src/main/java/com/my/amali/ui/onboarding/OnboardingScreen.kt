@@ -4,21 +4,14 @@ import android.provider.Settings
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.core.EaseOutCubic
-import androidx.compose.animation.core.LinearEasing
-import androidx.compose.animation.core.RepeatMode
 import androidx.compose.animation.core.animateDpAsState
-import androidx.compose.animation.core.animateFloat
 import androidx.compose.animation.core.animateFloatAsState
-import androidx.compose.animation.core.infiniteRepeatable
-import androidx.compose.animation.core.rememberInfiniteTransition
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.slideInHorizontally
 import androidx.compose.animation.slideOutHorizontally
-import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
-import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -35,15 +28,9 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.pager.HorizontalPager
 import androidx.compose.foundation.pager.PagerState
 import androidx.compose.foundation.pager.rememberPagerState
-import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.rounded.VolumeUp
-import androidx.compose.material.icons.rounded.Bluetooth
-import androidx.compose.material.icons.rounded.BrightnessMedium
-import androidx.compose.material.icons.rounded.Check
 import androidx.compose.material.icons.rounded.Mic
-import androidx.compose.material.icons.rounded.Wifi
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
@@ -57,95 +44,68 @@ import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.draw.scale
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
-import androidx.compose.ui.graphics.vector.ImageVector
-import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
-import androidx.compose.ui.semantics.contentDescription
-import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.style.TextAlign
-import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.my.amali.R
-import com.my.amali.domain.entity.WaveSettings
-import com.my.amali.ui.components.AmaliaWaveform
 import com.my.amali.ui.components.GhostButton
 import com.my.amali.ui.components.GradientBackground
 import com.my.amali.ui.components.PrimaryButton
-import com.my.amali.ui.theme.AmaliaMotif
 import com.my.amali.ui.theme.AmaliaTheme
-import com.my.amali.ui.theme.AmaliaVisualTheme
-import com.my.amali.ui.theme.BioGradientDay
-import com.my.amali.ui.theme.DarkModePreference
-import com.my.amali.ui.theme.GlassGradientPalette
-import com.my.amali.ui.theme.GradientPalette
+import com.my.amali.ui.theme.LocalLightProfile
 import com.my.amali.ui.theme.Radius
 import com.my.amali.ui.theme.Spacing
-import com.my.amali.ui.theme.accentGlow
-import com.my.amali.ui.theme.currentGradientPalette
-import com.my.amali.ui.theme.glassSurface
+import com.my.amali.ui.theme.stringRes
 import kotlin.math.absoluteValue
 
 /** Индексы слайдов онбординга. */
 private const val PAGE_WELCOME = 0
 private const val PAGE_VOICE = 1
-private const val PAGE_CONTROL = 2
-private const val PAGE_THEMES = 3
-private const val PAGE_FINISH = 4
+private const val PAGE_LIGHT = 2
+private const val PAGE_FINISH = 3
 
 /** Всего слайдов в пагере. Одно число для состояния и для превью. */
-private const val ONBOARDING_PAGE_COUNT = 5
-
-/** Иконка + подпись для слайда «Управление устройством». */
-private data class ControlIcon(val icon: ImageVector, val labelResId: Int)
-
-private val controlIcons = listOf(
-    ControlIcon(Icons.Rounded.Wifi, R.string.device_wifi),
-    ControlIcon(Icons.Rounded.Bluetooth, R.string.device_bluetooth),
-    ControlIcon(Icons.Rounded.BrightnessMedium, R.string.device_brightness),
-    ControlIcon(Icons.AutoMirrored.Rounded.VolumeUp, R.string.device_volume),
-)
+private const val ONBOARDING_PAGE_COUNT = 4
 
 /**
- * Онбординг: пять слайдов в HorizontalPager.
+ * Онбординг: четыре слайда чистой типографики на живом фоне.
  *
  * ══════════════════════════════════════════════════════════
- *  ДИЗАЙН-РЕШЕНИЕ (почему онбординг выглядит именно так)
+ *  ДИЗАЙН-РЕШЕНИЕ
  * ══════════════════════════════════════════════════════════
  *
- * Онбординг — это не «обучение», а первое дыхание продукта. Человек
- * открывает приложение, которого ещё не знает, и за пять экранов ему
- * нужно ответить ровно на один вопрос: «мне здесь будет спокойно?».
- * Поэтому каждый слайд держит ОДНОГО героя на воздухе, текст — три
- * строки, и ничего, что требует чтения.
+ * Задача онбординга — не «показать красивые картинки», а ПРИГОТОВИТЬ
+ * человека к продукту: объяснить, как им пользоваться, и дать глазам
+ * привыкнуть к среде. Поэтому здесь нет ни орба, ни волны, ни декораций:
  *
- *  1. Welcome — настоящий логотип приложения: то, что человек видел
- *     на рабочем столе, встречает его и здесь. Узнавание вместо вопроса.
- *  2. Voice — та же живая волна, что работает на главном экране, и она
- *     реально дышит: обещание совпадает с тем, что пользователь получит.
- *  3. Control — четыре стеклянные плитки устройств, входящие каскадом:
- *     «приложение живое» читается движением, а не словами.
- *  4. Themes — две темы рядом и лента циркадного света: продукт
- *     показывает свою главную идею (интерфейс едет за временем суток).
- *  5. Finish — снова орб с логотипом и честное «что будет дальше»:
- *     микрофон попросим при первом разговоре, дальше просто говори.
+ *  — **герой — сам фон.** Живой ауророй он уже дышит и по времени суток
+ *    уже едет: первый вход вечером даёт тёплый янтарный свет, утром —
+ *    прохладный. Глаз адаптируется к среде ровно так же, как потом
+ *    на главном экране;
+ *  — **контент — большие слова.** Один крупный заголовок, одна строка
+ *    описания, тонкая акцентная черта, при необходимости — микроподпись.
+ *    Максимум два уровня типографики; когда сомневаешься — убери элемент;
+ *  — **каждый слайд готовит к одному факту продукта:**
+ *      0. «Привет, я Амалия» — знакомство;
+ *      1. «Голос — главный интерфейс» — жест: нажми и говори, и приватность
+ *         («микрофон включается только по нажатию»);
+ *      2. «Живой свет» — тема подстраивается по времени суток, слайд
+ *         показывает СВОЙ свет: «Сейчас: Закат · 2500 K» — данные, а не
+ *         обещание;
+ *      3. «Всё готово» — что будет дальше: микрофон попросим при первом
+ *         разговоре, дальше просто говори.
  *
- * Появление контента — стаггер: герой, затем заголовок, затем описание.
- * Каждый элемент вступает со своей задержкой, потому что глаз читает
- * их по очереди; одновременное появление трёх блоков выглядит как
- * «вспышка», а не как приглашение.
- *
- * Переход между слайдами — параллакс: герой двигается быстрее текста,
- * свайп ощущается объёмным.
+ * Появление контента — стаггер (заголовок → описание → черта → подпись),
+ * переход между слайдами — параллакс пейджера. Бесконечных аниматоров
+ * в контенте ноль: движение даёт только фон и жесты пользователя.
  */
 @Composable
 fun OnboardingScreen(
@@ -157,8 +117,7 @@ fun OnboardingScreen(
     val pagerState = rememberPagerState(pageCount = { state.pageCount })
 
     // Включены ли системные анимации (см. тот же блок в AssistantScreen):
-    // при выключенных стаггер не имеет куда играть — всё должно
-    // появляться мгновенно.
+    // при выключенных стаггер не имеет куда играть — всё появляется сразу.
     val context = LocalContext.current
     val animationsEnabled = remember {
         val scale: Float = runCatching {
@@ -213,16 +172,12 @@ fun OnboardingScreenContent(
     animationsEnabled: Boolean = true,
 ) {
     Box(modifier = modifier.fillMaxSize()) {
-        // Фон онбординга — живой и адаптивный: палитра приходит из темы,
-        // а та рассчитывается по времени суток, когда включена циркадная
-        // адаптация (она включена по умолчанию). Первый вход вечером даёт
-        // тёплый вечерний свет, утром — прохладное утро: первое
-        // впечатление совпадает с тем, что человек увидит дальше.
-        GradientBackground(
-            modifier = Modifier.fillMaxSize(),
-            motif = AmaliaMotif.AUTO,
-            motifDensity = 0.8f,
-        )
+        // Фон — живой и циркадный: палитра приходит из темы и едет по
+        // времени суток (адаптация включена по умолчанию). Именно он
+        // адаптирует глаза: первый вход в любое время суток даёт свет,
+        // при котором глазу легко.
+        GradientBackground(modifier = Modifier.fillMaxSize())
+
         Column(
             modifier = Modifier
                 .fillMaxSize()
@@ -268,8 +223,7 @@ fun OnboardingScreenContent(
                     when (page) {
                         PAGE_WELCOME -> WelcomeSlide(offset, active, animationsEnabled)
                         PAGE_VOICE -> VoiceSlide(offset, active, animationsEnabled)
-                        PAGE_CONTROL -> ControlSlide(offset, active, animationsEnabled)
-                        PAGE_THEMES -> ThemesSlide(offset, active, animationsEnabled)
+                        PAGE_LIGHT -> LightSlide(offset, active, animationsEnabled)
                         else -> FinishSlide(offset, active, animationsEnabled)
                     }
                 }
@@ -296,15 +250,169 @@ fun OnboardingScreenContent(
 }
 
 // ============================================================
-//  СТАГГЕР-МЕХАНИКА
+//  СЛАЙДЫ
+// ============================================================
+
+/** Слайд 0 — знакомство: имя и обещание, ничего больше. */
+@Composable
+private fun WelcomeSlide(
+    offset: Float,
+    active: Boolean,
+    animationsEnabled: Boolean,
+) {
+    SlideScaffold(
+        offset = offset,
+        active = active,
+        animationsEnabled = animationsEnabled,
+        title = stringResource(R.string.onboarding_welcome_title),
+        description = stringResource(R.string.onboarding_welcome_desc),
+    )
+}
+
+/** Слайд 1 — жест продукта и честная строчка о приватности. */
+@Composable
+private fun VoiceSlide(
+    offset: Float,
+    active: Boolean,
+    animationsEnabled: Boolean,
+) {
+    SlideScaffold(
+        offset = offset,
+        active = active,
+        animationsEnabled = animationsEnabled,
+        title = stringResource(R.string.onboarding_voice_title),
+        description = stringResource(R.string.onboarding_voice_desc),
+        caption = {
+            CaptionRow(
+                icon = {
+                    Icon(
+                        imageVector = Icons.Rounded.Mic,
+                        contentDescription = null,
+                        // Иконка подчиняется подписи: тот же цвет и кегль,
+                        // чтобы строка читалась как одна сущность.
+                        tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.85f),
+                        modifier = Modifier.size(14.dp),
+                    )
+                },
+                text = stringResource(R.string.onboarding_voice_privacy),
+            )
+        },
+    )
+}
+
+/**
+ * Слайд 2 — живой свет: главная идея темы, показанная фактом.
+ *
+ * Подпись берётся у [LocalLightProfile] — того же расчёта, что красит фон:
+ * слайд и фон построены на одном источнике и потому не могут разойтись.
+ * Вечером человек читает «Сейчас: Закат · 2500 K» и видит тот же закат
+ * вокруг текста.
+ */
+@Composable
+private fun LightSlide(
+    offset: Float,
+    active: Boolean,
+    animationsEnabled: Boolean,
+) {
+    val light = LocalLightProfile.current
+    SlideScaffold(
+        offset = offset,
+        active = active,
+        animationsEnabled = animationsEnabled,
+        title = stringResource(R.string.onboarding_light_title),
+        description = stringResource(R.string.onboarding_theme_circadian),
+        caption = {
+            CaptionRow(
+                text = stringResource(
+                    R.string.appearance_light_now,
+                    stringResource(light.lightLabel.stringRes),
+                    light.cct,
+                ),
+            )
+        },
+    )
+}
+
+/** Слайд 3 — финал: что будет дальше, и большой CTA. */
+@Composable
+private fun FinishSlide(
+    offset: Float,
+    active: Boolean,
+    animationsEnabled: Boolean,
+) {
+    SlideScaffold(
+        offset = offset,
+        active = active,
+        animationsEnabled = animationsEnabled,
+        title = stringResource(R.string.onboarding_finish_title),
+        description = stringResource(R.string.onboarding_finish_desc),
+    )
+}
+
+// ============================================================
+//  КАРКАС СЛАЙДА И СТАГГЕР
 // ============================================================
 
 /**
- * Прогресс появления элемента 0..1 со своей задержкой.
+ * Каркас слайда: заголовок + описание + черта + опциональная подпись.
  *
- * Слагается из двух вещей:
- *  — [active] слайд «активен» — на нём стоит пользователь;
- *  — [delayMs] — насколько элемент отстаёт от начала сцены.
+ * Параллакс: текстовый блок смещается медленнее страницы — свайп читается
+ * объёмным. Появление — стаггер: у каждого элемента своя задержка, потому
+ * что глаз читает их по очереди; одновременный вход читается вспышкой.
+ */
+@Composable
+private fun SlideScaffold(
+    offset: Float,
+    active: Boolean,
+    animationsEnabled: Boolean,
+    title: String,
+    description: String,
+    modifier: Modifier = Modifier,
+    caption: (@Composable () -> Unit)? = null,
+) {
+    val titleProgress = stagger(active, delayMs = 0, animationsEnabled = animationsEnabled)
+    val descProgress = stagger(active, delayMs = 120, animationsEnabled = animationsEnabled)
+    val markProgress = stagger(active, delayMs = 240, animationsEnabled = animationsEnabled)
+    val captionProgress = stagger(active, delayMs = 340, animationsEnabled = animationsEnabled)
+
+    Column(
+        modifier = modifier
+            .fillMaxSize()
+            .graphicsLayer { translationX = offset * size.width * 0.12f }
+            .padding(horizontal = Spacing.screen),
+        horizontalAlignment = Alignment.CenterHorizontally,
+        verticalArrangement = Arrangement.Center,
+    ) {
+        Text(
+            text = title,
+            style = MaterialTheme.typography.displaySmall,
+            color = MaterialTheme.colorScheme.onBackground,
+            textAlign = TextAlign.Center,
+            modifier = Modifier
+                .fillMaxWidth()
+                .reveal(titleProgress),
+        )
+        Spacer(Modifier.height(Spacing.md))
+        Text(
+            text = description,
+            style = MaterialTheme.typography.bodyLarge,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            textAlign = TextAlign.Center,
+            modifier = Modifier
+                .fillMaxWidth()
+                .reveal(descProgress),
+        )
+        Spacer(Modifier.height(Spacing.lg))
+        AccentMark(progress = markProgress)
+        if (caption != null) {
+            Spacer(Modifier.height(Spacing.md))
+            Box(modifier = Modifier.reveal(captionProgress)) { caption() }
+        }
+    }
+}
+
+/**
+ * Прогресс появления элемента 0..1 со своей задержкой.
  *
  * `armed` нужен для самого первого слайда: без него `animateFloatAsState`
  * выставил бы цель 1f прямо в первой композиции, и вступительной анимации
@@ -331,511 +439,79 @@ private fun stagger(active: Boolean, delayMs: Int, animationsEnabled: Boolean): 
  * Появление элемента: мягкий подъём + проявление.
  *
  * Работает в фазе отрисовки ([graphicsLayer]) — вход ничего не стоит
- * рекомпозиции и не дёргает лейаут соседей. Подъём задан в dp и
- * переводится в пиксели плотностью скоупа: на любом экране сдвиг
- * одинаковый зрительно.
+ * рекомпозиции и не дёргает лейаут соседей. Подъём в пиксели переводит
+ * плотность скоупа: на любом экране сдвиг зрительно одинаков.
  */
-private fun Modifier.reveal(progress: Float, shiftDp: Float = 24f): Modifier =
+private fun Modifier.reveal(progress: Float): Modifier =
     graphicsLayer {
         alpha = progress
-        val shown = 0.94f + 0.06f * progress
+        val shown = 0.96f + 0.04f * progress
         scaleX = shown
         scaleY = shown
-        translationY = (1f - progress) * shiftDp.dp.toPx()
+        translationY = (1f - progress) * RevealShift.toPx()
     }
 
-// ============================================================
-//  СЛАЙД 0: WELCOME ==========================================================
-// ============================================================
+/** Подъём при входе: половина строки — заметно, но спокойно. */
+private val RevealShift: Dp = 14.dp
 
+/**
+ * Тонкая акцентная черта — подпись Амалии под словами.
+ *
+ * Тот же приём, что и черта под фразой приветствия главного экрана:
+ * слабый, но различимый маркер удерживает взгляд на тексте, не споря
+ * с ним. Градиент от прозрачного края — линия «растворяется» в воздухе,
+ * а не обрубается.
+ */
 @Composable
-private fun WelcomeSlide(
-    offset: Float,
-    active: Boolean,
-    animationsEnabled: Boolean,
-) {
-    SlideScaffold(
-        offset = offset,
-        active = active,
-        animationsEnabled = animationsEnabled,
-        title = stringResource(R.string.onboarding_welcome_title),
-        description = stringResource(R.string.onboarding_welcome_desc),
-        hero = { progress ->
-            // Орб с настоящим логотипом: знакомый образ с рабочего стола.
-            // Дышит по тому же принципу, что и голосовой орб главного
-            // экрана, — онбординг сразу показывает главный жест продукта.
-            val breathTransition = rememberInfiniteTransition(label = "onbBreath")
-            val breath by breathTransition.animateFloat(
-                initialValue = 0.965f,
-                targetValue = 1.035f,
-                animationSpec = infiniteRepeatable(
-                    tween(4_600, easing = LinearEasing),
-                    repeatMode = RepeatMode.Reverse,
+private fun AccentMark(progress: Float, modifier: Modifier = Modifier) {
+    val accent = MaterialTheme.colorScheme.primary
+    val secondary = MaterialTheme.colorScheme.secondary
+    Box(
+        modifier = modifier
+            .size(width = 56.dp, height = 2.dp)
+            .graphicsLayer { alpha = 0.35f + 0.65f * progress }
+            .clip(RoundedCornerShape(Radius.chip))
+            .background(
+                Brush.horizontalGradient(
+                    listOf(
+                        Color.Transparent,
+                        accent.copy(alpha = 0.9f),
+                        secondary.copy(alpha = 0.75f),
+                        Color.Transparent,
+                    ),
                 ),
-                label = "onbBreathValue",
-            )
-            Box(
-                modifier = Modifier
-                    .size(176.dp)
-                    .reveal(progress, shiftDp = 10f)
-                    .scale(breath)
-                    .accentGlow(
-                        color = MaterialTheme.colorScheme.primary,
-                        alpha = 0.34f,
-                        spread = 1.5f,
-                    )
-                    .clip(CircleShape)
-                    .border(
-                        width = 1.dp,
-                        brush = Brush.linearGradient(
-                            listOf(
-                                MaterialTheme.colorScheme.secondary,
-                                Color.Transparent,
-                            ),
-                        ),
-                        shape = CircleShape,
-                    ),
-                contentAlignment = Alignment.Center,
-            ) {
-                Image(
-                    painter = painterResource(R.drawable.amalia_logo),
-                    contentDescription = null,
-                    modifier = Modifier.fillMaxSize(),
-                    contentScale = ContentScale.Fit,
-                )
-            }
-        },
-    )
-}
-
-// ============================================================
-//  СЛАЙД 1: VOICE ============================================================
-// ============================================================
-
-@Composable
-private fun VoiceSlide(
-    offset: Float,
-    active: Boolean,
-    animationsEnabled: Boolean,
-) {
-    SlideScaffold(
-        offset = offset,
-        active = active,
-        animationsEnabled = animationsEnabled,
-        title = stringResource(R.string.onboarding_voice_title),
-        description = stringResource(R.string.onboarding_voice_desc),
-        hero = { progress ->
-            Column(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .reveal(progress),
-                horizontalAlignment = Alignment.CenterHorizontally,
-            ) {
-                // Живая волна прямо в онбординге: обещание = реальный UI.
-                // Уровень дышит сам в диапазоне 0.32..0.62 — полосы стоят
-                // ровно так, как волне положено стоять при тихой речи.
-                val waveBreath = rememberInfiniteTransition(label = "onbWave")
-                val level by waveBreath.animateFloat(
-                    initialValue = 0.32f,
-                    targetValue = 0.62f,
-                    animationSpec = infiniteRepeatable(
-                        tween(2_600, easing = LinearEasing),
-                        RepeatMode.Reverse,
-                    ),
-                    label = "onbWaveLevel",
-                )
-                val onboardingWave = remember { WaveSettings() }
-                Box(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(horizontal = Spacing.lg),
-                    contentAlignment = Alignment.Center,
-                ) {
-                    AmaliaWaveform(
-                        level = level,
-                        settings = onboardingWave,
-                        color = MaterialTheme.colorScheme.primary,
-                        isActive = true,
-                    )
-                }
-                Spacer(Modifier.height(Spacing.md))
-                Box(
-                    modifier = Modifier
-                        .size(72.dp)
-                        .accentGlow(MaterialTheme.colorScheme.primary, alpha = 0.30f, spread = 1.7f)
-                        .clip(CircleShape)
-                        .background(
-                            Brush.linearGradient(
-                                listOf(
-                                    MaterialTheme.colorScheme.secondary,
-                                    MaterialTheme.colorScheme.primary,
-                                ),
-                            ),
-                        ),
-                    contentAlignment = Alignment.Center,
-                ) {
-                    Icon(
-                        imageVector = Icons.Rounded.Mic,
-                        contentDescription = null,
-                        tint = MaterialTheme.colorScheme.onPrimary,
-                        modifier = Modifier.size(30.dp),
-                    )
-                }
-            }
-        },
-    )
-}
-
-// ============================================================
-//  СЛАЙД 2: CONTROL ==========================================================
-// ============================================================
-
-@Composable
-private fun ControlSlide(
-    offset: Float,
-    active: Boolean,
-    animationsEnabled: Boolean,
-) {
-    SlideScaffold(
-        offset = offset,
-        active = active,
-        animationsEnabled = animationsEnabled,
-        title = stringResource(R.string.onboarding_control_title),
-        description = stringResource(R.string.onboarding_control_desc),
-        hero = { progress ->
-            Row(horizontalArrangement = Arrangement.spacedBy(Spacing.sm)) {
-                // Плитки входят каскадом: каждая отстаёт от предыдущей на
-                // 70 мс — «приложение живое» читается движением.
-                controlIcons.forEachIndexed { index, control ->
-                    val label = stringResource(control.labelResId)
-                    val tileProgress = stagger(
-                        active = active,
-                        delayMs = 140 + index * 70,
-                        animationsEnabled = animationsEnabled,
-                    )
-                    Column(
-                        horizontalAlignment = Alignment.CenterHorizontally,
-                        modifier = Modifier
-                            .semantics { contentDescription = label }
-                            .reveal(tileProgress, shiftDp = 14f),
-                    ) {
-                        Box(
-                            modifier = Modifier
-                                .size(62.dp)
-                                .glassSurface(shape = RoundedCornerShape(Radius.sm)),
-                            contentAlignment = Alignment.Center,
-                        ) {
-                            Icon(
-                                imageVector = control.icon,
-                                contentDescription = null,
-                                tint = MaterialTheme.colorScheme.secondary,
-                                modifier = Modifier.size(26.dp),
-                            )
-                        }
-                        Spacer(Modifier.height(Spacing.xs))
-                        Text(
-                            text = label,
-                            style = MaterialTheme.typography.labelSmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                            maxLines = 1,
-                            overflow = TextOverflow.Ellipsis,
-                        )
-                    }
-                }
-            }
-        },
-    )
-}
-
-// ============================================================
-//  СЛАЙД 3: THEMES ===========================================================
-// ============================================================
-
-@Composable
-private fun ThemesSlide(
-    offset: Float,
-    active: Boolean,
-    animationsEnabled: Boolean,
-) {
-    SlideScaffold(
-        offset = offset,
-        active = active,
-        animationsEnabled = animationsEnabled,
-        title = stringResource(R.string.onboarding_theme_title),
-        description = stringResource(R.string.onboarding_theme_desc),
-        hero = { progress ->
-            Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(Spacing.sm),
-                ) {
-                    ThemePreview(
-                        palette = GlassGradientPalette,
-                        label = stringResource(R.string.appearance_theme_glass),
-                        accent = MaterialTheme.colorScheme.primary,
-                        modifier = Modifier.weight(1f),
-                    )
-                    ThemePreview(
-                        palette = BioGradientDay,
-                        label = stringResource(R.string.appearance_theme_bio),
-                        accent = MaterialTheme.colorScheme.tertiary,
-                        modifier = Modifier.weight(1f),
-                    )
-                }
-                Spacer(Modifier.height(Spacing.md))
-                // Лента циркадного света — главная идея темы, показанная
-                // цветом: палитра и правда едет за часом суток. Текст под
-                // ней объясняет одним предложением, что это было.
-                CircadianRibbon(
-                    progress = progress,
-                    modifier = Modifier.padding(horizontal = Spacing.xs),
-                )
-                Spacer(Modifier.height(Spacing.xs))
-                Text(
-                    text = stringResource(R.string.onboarding_theme_circadian),
-                    style = MaterialTheme.typography.labelSmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    textAlign = TextAlign.Center,
-                    modifier = Modifier
-                        .reveal(progress, shiftDp = 8f)
-                        .padding(horizontal = Spacing.md),
-                )
-            }
-        },
+            ),
     )
 }
 
 /**
- * Лента света суток: пять срезов биофильной лестницы палитр — рассвет,
- * полдень, закат, вечер, ночь. Статичная полоса: смена палитры в ней
- * — это то, что пользователь увидит сам через сутки, а не то, что он
- * обязан высмотреть за секунду.
+ * Микроподпись слайда: маленькая строка с возможной иконкой.
+ *
+ * Это единственное место онбординга, где допустима иконка: она несёт
+ * фактическую информацию («речь о микрофоне», «речь о свете»), а не
+ * украшает. Цвет — вторичный текст, размер — минимальный.
  */
 @Composable
-private fun CircadianRibbon(
-    progress: Float,
+private fun CaptionRow(
+    text: String,
     modifier: Modifier = Modifier,
+    icon: (@Composable () -> Unit)? = null,
 ) {
-    // Часы выбраны как «световые события», а не равные интервалы:
-    // рассветный лёд, полдень, тёплый закат, вечер и глубокая ночь.
-    val hours = remember { listOf(6.5f, 13f, 18.5f, 22.5f, 2.5f) }
-    val colors = remember(hours) {
-        hours.map { hour ->
-            val palette = currentGradientPalette(
-                visualTheme = AmaliaVisualTheme.BIOPHILIC,
-                darkModePref = DarkModePreference.SYSTEM,
-                useBioTime = true,
-                hour = hour,
-            )
-            palette.stops.first().color
-        }
-    }
     Row(
         modifier = modifier
-            .fillMaxWidth()
-            .height(14.dp)
-            .reveal(progress, shiftDp = 8f)
-            .clip(RoundedCornerShape(Radius.chip)),
+            .padding(horizontal = Spacing.lg),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(Spacing.xs),
     ) {
-        colors.forEach { color ->
-            Box(
-                modifier = Modifier
-                    .weight(1f)
-                    .fillMaxSize()
-                    .background(
-                        Brush.verticalGradient(
-                            listOf(
-                                color,
-                                color.copy(alpha = color.alpha * 0.55f),
-                            ),
-                        ),
-                    ),
-            )
-        }
-    }
-}
-
-@Composable
-private fun ThemePreview(
-    palette: GradientPalette,
-    label: String,
-    accent: Color,
-    modifier: Modifier = Modifier,
-) {
-    val shape = RoundedCornerShape(Radius.md)
-    Column(
-        modifier = modifier
-            .clip(shape)
-            .glassSurface(shape = shape)
-            .semantics { contentDescription = label },
-    ) {
-        Box(
-            modifier = Modifier
-                .fillMaxWidth()
-                .height(112.dp)
-                .background(
-                    Brush.verticalGradient(
-                        colorStops = palette.stops
-                            .map { it.position to it.color }
-                            .toTypedArray(),
-                    ),
-                ),
-            contentAlignment = Alignment.Center,
-        ) {
-            Row(
-                horizontalArrangement = Arrangement.spacedBy(5.dp),
-                verticalAlignment = Alignment.CenterVertically,
-            ) {
-                repeat(5) { index ->
-                    val h = when (index) {
-                        2 -> 26.dp
-                        1, 3 -> 18.dp
-                        else -> 10.dp
-                    }
-                    Box(
-                        modifier = Modifier
-                            .size(width = 4.dp, height = h)
-                            .clip(RoundedCornerShape(Radius.chip))
-                            .background(accent.copy(alpha = if (index == 2) 1f else 0.5f)),
-                    )
-                }
-            }
+        if (icon != null) {
+            Box(modifier = Modifier.size(14.dp)) { icon() }
         }
         Text(
-            text = label,
-            style = MaterialTheme.typography.labelLarge,
-            color = MaterialTheme.colorScheme.onSurface,
+            text = text,
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.85f),
             textAlign = TextAlign.Center,
-            maxLines = 1,
-            overflow = TextOverflow.Ellipsis,
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(vertical = Spacing.sm, horizontal = Spacing.xs),
         )
-    }
-}
-
-// ============================================================
-//  СЛАЙД 4: FINISH ===========================================================
-// ============================================================
-
-@Composable
-private fun FinishSlide(
-    offset: Float,
-    active: Boolean,
-    animationsEnabled: Boolean,
-) {
-    SlideScaffold(
-        offset = offset,
-        active = active,
-        animationsEnabled = animationsEnabled,
-        title = stringResource(R.string.onboarding_finish_title),
-        description = stringResource(R.string.onboarding_finish_desc),
-        hero = { progress ->
-            Box(contentAlignment = Alignment.Center) {
-                // Орб с логотипом — тот же образ, что и на первом слайде:
-                // кольцо замкнулось, знакомство закончилось узнаванием.
-                Box(
-                    modifier = Modifier
-                        .size(148.dp)
-                        .reveal(progress, shiftDp = 10f)
-                        .accentGlow(MaterialTheme.colorScheme.primary, alpha = 0.32f, spread = 1.5f)
-                        .clip(CircleShape)
-                        .background(MaterialTheme.colorScheme.primary.copy(alpha = 0.16f)),
-                    contentAlignment = Alignment.Center,
-                ) {
-                    Image(
-                        painter = painterResource(R.drawable.amalia_logo),
-                        contentDescription = null,
-                        modifier = Modifier.size(112.dp),
-                        contentScale = ContentScale.Fit,
-                    )
-                }
-                // Галочка-бейдж на кромке орба: состояние «готово» читается
-                // и без текста, и не цветом — формой значка.
-                Box(
-                    modifier = Modifier
-                        .align(Alignment.TopEnd)
-                        .size(36.dp)
-                        .reveal(progress, shiftDp = 18f)
-                        .glassSurface(shape = CircleShape, elevated = true),
-                    contentAlignment = Alignment.Center,
-                ) {
-                    Icon(
-                        imageVector = Icons.Rounded.Check,
-                        contentDescription = null,
-                        tint = MaterialTheme.colorScheme.secondary,
-                        modifier = Modifier.size(20.dp),
-                    )
-                }
-            }
-        },
-    )
-}
-
-// ============================================================
-//  ОБЩИЙ КАРКАС СЛАЙДА =======================================================
-// ============================================================
-
-/**
- * Каркас слайда: герой-объект + заголовок + описание.
- *
- * Параллакс: герой смещается на 35% ширины, текст — на 12%.
- * Внутри слайда элементы появляются стаггером: герой (с его собственной
- * задержкой), затем заголовок, затем описание.
- */
-@Composable
-private fun SlideScaffold(
-    offset: Float,
-    active: Boolean,
-    animationsEnabled: Boolean,
-    title: String,
-    description: String,
-    modifier: Modifier = Modifier,
-    hero: @Composable (progress: Float) -> Unit,
-) {
-    val heroProgress = stagger(active, delayMs = 0, animationsEnabled = animationsEnabled)
-    val titleProgress = stagger(active, delayMs = 120, animationsEnabled = animationsEnabled)
-    val descProgress = stagger(active, delayMs = 220, animationsEnabled = animationsEnabled)
-
-    Column(
-        modifier = modifier
-            .fillMaxSize()
-            .padding(horizontal = Spacing.xxl),
-        horizontalAlignment = Alignment.CenterHorizontally,
-        verticalArrangement = Arrangement.Center,
-    ) {
-        Box(
-            modifier = Modifier.graphicsLayer {
-                translationX = offset * size.width * 0.35f
-            },
-            contentAlignment = Alignment.Center,
-        ) {
-            hero(heroProgress)
-        }
-        Spacer(Modifier.height(Spacing.xxl))
-        Column(
-            modifier = Modifier.graphicsLayer {
-                translationX = offset * size.width * 0.12f
-            },
-            horizontalAlignment = Alignment.CenterHorizontally,
-        ) {
-            Text(
-                text = title,
-                style = MaterialTheme.typography.headlineMedium,
-                color = MaterialTheme.colorScheme.onBackground,
-                textAlign = TextAlign.Center,
-                modifier = Modifier.reveal(titleProgress, shiftDp = 14f),
-            )
-            Spacer(Modifier.height(Spacing.sm))
-            Text(
-                text = description,
-                style = MaterialTheme.typography.bodyLarge,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                textAlign = TextAlign.Center,
-                modifier = Modifier.reveal(descProgress, shiftDp = 14f),
-            )
-        }
     }
 }
 
@@ -952,27 +628,22 @@ private fun OnboardingPreview(page: Int) {
     }
 }
 
-/** Слайд 0 — приветствие: логотип-орб и обещание. */
+/** Слайд 0 — приветствие: имя и обещание. */
 @Preview(name = "Onboarding · Welcome", widthDp = 412, heightDp = 915, showBackground = true)
 @Composable
 private fun OnboardingWelcomePreview() = OnboardingPreview(PAGE_WELCOME)
 
-/** Слайд 1 — голос: живая волна и микрофон. */
+/** Слайд 1 — жест и приватность. */
 @Preview(name = "Onboarding · Voice", widthDp = 412, heightDp = 915, showBackground = true)
 @Composable
 private fun OnboardingVoicePreview() = OnboardingPreview(PAGE_VOICE)
 
-/** Слайд 2 — управление устройством: каскад плиток. */
-@Preview(name = "Onboarding · Control", widthDp = 412, heightDp = 915, showBackground = true)
+/** Слайд 2 — живой свет: текущая ступень показывается фактом. */
+@Preview(name = "Onboarding · Light", widthDp = 412, heightDp = 915, showBackground = true)
 @Composable
-private fun OnboardingControlPreview() = OnboardingPreview(PAGE_CONTROL)
+private fun OnboardingLightPreview() = OnboardingPreview(PAGE_LIGHT)
 
-/** Слайд 3 — темы: сравнение палитр и лента циркадного света. */
-@Preview(name = "Onboarding · Themes", widthDp = 412, heightDp = 915, showBackground = true)
-@Composable
-private fun OnboardingThemesPreview() = OnboardingPreview(PAGE_THEMES)
-
-/** Слайд 4 — финал: орб с логотипом и CTA «Начать». */
+/** Слайд 3 — финал: CTA «Начать». */
 @Preview(name = "Onboarding · Finish", widthDp = 412, heightDp = 915, showBackground = true)
 @Composable
 private fun OnboardingFinishPreview() = OnboardingPreview(PAGE_FINISH)
@@ -980,4 +651,13 @@ private fun OnboardingFinishPreview() = OnboardingPreview(PAGE_FINISH)
 /** Компактный экран — проверка, что слайды не обрезаются на 640dp. */
 @Preview(name = "Onboarding · Compact", widthDp = 360, heightDp = 640, showBackground = true)
 @Composable
-private fun OnboardingCompactPreview() = OnboardingPreview(PAGE_CONTROL)
+private fun OnboardingCompactPreview() = OnboardingPreview(PAGE_LIGHT)
+
+/** Вечерний свет — проверка, что тёплые палитры читаются так же спокойно. */
+@Preview(name = "Onboarding · Evening", widthDp = 412, heightDp = 915, showBackground = true)
+@Composable
+private fun OnboardingEveningPreview() {
+    AmaliaTheme(useBioTime = true, userHourOverride = 21.5f) {
+        OnboardingPreview(PAGE_LIGHT)
+    }
+}

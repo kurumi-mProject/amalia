@@ -24,6 +24,8 @@
     <string name="onboarding_finish_title">كل شيء جاهز</string>
     <string name="onboarding_finish_desc">سأطلب إذن الميكروفون عند أول محادثة — كل شيء آخر جاهز. تحدّث فقط.</string>
     <string name="onboarding_theme_circadian">ضوء الواجهة يتبع وقت اليوم — من جليد الفجر إلى ليلة العنبر.</string>
+    <string name="onboarding_light_title">ضوء حي</string>
+    <string name="onboarding_voice_privacy">الميكروفون يعمل فقط عند الضغط عليه</string>
 
     <string name="guide_mic_title">زر الميكروفون</string>
     <string name="guide_mic_desc">اضغط باستمرار للتحدث معي</string>

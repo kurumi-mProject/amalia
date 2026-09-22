@@ -15,6 +15,8 @@
     <string name="onboarding_finish_title">Всё готово</string>
     <string name="onboarding_finish_desc">Микрофон попросим при первом разговоре — остальное уже настроено. Дальше просто говори.</string>
     <string name="onboarding_theme_circadian">Свет интерфейса едет за временем суток — от рассветного льда до янтарной ночи.</string>
+    <string name="onboarding_light_title">Живой свет</string>
+    <string name="onboarding_voice_privacy">Микрофон включается только по нажатию</string>
     <string name="onboarding_voice_title">Голос — главный интерфейс</string>
     <string name="onboarding_voice_desc">Нажми кнопку и говори. Я распознаю речь, подумаю и отвечу голосом.</string>
     <string name="onboarding_control_title">Управление устройством</string>

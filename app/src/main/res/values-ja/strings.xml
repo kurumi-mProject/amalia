@@ -24,6 +24,8 @@
     <string name="onboarding_finish_title">準備完了</string>
     <string name="onboarding_finish_desc">最初の会話でマイクの許可を求めます。あとは話しかけるだけ。</string>
     <string name="onboarding_theme_circadian">インターフェースの光は時間帯とともに移ろいます — 夜明けの氷から琥珀の夜まで。</string>
+    <string name="onboarding_light_title">生きた光</string>
+    <string name="onboarding_voice_privacy">マイクはタップした時だけ起動します</string>
 
     <string name="guide_mic_title">マイクボタン</string>
     <string name="guide_mic_desc">押し続けて私に話しかけて</string>

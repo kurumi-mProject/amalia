@@ -24,6 +24,8 @@
     <string name="onboarding_finish_title">All set</string>
     <string name="onboarding_finish_desc">I\'ll ask for the mic on our first talk — everything else is ready. Just speak.</string>
     <string name="onboarding_theme_circadian">Interface light follows the time of day — from dawn ice to amber night.</string>
+    <string name="onboarding_light_title">Living light</string>
+    <string name="onboarding_voice_privacy">The mic turns on only when you tap it</string>
 
     <string name="guide_mic_title">Microphone button</string>
     <string name="guide_mic_desc">Tap and hold to talk to me</string>
