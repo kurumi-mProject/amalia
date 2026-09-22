@@ -5,6 +5,7 @@ import androidx.compose.animation.ContentTransform
 import androidx.compose.animation.EnterTransition
 import androidx.compose.animation.ExitTransition
 import androidx.compose.animation.core.Animatable
+import androidx.compose.animation.core.FastOutSlowInEasing
 import androidx.compose.animation.core.LinearEasing
 import androidx.compose.animation.core.RepeatMode
 import androidx.compose.animation.core.animateFloat
@@ -35,9 +36,7 @@ import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import com.my.amali.domain.entity.WaveSettings
 import com.my.amali.ui.icons.AmaliaMic
-import kotlinx.coroutines.delay
-import kotlin.math.abs
-import kotlin.math.roundToLong
+import androidx.compose.runtime.withFrameNanos
 
 /**
  * Главный элемент экрана: микрофон в покое, волна в разговоре.
@@ -76,13 +75,12 @@ import kotlin.math.roundToLong
  * Уровень громкости приходит **пачками**: VAD отдаёт его по кадрам записи,
  * плеер — по аудио-чанкам. Между ними есть промежутки, и если рисовать
  * напрямую, волна дёргалась бы. Поэтому значение проходит через
- * [rememberSmoothedLevel]: оно плавно догоняет цель со скоростью из
- * настроек, и только потом попадает в отрисовку.
+ * [rememberSmoothedLevel] — покадровый экспоненциальный сглаживатель,
+ * скорость которого задаёт ползунок «сглаживание» из настроек.
  *
- * Спад при этом идёт быстрее подъёма (см. [smoothingStep] в `AmaliaWaveform`): пока звук есть,
- * волна должна успевать за ним точно, а когда он оборвался — садиться без
- * хвоста, но не рывком. Это разделение и есть ответ на требование «спад
- * быстрый, но плавный, не мгновенный и не медленный».
+ * Задержка всей цепочки — 2–3 кадра (35–50 мс): полосы двигаются **вместе
+ * с голосом**, а не через полсекунды после него. Спад при этом идёт быстрее
+ * подъёма (см. [smoothingStep]): после замолкания волна садится без хвоста.
  *
  * ════════════════════════════════════════════════════════════════════════
  *  ЖДЁМ МЕДИАНУ, А НЕ ЕДИНИЧНЫЙ ВСПЛЕСК
@@ -92,12 +90,9 @@ import kotlin.math.roundToLong
  * хлопнули дверью. Гнать эту цифру прямо в волну — значит показать то,
  * чего в речи не было. Поэтому цель вычисляется как **медиана последних
  * [LevelWindow] значений**: она устойчива к одиночным выбросам и при этом
- * точно описывает установившийся уровень — в отличие от скользящего
- * среднего, которое «размазывает» согласные.
- *
- * Окно живёт в изменяемом состоянии и обновляется в [LaunchedEffect] на
- * каждый новый уровень. Это не костыль: медиана — функция от истории, а
- * история по определению не может быть вычислена из одного текущего кадра.
+ * почти не добавляет задержки — окно в три значения при кадре записи
+ * 20–60 мс означает 1–1.5 кадра ожидания, то есть 20–90 мс, что глаз не
+ * отличает от «сразу».
  */
 @Composable
 fun AmaliaVoiceVisual(
@@ -135,12 +130,17 @@ fun AmaliaVoiceVisual(
         AnimatedContent(
             targetState = enabled,
             transitionSpec = {
-                // Оба направления — через масштаб, близкий к единице: в покое
-                // микрофон дышит в пределах ±4%, и переход с 0.86 в 1.0 давал
-                // рывок размера на ровном месте.
-                (fadeIn(tween(220)) + scaleIn(initialScale = 0.94f, animationSpec = tween(260)))
+                // Оба направления — длинное мягкое перекрытие: микрофон не
+                // «исчезает под волну», а тает, волна не «выпрыгивает»,
+                // а проявляется. Масштаб близок к единице (в покое микрофон
+                // дышит в пределах ±4% — прежний 0.94 давал рывок размера
+                // на ровном месте), easing — стандартный материаловский:
+                // он замедляется в конце, и вход читается как дыхание.
+                (fadeIn(tween(340, easing = FastOutSlowInEasing)) +
+                    scaleIn(initialScale = 0.96f, animationSpec = tween(380, easing = FastOutSlowInEasing)))
                     .togetherWith(
-                        fadeOut(tween(160)) + scaleOut(targetScale = 0.94f, animationSpec = tween(200)),
+                        fadeOut(tween(260, easing = FastOutSlowInEasing)) +
+                            scaleOut(targetScale = 0.96f, animationSpec = tween(300, easing = FastOutSlowInEasing)),
                     )
             },
             label = "voiceVisual",
@@ -172,30 +172,26 @@ private const val IdleBreathMs = 10_000
 /**
  * Плавно догоняет пришедший уровень громкости и держит строй в тишине.
  *
- * ## Почему [Animatable], а не пересчёт в композиции
+ * ## Архитектура: кадровый цикл + [Animatable.snapTo]
  *
- * Значение обновляется эффектом при изменении [level]. Если бы уровень
- * пересчитывался прямо в теле composable, каждый кадр громкости тянул бы
- * за собой рекомпозицию всего поддерева волны. [Animatable] живёт в
- * состоянии анимации и обновляется вне композиции: Canvas перерисовывается,
- * но не пересобирается.
+ * Один [androidx.compose.runtime.withFrameNanos]-цикл — единственный источник
+ * движения. На каждом кадре он читает свежую медиану окна (окно пополняется
+ * отдельным эффектом при приходе уровня) и делает **один шаг**
+ * экспоненциального приближения к цели через [smoothingForFrame].
  *
- * ## Почему длительность считается от расстояния
- *
- * Фиксированное время для всех переходов давало бы одинаково вялый отклик
- * на тихий слог и на громкий вскрик. Здесь длительность пропорциональна
- * расстоянию до цели: резкий хлопок доходит быстро, тихая речь — мягко.
- * Это поведение аналогового индикатора, и оно читается естественнее
- * постоянного времени анимации.
+ * Почему не `tween`-пересчёты на каждое обновление уровня, как раньше:
+ * каждая смена уровня отменяла недоигранную анимацию и заводила новую,
+ * с длительностью, пересчитанной от расстояния. Сумма этих «незавершений»
+ * и медианного окна давала на экране ту самую задержку в полсекунды, за
+ * которую волну справедливо браковали. Шаг за кадр не накапливает ничего:
+ * каждый кадр независимо подтягивает значение к цели — и волна отвечает
+ * за 2–3 кадра.
  *
  * ## Почему спад короче подъёма
  *
- * При базовом сглаживании 0.22 полное падение занимает 119 мс против
- * 310 мс подъёма, а малый скачок между слогами — 52 мс против 135. Это и
- * есть требуемое поведение: волна успевает прорисовать каждое слово, но
- * после него не оставляет затухающего хвоста. Мгновенным такой спад не
- * выглядит (порог, после которого изменение читается как скачок, — 100 мс),
- * а медленным уж точно: 119 мс на полный ход полосы.
+ * [smoothingForFrame] умножает шаг сглаживания на [DecayShare] при спаде:
+ * звук кончился — волна садится почти сразу, но по кривой, а не рывком.
+ * Это то же правило, что проверяют инварианты волны.
  */
 @Composable
 private fun rememberSmoothedLevel(
@@ -207,59 +203,50 @@ private fun rememberSmoothedLevel(
     val smoothing by rememberUpdatedState(settings.smoothing)
     val animator = remember { Animatable(0f) }
 
-    // Медианное окно. Хранится в обычном состоянии: пять чисел, пересборка
-    // массива дешевле, чем ловить мутации в общем буфере. Значение окна
-    // намеренно НЕ участвует в ключах эффектов — оно и есть их результат.
+    // Медианное окно. Хранится в обычном состоянии: три числа, пересборка
+    // массива дешевле, чем ловить мутации в общем буфере. Пополняется
+    // эффектом ниже — на каждый ПРИХОДЯЩИЙ уровень, а не на каждый кадр.
     var window by remember { mutableStateOf(FloatArray(LevelWindow)) }
 
+    // Приход уровня: окно пополняется сразу, чтобы кадровый цикл ниже
+    // читал самую свежую медиану. Отдельный эффект, а не строка в кадровом
+    // цикле: уровни приходят в своём темпе (20–60 мс), кадры — в своём (16 мс),
+    // и смешивать эти темпы значило бы терять уровни между кадрами.
+    LaunchedEffect(target) {
+        window = (window + target).takeLast(LevelWindow).toFloatArray()
+    }
+
+    // Кадровый цикл. Живёт, пока волна включена; каждый кадр делает один
+    // шаг к медиане окна. Длительность шага — из [smoothingForFrame], то
+    // есть из ползунка настроек: 0.6 — отклик за 2–3 кадра, 0.05 — текучая
+    // лава. Реальное время между кадрами измеряется и передаётся в шаг,
+    // поэтому на 120 Гц волна не «двигается вдвое быстрее», чем на 60.
     LaunchedEffect(enabled) {
-        // При выключении волна обязана уйти в ноль, иначе последняя высота
-        // «застынет» и при следующем включении полосы прыгнут.
         if (!enabled) {
             window = FloatArray(LevelWindow)
             animator.snapTo(0f)
+            return@LaunchedEffect
         }
-    }
-
-    // Ключ — сам уровень и признак включённости. Пока уровень не менялся,
-    // эффект не перезапускается, и анимация успевает доиграть до цели: иначе
-    // частые рекомпозиции отрывали бы полосы от значения, к которому они идут.
-    //
-    // Частота кадров анимации ограничена [LevelFrameMs] через `delay` в конце
-    // каждой итерации: смена уровня приходит десятки раз в секунду, и запуск
-    // новой анимации на каждое значение — это дёргание полос сразу после
-    // каждой смены громкости. Здесь между обновлениями проходит ровно один
-    // кадр 60 Гц, и волна идёт ровно.
-    LaunchedEffect(target, enabled) {
-        if (!enabled) return@LaunchedEffect
-        window = (window + target).takeLast(LevelWindow).toFloatArray()
-        val stable = median(window)
-        val distance = abs(stable - animator.value)
-        // Направление берётся по разнице цели и текущего значения: спад и
-        // подъём имеют разную скорость, и определять направление по знаку
-        // производной уровня ненадёжно — цель уже прошла через медиану.
-        val rising = stable >= animator.value
-        val baseMs = MinDurationMs + (1f - smoothing) * SpanMs * distance.coerceAtMost(1f)
-        // Спад короче подъёма ровно во столько раз, во сколько различаются
-        // шаги сглаживания (ожидаемое значение — DecayShare из 2.6 с
-        // ослаблением к краям диапазона настроек).
-        val decayRatio = smoothingStep(smoothing, rising = false) /
-            smoothingStep(smoothing, rising = true)
-        val durationMs = (if (rising) baseMs else baseMs / decayRatio)
-            .roundToLong()
-            .coerceIn(MinDurationMs / 2, MaxDurationMs)
-        animator.animateTo(
-            targetValue = stable,
-            animationSpec = tween(durationMillis = durationMs.toInt(), easing = LinearEasing),
-        )
-        delay(LevelFrameMs)
+        var lastFrame = withFrameNanos { it }
+        while (true) {
+            withFrameNanos { now ->
+                val delta = ((now - lastFrame).coerceAtLeast(1L)) / 1_000_000_000f
+                lastFrame = now
+                val stable = median(window)
+                val current = animator.value
+                val rising = stable >= current
+                val step = smoothingForFrame(smoothing, delta, rising)
+                val next = current + (stable - current) * step
+                if (next != current) animator.snapTo(next)
+            }
+        }
     }
 
     return animator.value
 }
 
-/** Один кадр 60 Гц между обновлениями уровня. */
-private const val LevelFrameMs = 16L
+/** Размер окна медианы: три чанка гасят одиночный выброс почти без задержки. */
+private const val LevelWindow = 3
 
 /** Медиана окна уровней: устойчива к одиночным всплескам, в отличие от среднего. */
 private fun median(values: FloatArray): Float {
@@ -268,18 +255,6 @@ private fun median(values: FloatArray): Float {
     sorted.sort()
     return sorted[sorted.size / 2]
 }
-
-/** Размер окна медианы: пять чанков ≈ 100 мс истории при кадре 20 мс. */
-private const val LevelWindow = 5
-
-/** Нижняя граница длительности анимации уровня, миллисекунды. */
-private const val MinDurationMs = 60L
-
-/** Разброс длительности поверх минимума: 320 мс, уменьшается сглаживанием. */
-private const val SpanMs = 320f
-
-/** Верхняя граница длительности: дольше — уже не реакция, а инерция. */
-private const val MaxDurationMs = 420L
 
 /**
  * Оператор для одновременного описания входа и выхода в [AnimatedContent].

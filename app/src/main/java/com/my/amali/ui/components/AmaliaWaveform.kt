@@ -232,10 +232,6 @@ private fun DrawScope.drawWaveform(
 
     val spikeWidth = settings.spikeWidth.dp.toPx().coerceAtLeast(1f)
     val gapPx = settings.spikeGap.dp.toPx().coerceAtLeast(0f)
-    val corner = CornerRadius(
-        x = settings.cornerRadius.dp.toPx(),
-        y = settings.cornerRadius.dp.toPx(),
-    )
 
     // Реальная ширина полосы подгоняется под холст: пользовательская ширина
     // задаёт пропорцию, а суммарный размер волны — размер экрана.
@@ -247,6 +243,17 @@ private fun DrawScope.drawWaveform(
     val usedWidth = count * spikeW + (count - 1) * gap
     val startX = (canvasWidth - usedWidth) / 2f
     val centerY = canvasHeight / 2f
+
+    // Скругление масштабируется вместе с полосами — иначе ползунок радиуса
+    // «не работает»: полоса после подгонки под холст бывает шире 3–4px,
+    // и нескалированный радиус 8dp всегда упирался в капсулу. С масштабом
+    // 0 → острый прямоугольник, максимум → капсула, и всё между ними
+    // реально различимо на экране.
+    val cornerPx = settings.cornerRadius.dp.toPx() * scale
+    val corner = CornerRadius(
+        x = cornerPx.coerceAtMost(spikeW / 2f),
+        y = cornerPx.coerceAtMost(spikeW / 2f),
+    )
 
     // Минимальная высота — «спокойная линия». Полоса никогда не исчезает
     // полностью: пустое место читается как «микрофон сломался».

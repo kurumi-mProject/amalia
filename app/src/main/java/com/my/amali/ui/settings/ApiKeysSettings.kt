@@ -16,6 +16,7 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
@@ -236,13 +237,6 @@ fun ApiKeysSettings(
 }
 
 /**
- * Сводка по ключам сверху: сколько провайдеров уже настроено.
- *
- * Пользователь приходит сюда с конкретным вопросом «почему молчит», и
- * ответ должен быть виден до прокрутки: галочка и число настроенных
- * провайдеров.
- */
-/**
  * Карточка выбора «мозга» Амалии.
  *
  * ════════════════════════════════════════════════════════════════════════
@@ -279,7 +273,10 @@ private fun AiProfileCard(
             style = MaterialTheme.typography.bodySmall,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
         )
-        Spacer(Modifier.height(Spacing.sm))
+        // Воздух между шапкой и первым вариантом: 16dp, а не 12dp —
+        // заголовок и описание «относятся к обоим вариантам», и без
+        // этого зазора первый вариант прилипал к описанию.
+        Spacer(Modifier.height(Spacing.md))
 
         ProfileOption(
             icon = Icons.Rounded.Bolt,
@@ -289,7 +286,9 @@ private fun AiProfileCard(
             enabled = true,
             onClick = { onSelect(AiProfile.GROQ) },
         )
-        Spacer(Modifier.height(Spacing.xs))
+        // 12dp между вариантами: у каждого своя рамка, и на 8dp рамки
+        // читались как один слитый блок — «варианты слиплись».
+        Spacer(Modifier.height(Spacing.sm))
         ProfileOption(
             icon = Icons.Rounded.Dns,
             title = stringResource(
@@ -362,7 +361,11 @@ private fun ProfileOption(
             .background(background)
             .border(1.dp, border, RoundedCornerShape(Radius.md))
             .clickable(enabled = enabled, onClick = onClick)
-            .padding(Spacing.sm)
+            // 16dp вместо 12dp: строка с рамкой требует внутреннего воздуха,
+            // иначе заголовок упирается в контур и вариант читается сжатым.
+            // Минимальная высота 56dp — тач-зона выше системного минимума.
+            .heightIn(min = 56.dp)
+            .padding(Spacing.md)
             .semantics { role = Role.RadioButton },
         verticalAlignment = Alignment.CenterVertically,
     ) {

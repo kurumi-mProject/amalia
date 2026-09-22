@@ -12,6 +12,7 @@
     <!-- === Онбординг === -->
     <string name="onboarding_welcome_title">Привет, я Амалия</string>
     <string name="onboarding_welcome_desc">Твой голосовой ассистент. Слушаю, думаю, отвечаю — и управляю устройством.</string>
+    <string name="onboarding_finish_title">Всё готово</string>
     <string name="onboarding_voice_title">Голос — главный интерфейс</string>
     <string name="onboarding_voice_desc">Нажми кнопку и говори. Я распознаю речь, подумаю и отвечу голосом.</string>
     <string name="onboarding_control_title">Управление устройством</string>
@@ -183,7 +184,8 @@
     <string name="permission_bluetooth_rationale">Доступ к Bluetooth нужен для управления устройствами.</string>
     <string name="permission_storage_rationale">Доступ к медиафайлам нужен для команд «покажи фото» и «включи музыку».</string>
     <string name="permission_grant">Предоставить</string>
-    <string name="permission_deny">Отклонить</string>
+    <string name="permission_write_settings_title">Системные настройки</string>
+    <string name="permission_write_settings_rationale">Право менять системные параметры — яркость и подобные. Амалия меняет их только по твоей голосовой команде, но разрешить должен ты сам: это настройки всего телефона.</string>    <string name="permission_deny">Отклонить</string>
     <string name="permission_open_settings">Открыть настройки</string>
     <string name="permission_permanently_denied">Разрешение отклонено. Включи его в настройках приложения.</string>
 
@@ -440,7 +442,7 @@
     <string name="settings_wave_height">Максимальная высота</string>
     <string name="settings_wave_height_desc">Высота полосы при самой громкой речи</string>
     <string name="settings_wave_radius">Скругление концов</string>
-    <string name="settings_wave_radius_desc">Больше половины ширины — и полоса становится капсулой</string>
+    <string name="settings_wave_radius_desc">От острого прямоугольника до капсулы; масштабируется вместе с полосой</string>
     <string name="settings_wave_section_react">Реакция</string>
     <string name="settings_wave_section_talk">Разговор</string>
     <string name="settings_wave_sensitivity">Чувствительность</string>

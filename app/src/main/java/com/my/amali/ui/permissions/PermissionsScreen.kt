@@ -24,6 +24,7 @@ import androidx.compose.material.icons.rounded.Mic
 import androidx.compose.material.icons.rounded.MusicNote
 import androidx.compose.material.icons.rounded.Notifications
 import androidx.compose.material.icons.rounded.PhotoCamera
+import androidx.compose.material.icons.rounded.Tune
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -179,12 +180,45 @@ fun PermissionsScreen(
                     )
                 }
             }
+            // ── Системные настройки (WRITE_SETTINGS) ────────────────────
+            //
+            // Это не runtime-разрешение из [AmaliaPermission]: у него нет
+            // манифестной строки и системного диалога. Право выдаётся на
+            // отдельном системном экране, поэтому и карточка здесь
+            // отдельная — с прямым ведением на этот экран.
+            //
+            // Зачем: без него Амалия не может выполнить «убавь яркость» —
+            // её голосовые команды упираются в отказ системы. Право меняет
+            // настройки всего телефона, поэтому решение всегда за
+            // человеком: приложение не может выдать его себе само.
+            item(key = "write_settings") {
+                val canWrite = remember(refreshTick) {
+                    android.provider.Settings.System.canWrite(context)
+                }
+                PermissionCard(
+                    icon = Icons.Rounded.Tune,
+                    title = stringResource(R.string.permission_write_settings_title),
+                    rationale = stringResource(R.string.permission_write_settings_rationale),
+                    granted = canWrite,
+                    grantLabel = stringResource(R.string.permission_grant),
+                    grantedLabel = stringResource(R.string.device_status_on),
+                    onGrant = {
+                        runCatching {
+                            context.startActivity(
+                                android.content.Intent(
+                                    android.provider.Settings.ACTION_MANAGE_WRITE_SETTINGS,
+                                    android.net.Uri.parse("package:${context.packageName}"),
+                                ).addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK),
+                            )
+                        }
+                    },
+                )
+            }
             items(ordered, key = { it.name }) { permission ->
                 PermissionCardItem(
                     permission = permission,
                     granted = statuses[permission] == true,
-                    onRequest = { target ->
-                        // Запрос идёт через единственный лончер экрана.
+                    onRequest = { target ->                        // Запрос идёт через единственный лончер экрана.
                         // Проверяем валидность до `launch`: на API ниже
                         // требуемого `manifestPermission` равен null, и
                         // `launch(null)` бросает IllegalArgumentException.

@@ -13,6 +13,7 @@ import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.slideInHorizontally
 import androidx.compose.animation.slideOutHorizontally
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Arrangement
@@ -34,9 +35,7 @@ import androidx.compose.foundation.pager.rememberPagerState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.rounded.AutoAwesome
-import androidx.compose.material.icons.rounded.Bluetooth
-import androidx.compose.material.icons.rounded.BrightnessMedium
+import androidx.compose.material.icons.rounded.Bluetoothimport androidx.compose.material.icons.rounded.BrightnessMedium
 import androidx.compose.material.icons.rounded.CheckCircle
 import androidx.compose.material.icons.rounded.Mic
 import androidx.compose.material.icons.automirrored.rounded.VolumeUp
@@ -57,6 +56,8 @@ import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
@@ -170,11 +171,14 @@ fun OnboardingScreenContent(
     modifier: Modifier = Modifier,
 ) {
     Box(modifier = modifier.fillMaxSize()) {
-        // Онбординг всегда в «стекле»: у пользователя ещё нет настроек,
-        // а первое впечатление должно быть одним и тем же на любом устройстве.
+        // Фон онбординга — живой и адаптивный: палитра приходит из темы
+        // (LocalAmaliaPalette), а та рассчитывается по времени суток, когда
+        // включена циркадная адаптация (она включена по умолчанию). Первый
+        // вход вечером даёт тёплый вечерний свет, утром — прохладное утро:
+        // первое впечатление совпадает с тем, что человек увидит дальше
+        // на главном экране.
         GradientBackground(
             modifier = Modifier.fillMaxSize(),
-            palette = GlassGradientPalette,
             motif = AmaliaMotif.AUTO,
             motifDensity = 0.8f,
         )
@@ -277,14 +281,6 @@ private fun WelcomeSlide(offset: Float) {
                     spread = 1.5f,
                 )
                 .clip(CircleShape)
-                .background(
-                    Brush.radialGradient(
-                        listOf(
-                            MaterialTheme.colorScheme.primary.copy(alpha = 0.30f),
-                            Color.Transparent,
-                        ),
-                    ),
-                )
                 .border(
                     width = 1.dp,
                     brush = Brush.linearGradient(
@@ -297,11 +293,15 @@ private fun WelcomeSlide(offset: Float) {
                 ),
             contentAlignment = Alignment.Center,
         ) {
-            Icon(
-                imageVector = Icons.Rounded.AutoAwesome,
+            // Настоящая иконка приложения вместо абстрактного глифа: то,
+            // что человек видел на рабочем столе, и то, что он видит здесь, —
+            // один образ. Знакомство начинается с узнавания, а не с вопроса
+            // «что это за значок».
+            Image(
+                painter = painterResource(R.drawable.ic_launcher_background),
                 contentDescription = null,
-                tint = MaterialTheme.colorScheme.secondary,
-                modifier = Modifier.size(58.dp),
+                modifier = Modifier.fillMaxSize(),
+                contentScale = ContentScale.Crop,
             )
         }
     }
@@ -504,7 +504,7 @@ private fun ThemePreview(
 private fun FinishSlide(offset: Float) {
     SlideScaffold(
         offset = offset,
-        title = stringResource(R.string.onboarding_welcome_title),
+        title = stringResource(R.string.onboarding_finish_title),
         description = stringResource(R.string.assistant_welcome_desc),
     ) {
         Box(
