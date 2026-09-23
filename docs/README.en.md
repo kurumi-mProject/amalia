@@ -8,6 +8,8 @@
 
 *Feels alive. Responds instantly. Lives on your phone.*
 
+🌐 **[mirabel.tech](https://mirabel.tech)** — official website: download the APK, live pipeline demo, FAQ
+
 [![Build](https://github.com/kurumi-mProject/amalia/actions/workflows/build.yml/badge.svg)](https://github.com/kurumi-mProject/amalia/actions)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](../LICENSE)
 [![Android](https://img.shields.io/badge/Android-8.0%2B-green.svg)](https://android.com)

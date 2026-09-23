@@ -8,6 +8,8 @@
 
 *Живая. Отвечает мгновенно. Живёт на твоём телефоне.*
 
+🌐 **[mirabel.tech](https://mirabel.tech)** — сайт проекта: скачать APK, живое демо пайплайна, FAQ
+
 [![Build](https://github.com/kurumi-mProject/amalia/actions/workflows/build.yml/badge.svg)](https://github.com/kurumi-mProject/amalia/actions)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](../LICENSE)
 [![Android](https://img.shields.io/badge/Android-8.0%2B-green.svg)](https://android.com)
